@@ -1,5 +1,6 @@
 "use client";
 
+import { Plus, Users } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -7,18 +8,20 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createWebApiClient } from "@/lib/api";
-import { readApiError } from "@/lib/errors";
 import { authClient } from "@/lib/auth-client";
+import { readApiError } from "@/lib/errors";
+
+function initialsFrom(name: string, email: string): string {
+  const source = (name.trim() || email).trim();
+  const parts = source.split(/[\s@.]+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0]?.[0] ?? ""}${parts[1]?.[0] ?? ""}`.toUpperCase();
+  }
+  return source.slice(0, 2).toUpperCase() || "MK";
+}
 
 export default function KitchenDetailsPage() {
   const params = useParams<{ id: string }>();
@@ -83,7 +86,9 @@ export default function KitchenDetailsPage() {
         },
       );
       if (error) {
-        throw new Error(readApiError(error, "Nie udało się utworzyć zaproszenia."));
+        throw new Error(
+          readApiError(error, "Nie udało się utworzyć zaproszenia."),
+        );
       }
       if (!data) {
         throw new Error("API nie zwróciło zaproszenia.");
@@ -106,7 +111,9 @@ export default function KitchenDetailsPage() {
         { params: { path: { kitchenId, inviteId } } },
       );
       if (error) {
-        throw new Error(readApiError(error, "Nie udało się unieważnić zaproszenia."));
+        throw new Error(
+          readApiError(error, "Nie udało się unieważnić zaproszenia."),
+        );
       }
     },
     onSuccess: async () => {
@@ -131,7 +138,6 @@ export default function KitchenDetailsPage() {
     onSuccess: async () => {
       setConfirmDelete(false);
       await queryClient.invalidateQueries({ queryKey: ["kitchens"] });
-      await queryClient.removeQueries({ queryKey: ["kitchen", kitchenId] });
       router.push("/kitchens");
     },
   });
@@ -141,23 +147,29 @@ export default function KitchenDetailsPage() {
     inviteMutation.mutate(email.trim());
   }
 
+  const pendingInvites = (invitesQuery.data ?? []).filter(
+    (invite) => !invite.acceptedAt && !invite.revokedAt,
+  );
+
   return (
     <AppShell kitchenId={kitchenId}>
       {detailsQuery.isPending ? (
-        <p className="text-sm text-muted-foreground">Ładowanie kuchni…</p>
+        <p className="text-sm text-gray-500">Ładowanie kuchni…</p>
       ) : null}
       {detailsQuery.isError ? (
-        <p className="text-sm text-destructive" role="alert">
+        <p className="text-sm text-red-600" role="alert">
           {readApiError(detailsQuery.error)}
         </p>
       ) : null}
       {detailsQuery.data ? (
-        <div className="space-y-6">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="mx-auto max-w-4xl space-y-8">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h1 className="text-2xl font-semibold">{detailsQuery.data.name}</h1>
-              <p className="text-sm text-muted-foreground">
-                Członkowie i zaproszenia. Zmiana właściciela nie jest dostępna.
+              <h1 className="mb-2 text-2xl font-bold text-gray-900">
+                Zarządzanie dostępem: {detailsQuery.data.name}
+              </h1>
+              <p className="text-gray-500">
+                Zaproś domowników do wspólnego zarządzania tą kuchnią.
               </p>
             </div>
             {isOwner ? (
@@ -172,110 +184,140 @@ export default function KitchenDetailsPage() {
           </div>
 
           {deleteMutation.error ? (
-            <p className="text-sm text-destructive" role="alert">
+            <p className="text-sm text-red-600" role="alert">
               {readApiError(deleteMutation.error)}
             </p>
           ) : null}
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Członkowie</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
+          <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+            <div className="border-b border-gray-50 bg-gray-50/50 p-5">
+              <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
+                <Users size={20} className="text-emerald-600" /> Obecni
+                domownicy
+              </h2>
+            </div>
+            <div>
               {detailsQuery.data.members.map((member) => (
                 <div
                   key={member.userId}
-                  className="flex flex-col rounded-md border px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex items-center justify-between border-b border-gray-100 p-4 transition-colors last:border-0 hover:bg-gray-50"
                 >
-                  <div>
-                    <p className="font-medium">{member.name}</p>
-                    <p className="text-sm text-muted-foreground">{member.email}</p>
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 font-bold text-emerald-700">
+                      {initialsFrom(member.name, member.email)}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-gray-900">
+                        {member.name}
+                      </p>
+                      <p className="text-sm text-gray-500">{member.email}</p>
+                    </div>
                   </div>
-                  <p className="text-sm">
+                  <span className="rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
                     {member.role === "owner" ? "Właściciel" : "Członek"}
-                  </p>
+                  </span>
                 </div>
               ))}
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
           {isOwner ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Zaproszenia</CardTitle>
-                <CardDescription>
-                  Zaprosić można wyłącznie jako członka. Link z tokenem pokazywany
-                  jest tylko raz — skopiuj go od razu.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <form onSubmit={onInvite} className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                  <div className="flex-1 space-y-2">
-                    <Label htmlFor="invite-email">E-mail zapraszanej osoby</Label>
+            <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+              <div className="border-b border-gray-50 bg-gray-50/50 p-5">
+                <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
+                  <Plus size={20} className="text-emerald-600" /> Zaproś do
+                  kuchni
+                </h2>
+                <p className="mt-1 text-sm text-gray-500">
+                  Wyślij link aktywacyjny znajomemu lub rodzinie.
+                </p>
+              </div>
+              <div className="p-6">
+                <form
+                  onSubmit={onInvite}
+                  className="flex flex-col gap-4 sm:flex-row"
+                >
+                  <div className="flex-1">
+                    <Label htmlFor="invite-email">
+                      E-mail zapraszanej osoby
+                    </Label>
                     <Input
                       id="invite-email"
                       name="email"
                       type="email"
                       required
+                      placeholder="adres@email.com"
                       value={email}
                       onChange={(event) => setEmail(event.target.value)}
                     />
                   </div>
-                  <Button type="submit" disabled={inviteMutation.isPending}>
-                    {inviteMutation.isPending ? "Tworzenie…" : "Utwórz i kopiuj link"}
-                  </Button>
+                  <div className="flex items-end">
+                    <Button
+                      type="submit"
+                      className="w-full whitespace-nowrap sm:w-auto"
+                      disabled={inviteMutation.isPending}
+                    >
+                      {inviteMutation.isPending ? "Tworzenie…" : "Utwórz link"}
+                    </Button>
+                  </div>
                 </form>
                 {inviteMutation.error ? (
-                  <p className="text-sm text-destructive" role="alert">
+                  <p className="mt-3 text-sm text-red-600" role="alert">
                     {readApiError(inviteMutation.error)}
                   </p>
                 ) : null}
                 {copiedId ? (
-                  <p className="text-sm text-muted-foreground">
+                  <p className="mt-3 text-sm text-emerald-700">
                     Link zaproszenia skopiowano do schowka.
                   </p>
                 ) : null}
-                {invitesQuery.isPending ? (
-                  <p className="text-sm text-muted-foreground">Ładowanie zaproszeń…</p>
-                ) : null}
-                {(invitesQuery.data ?? []).length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    Brak zaproszeń.
-                  </p>
-                ) : null}
-                <ul className="space-y-2">
-                  {(invitesQuery.data ?? []).map((invite) => (
-                    <li
-                      key={invite.id}
-                      className="flex flex-col gap-2 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <div>
-                        <p className="font-medium">{invite.email}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {invite.acceptedAt
-                            ? "Przyjęte"
-                            : invite.revokedAt
-                              ? "Unieważnione"
-                              : `Wygasa ${new Date(invite.expiresAt).toLocaleString("pl-PL")}`}
-                        </p>
-                      </div>
-                      {!invite.acceptedAt && !invite.revokedAt ? (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => revokeMutation.mutate(invite.id)}
-                          disabled={revokeMutation.isPending}
+
+                <div className="mt-8 border-t border-gray-100 pt-6">
+                  <h3 className="mb-4 text-sm font-semibold text-gray-900">
+                    Oczekujące zaproszenia
+                  </h3>
+                  {invitesQuery.isPending ? (
+                    <p className="text-sm text-gray-500">Ładowanie…</p>
+                  ) : null}
+                  {pendingInvites.length === 0 ? (
+                    <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 py-4 text-center text-sm text-gray-500">
+                      Brak oczekujących zaproszeń.
+                    </div>
+                  ) : (
+                    <ul className="space-y-2">
+                      {pendingInvites.map((invite) => (
+                        <li
+                          key={invite.id}
+                          className="flex flex-col gap-2 rounded-xl border border-gray-100 p-3 sm:flex-row sm:items-center sm:justify-between"
                         >
-                          Unieważnij
-                        </Button>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
+                          <div>
+                            <p className="font-medium text-gray-900">
+                              {invite.email}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                              Wygasa{" "}
+                              {new Date(invite.expiresAt).toLocaleString(
+                                "pl-PL",
+                              )}
+                            </p>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => revokeMutation.mutate(invite.id)}
+                            disabled={revokeMutation.isPending}
+                          >
+                            Unieważnij
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </section>
           ) : (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-gray-500">
               Zapraszać może wyłącznie właściciel kuchni.
             </p>
           )}

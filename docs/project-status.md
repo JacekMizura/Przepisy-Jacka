@@ -21,7 +21,7 @@ Nie wymagamy identycznego patcha `18.6` lokalnie ani w CI — tylko major 18.
 - monorepo pnpm + Turborepo,
 - `apps/api` — NestJS + Fastify, prefix `/api`, Better Auth, Prisma, kuchnie, zaproszenia, produkty, partie zapasów, `GET /api/health`, walidacja env, CORS, Swagger poza produkcją,
 - `packages/api-client` — `openapi-fetch` + typy z OpenAPI dla endpointów domenowych,
-- `apps/web` — logowanie, rejestracja, kuchnie (w tym usuwanie przez ownera), zaproszenia, zapasy; względne `/api/*` przez serwerowy proxy do `API_ORIGIN`,
+- `apps/web` — layout sidebar (Moja Kuchnia / zapasy / przepisy placeholder / domownicy), logowanie, rejestracja, kuchnie (w tym usuwanie przez ownera), zaproszenia, zapasy; względne `/api/*` przez serwerowy proxy do `API_ORIGIN`,
 - `apps/mobile` — ekran kontrolny health z `EXPO_PUBLIC_API_URL` (bez zmian funkcjonalnych w tym etapie),
 - lokalny PostgreSQL 18 przez `docker-compose.yml`,
 - GitHub Actions: Postgres 18, migracje, OpenAPI, lint, typecheck, unit, e2e API, black-box Next, build, mobile,

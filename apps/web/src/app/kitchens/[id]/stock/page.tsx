@@ -1,5 +1,6 @@
 "use client";
 
+import { Calendar, MapPin, Package, Plus } from "lucide-react";
 import { useParams } from "next/navigation";
 import { type FormEvent, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -7,13 +8,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createWebApiClient } from "@/lib/api";
@@ -29,6 +23,12 @@ import {
 
 type LocationFilter = "" | keyof typeof LOCATION_LABELS;
 
+const UNIT_OPTION_LABELS: Record<BaseUnit, string> = {
+  gram: "gramy (g)",
+  piece: "sztuki (szt)",
+  milliliter: "mililitry (ml)",
+};
+
 export default function StockPage() {
   const params = useParams<{ id: string }>();
   const kitchenId = params.id;
@@ -39,7 +39,8 @@ export default function StockPage() {
   const [selectedProductId, setSelectedProductId] = useState("");
   const [quantity, setQuantity] = useState("");
   const [inputUnit, setInputUnit] = useState<InputUnit>("gram");
-  const [location, setLocation] = useState<keyof typeof LOCATION_LABELS>("pantry");
+  const [location, setLocation] =
+    useState<keyof typeof LOCATION_LABELS>("pantry");
   const [price, setPrice] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
   const [purchasedAt, setPurchasedAt] = useState("");
@@ -91,7 +92,8 @@ export default function StockPage() {
   });
 
   const selectedProduct = useMemo(
-    () => productsQuery.data?.find((product) => product.id === selectedProductId),
+    () =>
+      productsQuery.data?.find((product) => product.id === selectedProductId),
     [productsQuery.data, selectedProductId],
   );
 
@@ -166,13 +168,13 @@ export default function StockPage() {
       setPrice("");
       setFormError(null);
     },
+    onError: (error) => {
+      setFormError(readApiError(error));
+    },
   });
 
   const updateStock = useMutation({
     mutationFn: async (stockItemId: string) => {
-      if (!selectedProduct && !editingId) {
-        throw new Error("Brak partii do edycji.");
-      }
       const product = productsQuery.data?.find((item) => {
         const stock = stockQuery.data?.find((entry) => entry.id === stockItemId);
         return stock && item.id === stock.productId;
@@ -197,7 +199,9 @@ export default function StockPage() {
         },
       );
       if (error) {
-        throw new Error(readApiError(error, "Nie udało się zaktualizować partii."));
+        throw new Error(
+          readApiError(error, "Nie udało się zaktualizować partii."),
+        );
       }
     },
     onSuccess: async () => {
@@ -261,76 +265,88 @@ export default function StockPage() {
 
   return (
     <AppShell kitchenId={kitchenId}>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold">Zapasy</h1>
-          <p className="text-sm text-muted-foreground">
-            Ilości wysyłane do API są w jednostkach bazowych: sztuki, gramy albo
-            mililitry. Kilogramy i litry są przeliczane w przeglądarce.
-          </p>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Nowy produkt</CardTitle>
-            <CardDescription>
-              Nazwy „Mleko” i „ mleko ” to ten sam produkt.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={onCreateProduct} className="grid gap-3 sm:grid-cols-3">
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="product-name">Nazwa</Label>
+      <div className="mx-auto max-w-5xl space-y-8">
+        <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+          <div className="border-b border-gray-50 bg-gray-50/50 p-5">
+            <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
+              <Plus size={20} className="text-emerald-600" /> Nowy produkt
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Dodaj do ogólnego katalogu (np. Mleko, Ryż).
+            </p>
+          </div>
+          <div className="p-6">
+            <form
+              onSubmit={onCreateProduct}
+              className="grid grid-cols-1 gap-6 md:grid-cols-2"
+            >
+              <div>
+                <Label htmlFor="product-name">Nazwa produktu</Label>
                 <Input
                   id="product-name"
+                  placeholder="np. Mleko UHT 3.2%"
                   value={productName}
                   onChange={(event) => setProductName(event.target.value)}
                   required
                 />
               </div>
-              <div className="space-y-2">
+              <div>
                 <Label htmlFor="product-unit">Jednostka bazowa</Label>
                 <select
                   id="product-unit"
-                  className="h-10 w-full rounded-md border border-border bg-card px-2 text-sm"
+                  className="field-input"
                   value={productUnit}
                   onChange={(event) =>
                     setProductUnit(event.target.value as BaseUnit)
                   }
                 >
-                  <option value="piece">sztuki (jajka)</option>
-                  <option value="gram">gramy (kuskus)</option>
-                  <option value="milliliter">mililitry (mleko)</option>
+                  {(Object.keys(UNIT_OPTION_LABELS) as BaseUnit[]).map(
+                    (unit) => (
+                      <option key={unit} value={unit}>
+                        {UNIT_OPTION_LABELS[unit]}
+                      </option>
+                    ),
+                  )}
                 </select>
               </div>
-              <div className="sm:col-span-3">
+              <div className="flex justify-end md:col-span-2">
                 <Button type="submit" disabled={createProduct.isPending}>
-                  {createProduct.isPending ? "Dodawanie…" : "Dodaj produkt"}
+                  {createProduct.isPending
+                    ? "Dodawanie…"
+                    : "Dodaj do katalogu"}
                 </Button>
               </div>
             </form>
             {createProduct.error ? (
-              <p className="mt-3 text-sm text-destructive" role="alert">
+              <p className="mt-3 text-sm text-red-600" role="alert">
                 {readApiError(createProduct.error)}
               </p>
             ) : null}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Nowa partia</CardTitle>
-            <CardDescription>
-              Cena to łączna kwota zapłacona za początkową ilość partii.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={onCreateStock} className="grid gap-3 sm:grid-cols-2">
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="stock-product">Produkt</Label>
+        <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+          <div className="border-b border-gray-50 bg-gray-50/50 p-5">
+            <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
+              <Package size={20} className="text-emerald-600" /> Dodaj do
+              spiżarni (Nowa partia)
+            </h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Włóż konkretny produkt z katalogu do swojej szafki lub lodówki.
+            </p>
+          </div>
+          <div className="p-6">
+            <form
+              onSubmit={onCreateStock}
+              className="grid grid-cols-1 gap-6 md:grid-cols-2"
+            >
+              <div className="md:col-span-2">
+                <Label htmlFor="stock-product">
+                  Wybierz produkt z katalogu
+                </Label>
                 <select
                   id="stock-product"
-                  className="h-10 w-full rounded-md border border-border bg-card px-2 text-sm"
+                  className="field-input"
                   value={selectedProductId}
                   required
                   onChange={(event) => {
@@ -340,11 +356,15 @@ export default function StockPage() {
                       (item) => item.id === nextId,
                     );
                     if (product) {
-                      setInputUnit(inputUnitsFor(product.defaultUnit)[0]?.value ?? "gram");
+                      setInputUnit(
+                        inputUnitsFor(product.defaultUnit)[0]?.value ?? "gram",
+                      );
                     }
                   }}
                 >
-                  <option value="">Wybierz produkt</option>
+                  <option value="" disabled>
+                    -- Wybierz produkt --
+                  </option>
                   {(productsQuery.data ?? []).map((product) => (
                     <option key={product.id} value={product.id}>
                       {product.name} ({UNIT_LABELS[product.defaultUnit]})
@@ -352,21 +372,22 @@ export default function StockPage() {
                   ))}
                 </select>
               </div>
-              <div className="space-y-2">
+              <div>
                 <Label htmlFor="stock-qty">Ilość</Label>
                 <Input
                   id="stock-qty"
                   inputMode="decimal"
+                  placeholder="0"
                   value={quantity}
                   onChange={(event) => setQuantity(event.target.value)}
                   required
                 />
               </div>
-              <div className="space-y-2">
+              <div>
                 <Label htmlFor="stock-unit">Jednostka wpisywana</Label>
                 <select
                   id="stock-unit"
-                  className="h-10 w-full rounded-md border border-border bg-card px-2 text-sm"
+                  className="field-input"
                   value={inputUnit}
                   onChange={(event) =>
                     setInputUnit(event.target.value as InputUnit)
@@ -381,14 +402,21 @@ export default function StockPage() {
                   )}
                 </select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="stock-location">Miejsce</Label>
+              <div>
+                <Label
+                  htmlFor="stock-location"
+                  className="flex items-center gap-2"
+                >
+                  <MapPin size={16} className="text-gray-400" /> Miejsce
+                </Label>
                 <select
                   id="stock-location"
-                  className="h-10 w-full rounded-md border border-border bg-card px-2 text-sm"
+                  className="field-input"
                   value={location}
                   onChange={(event) =>
-                    setLocation(event.target.value as keyof typeof LOCATION_LABELS)
+                    setLocation(
+                      event.target.value as keyof typeof LOCATION_LABELS,
+                    )
                   }
                 >
                   {Object.entries(LOCATION_LABELS).map(([value, label]) => (
@@ -398,18 +426,26 @@ export default function StockPage() {
                   ))}
                 </select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="stock-price">Cena zakupu całej partii (zł)</Label>
+              <div>
+                <Label htmlFor="stock-price">
+                  Cena zakupu za całość (zł)
+                </Label>
                 <Input
                   id="stock-price"
                   inputMode="decimal"
+                  placeholder="0.00"
                   value={price}
                   onChange={(event) => setPrice(event.target.value)}
                   required
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="stock-expires">Data ważności</Label>
+              <div>
+                <Label
+                  htmlFor="stock-expires"
+                  className="flex items-center gap-2"
+                >
+                  <Calendar size={16} className="text-gray-400" /> Data ważności
+                </Label>
                 <Input
                   id="stock-expires"
                   type="date"
@@ -417,8 +453,13 @@ export default function StockPage() {
                   onChange={(event) => setExpiresAt(event.target.value)}
                 />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="stock-purchased">Data zakupu</Label>
+              <div>
+                <Label
+                  htmlFor="stock-purchased"
+                  className="flex items-center gap-2"
+                >
+                  <Calendar size={16} className="text-gray-400" /> Data zakupu
+                </Label>
                 <Input
                   id="stock-purchased"
                   type="date"
@@ -426,181 +467,234 @@ export default function StockPage() {
                   onChange={(event) => setPurchasedAt(event.target.value)}
                 />
               </div>
-              <div className="sm:col-span-2">
-                <Button type="submit" disabled={createStock.isPending}>
-                  {createStock.isPending ? "Dodawanie…" : "Dodaj partię"}
+              <div className="flex justify-end md:col-span-2">
+                <Button
+                  type="submit"
+                  variant="amber"
+                  disabled={createStock.isPending}
+                >
+                  {createStock.isPending ? "Dodawanie…" : "Odłóż na półkę"}
                 </Button>
               </div>
             </form>
             {formError || createStock.error ? (
-              <p className="mt-3 text-sm text-destructive" role="alert">
+              <p className="mt-3 text-sm text-red-600" role="alert">
                 {formError ?? readApiError(createStock.error)}
               </p>
             ) : null}
-          </CardContent>
-        </Card>
+          </div>
+        </section>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-lg font-semibold">Lista zapasów</h2>
-          <label className="flex items-center gap-2 text-sm">
-            <span>Filtr miejsca</span>
-            <select
-              className="h-10 rounded-md border border-border bg-card px-2 text-sm"
-              value={locationFilter}
-              onChange={(event) =>
-                setLocationFilter(event.target.value as LocationFilter)
-              }
-            >
-              <option value="">Wszystkie</option>
-              {Object.entries(LOCATION_LABELS).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
+        <section>
+          <div className="mb-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+            <h2 className="text-xl font-bold text-gray-900">
+              Twój stan magazynowy
+            </h2>
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-gray-500">Miejsce:</span>
+              <select
+                className="block rounded-lg border border-gray-200 bg-white p-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:ring-emerald-500"
+                value={locationFilter}
+                onChange={(event) =>
+                  setLocationFilter(event.target.value as LocationFilter)
+                }
+                aria-label="Filtr miejsca"
+              >
+                <option value="">Wszystkie miejsca</option>
+                {Object.entries(LOCATION_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
 
-        {stockQuery.isPending || productsQuery.isPending ? (
-          <p className="text-sm text-muted-foreground">Ładowanie zapasów…</p>
-        ) : null}
-        {stockQuery.isError ? (
-          <p className="text-sm text-destructive" role="alert">
-            {readApiError(stockQuery.error)}
-          </p>
-        ) : null}
-        {stockQuery.data?.length === 0 ? (
-          <p className="rounded-xl border bg-card p-6 text-sm text-muted-foreground">
-            Brak partii w wybranym miejscu.
-          </p>
-        ) : null}
-
-        <div className="overflow-x-auto rounded-xl border bg-card">
-          <table className="min-w-full text-left text-sm">
-            <thead className="border-b bg-secondary/50">
-              <tr>
-                <th className="px-3 py-2 font-medium">Produkt</th>
-                <th className="px-3 py-2 font-medium">Pozostało / start</th>
-                <th className="px-3 py-2 font-medium">Miejsce</th>
-                <th className="px-3 py-2 font-medium">Cena partii</th>
-                <th className="px-3 py-2 font-medium">Ważność</th>
-                <th className="px-3 py-2 font-medium">Akcje</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(stockQuery.data ?? []).map((item) => {
-                const product = productsQuery.data?.find(
-                  (entry) => entry.id === item.productId,
-                );
-                return (
-                  <tr key={item.id} className="border-b last:border-0">
-                    <td className="px-3 py-2">{product?.name ?? item.productId}</td>
-                    <td className="px-3 py-2">
-                      {editingId === item.id ? (
-                        <form
-                          className="flex gap-2"
-                          onSubmit={(event) => {
-                            event.preventDefault();
-                            updateStock.mutate(item.id);
-                          }}
-                        >
-                          <Input
-                            aria-label="Nowa pozostała ilość"
-                            value={editQuantity}
-                            onChange={(event) => setEditQuantity(event.target.value)}
-                          />
-                          <Button type="submit" size="sm">
-                            Zapisz
-                          </Button>
-                        </form>
-                      ) : (
-                        `${item.quantity} / ${item.initialQuantity} ${product ? UNIT_LABELS[product.defaultUnit] : ""}`
-                      )}
-                    </td>
-                    <td className="px-3 py-2">
-                      {LOCATION_LABELS[item.location]}
-                    </td>
-                    <td className="px-3 py-2">
-                      {zlotyFromMinor(item.purchasePriceMinor)} {item.currency}
-                    </td>
-                    <td className="px-3 py-2">
-                      {item.expiresAt
-                        ? new Date(item.expiresAt).toLocaleDateString("pl-PL")
-                        : "—"}
-                    </td>
-                    <td className="px-3 py-2">
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setEditingId(item.id);
-                            setEditQuantity(item.quantity);
-                          }}
-                        >
-                          Edytuj ilość
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => deleteStock.mutate(item.id)}
-                        >
-                          Usuń partię
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Katalog</CardTitle>
-            <CardDescription>
-              Usunięcie produktu z partiami wymaga potwierdzenia. Partie są wtedy
-              usuwane kaskadowo.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {(productsQuery.data ?? []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">Brak produktów.</p>
+          <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+            {stockQuery.isPending || productsQuery.isPending ? (
+              <div className="p-12 text-center text-sm text-gray-500">
+                Ładowanie zapasów…
+              </div>
             ) : null}
-            {(productsQuery.data ?? []).map((product) => {
-              const hasStock = (stockQuery.data ?? []).some(
-                (item) => item.productId === product.id,
-              );
-              return (
-                <div
-                  key={product.id}
-                  className="flex flex-col gap-2 rounded-md border px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <p>
-                    {product.name}{" "}
-                    <span className="text-muted-foreground">
-                      ({UNIT_LABELS[product.defaultUnit]})
-                    </span>
-                  </p>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      setProductToDelete({
-                        id: product.id,
-                        name: product.name,
-                        hasStock,
-                      })
-                    }
-                  >
-                    Usuń produkt
-                  </Button>
-                </div>
-              );
-            })}
-          </CardContent>
-        </Card>
+            {stockQuery.isError ? (
+              <div className="p-12 text-center text-sm text-red-600" role="alert">
+                {readApiError(stockQuery.error)}
+              </div>
+            ) : null}
+            {!stockQuery.isPending &&
+            !stockQuery.isError &&
+            (stockQuery.data?.length ?? 0) === 0 ? (
+              <div className="p-12 text-center">
+                <Package size={48} className="mx-auto mb-4 text-gray-200" />
+                <p className="text-gray-500">
+                  Brak produktów w wybranym miejscu.
+                </p>
+                <p className="mt-1 text-sm text-gray-400">
+                  Dodaj nową partię powyżej, aby zacząć śledzić zapasy.
+                </p>
+              </div>
+            ) : null}
+            {(stockQuery.data?.length ?? 0) > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="border-b border-gray-100 bg-gray-50/80">
+                    <tr>
+                      <th className="px-4 py-3 font-semibold text-gray-700">
+                        Produkt
+                      </th>
+                      <th className="px-4 py-3 font-semibold text-gray-700">
+                        Pozostało / start
+                      </th>
+                      <th className="px-4 py-3 font-semibold text-gray-700">
+                        Miejsce
+                      </th>
+                      <th className="px-4 py-3 font-semibold text-gray-700">
+                        Cena partii
+                      </th>
+                      <th className="px-4 py-3 font-semibold text-gray-700">
+                        Ważność
+                      </th>
+                      <th className="px-4 py-3 font-semibold text-gray-700">
+                        Akcje
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(stockQuery.data ?? []).map((item) => {
+                      const product = productsQuery.data?.find(
+                        (entry) => entry.id === item.productId,
+                      );
+                      return (
+                        <tr
+                          key={item.id}
+                          className="border-b border-gray-50 last:border-0"
+                        >
+                          <td className="px-4 py-3 font-medium text-gray-900">
+                            {product?.name ?? item.productId}
+                          </td>
+                          <td className="px-4 py-3 text-gray-700">
+                            {editingId === item.id ? (
+                              <form
+                                className="flex gap-2"
+                                onSubmit={(event) => {
+                                  event.preventDefault();
+                                  updateStock.mutate(item.id);
+                                }}
+                              >
+                                <Input
+                                  aria-label="Nowa pozostała ilość"
+                                  value={editQuantity}
+                                  onChange={(event) =>
+                                    setEditQuantity(event.target.value)
+                                  }
+                                />
+                                <Button type="submit" size="sm">
+                                  Zapisz
+                                </Button>
+                              </form>
+                            ) : (
+                              `${item.quantity} / ${item.initialQuantity} ${
+                                product
+                                  ? UNIT_LABELS[product.defaultUnit]
+                                  : ""
+                              }`
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-gray-700">
+                            {LOCATION_LABELS[item.location]}
+                          </td>
+                          <td className="px-4 py-3 text-gray-700">
+                            {zlotyFromMinor(item.purchasePriceMinor)}{" "}
+                            {item.currency}
+                          </td>
+                          <td className="px-4 py-3 text-gray-700">
+                            {item.expiresAt
+                              ? new Date(item.expiresAt).toLocaleDateString(
+                                  "pl-PL",
+                                )
+                              : "—"}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setEditingId(item.id);
+                                  setEditQuantity(item.quantity);
+                                }}
+                              >
+                                Edytuj
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={() => deleteStock.mutate(item.id)}
+                              >
+                                Usuń
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+          </div>
+        </section>
+
+        <section className="opacity-90 transition-opacity hover:opacity-100">
+          <h2 className="mb-4 text-xl font-bold text-gray-900">
+            Katalog produktów
+          </h2>
+          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
+            {(productsQuery.data ?? []).length === 0 ? (
+              <div className="p-8 text-center text-gray-500">
+                Katalog jest pusty.
+              </div>
+            ) : (
+              <ul>
+                {(productsQuery.data ?? []).map((product) => {
+                  const hasStock = (stockQuery.data ?? []).some(
+                    (item) => item.productId === product.id,
+                  );
+                  return (
+                    <li
+                      key={product.id}
+                      className="flex flex-col gap-2 border-b border-gray-100 px-4 py-3 last:border-0 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <p className="font-medium text-gray-900">
+                        {product.name}{" "}
+                        <span className="font-normal text-gray-500">
+                          ({UNIT_LABELS[product.defaultUnit]})
+                        </span>
+                      </p>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() =>
+                          setProductToDelete({
+                            id: product.id,
+                            name: product.name,
+                            hasStock,
+                          })
+                        }
+                      >
+                        Usuń produkt
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+          <p className="mt-2 ml-2 text-xs text-gray-400">
+            Usunięcie produktu z katalogu usunie również wszystkie jego partie
+            na półkach.
+          </p>
+        </section>
       </div>
 
       {productToDelete ? (

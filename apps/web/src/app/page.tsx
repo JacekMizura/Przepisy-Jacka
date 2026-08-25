@@ -17,7 +17,7 @@ export default function Home() {
   }, [router, session.data?.user, session.isPending]);
 
   return (
-    <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
+    <div className="flex min-h-screen flex-1 items-center justify-center bg-[#F9FAFB] p-6 text-sm text-gray-500">
       Ładowanie…
     </div>
   );

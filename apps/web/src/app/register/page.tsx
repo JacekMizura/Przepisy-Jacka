@@ -1,24 +1,26 @@
 "use client";
 
+import { ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { type FormEvent, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { type FormEvent, Suspense, useState } from "react";
 
-import { Button } from "@/components/ui/button";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+  AuthMobileBrand,
+  AuthShell,
+  authFieldClassName,
+} from "@/components/auth-shell";
 import { authClient } from "@/lib/auth-client";
 import { readApiError } from "@/lib/errors";
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextPath = searchParams.get("next") || "/kitchens";
+  const loginHref =
+    nextPath && nextPath !== "/kitchens"
+      ? `/login?next=${encodeURIComponent(nextPath)}`
+      : "/login";
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -29,7 +31,7 @@ export default function RegisterPage() {
     event.preventDefault();
     setError(null);
     if (name.trim().length < 1) {
-      setError("Podaj imię lub nazwę wyświetlaną.");
+      setError("Podaj imię.");
       return;
     }
     setPending(true);
@@ -43,73 +45,125 @@ export default function RegisterPage() {
       setError(readApiError(result.error, "Nie udało się utworzyć konta."));
       return;
     }
-    router.replace("/kitchens");
+    router.replace(nextPath.startsWith("/") ? nextPath : "/kitchens");
   }
 
   return (
-    <div className="flex flex-1 items-center justify-center px-4 py-10">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Rejestracja</CardTitle>
-          <CardDescription>
-            Utwórz konto, a następnie załóż kuchnię lub przyjmij zaproszenie.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={onSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Imię</Label>
-              <Input
-                id="name"
-                name="name"
-                autoComplete="name"
-                required
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="email">E-mail</Label>
-              <Input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Hasło (min. 8 znaków)</Label>
-              <Input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="new-password"
-                required
-                minLength={8}
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-              />
-            </div>
-            {error ? (
-              <p className="text-sm text-destructive" role="alert">
-                {error}
-              </p>
-            ) : null}
-            <Button type="submit" className="w-full" disabled={pending}>
-              {pending ? "Tworzenie konta…" : "Utwórz konto"}
-            </Button>
-          </form>
-          <p className="mt-4 text-sm text-muted-foreground">
-            Masz już konto?{" "}
-            <Link className="underline" href="/login">
-              Zaloguj się
-            </Link>
+    <>
+      <AuthMobileBrand />
+
+      <div className="space-y-2">
+        <h2 className="text-3xl font-bold tracking-tight text-gray-900">
+          Dołącz do nas
+        </h2>
+        <p className="text-base text-gray-500">
+          Utwórz konto i zacznij mądrzej zarządzać domową kuchnią.
+        </p>
+      </div>
+
+      <form className="space-y-5" onSubmit={onSubmit}>
+        <div className="space-y-1.5">
+          <label htmlFor="name" className="text-sm font-semibold text-gray-700">
+            Imię
+          </label>
+          <input
+            id="name"
+            name="name"
+            type="text"
+            autoComplete="name"
+            placeholder="np. Jan"
+            required
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            className={authFieldClassName}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label htmlFor="email" className="text-sm font-semibold text-gray-700">
+            E-mail
+          </label>
+          <input
+            id="email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            placeholder="adres@email.com"
+            required
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            className={authFieldClassName}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <label
+            htmlFor="password"
+            className="text-sm font-semibold text-gray-700"
+          >
+            Hasło
+          </label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autoComplete="new-password"
+            placeholder="••••••••"
+            required
+            minLength={8}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            className={authFieldClassName}
+          />
+          <p className="mt-1 text-xs text-gray-500">
+            Hasło musi składać się z minimum 8 znaków.
           </p>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+
+        {error ? (
+          <p className="text-sm text-red-600" role="alert">
+            {error}
+          </p>
+        ) : null}
+
+        <button
+          type="submit"
+          disabled={pending}
+          className="group mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3.5 font-semibold text-white shadow-sm shadow-emerald-200 transition-all duration-200 hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-60"
+        >
+          {pending ? "Tworzenie…" : "Utwórz konto"}
+          {!pending ? (
+            <ArrowRight
+              size={18}
+              className="transition-transform group-hover:translate-x-1"
+            />
+          ) : null}
+        </button>
+      </form>
+
+      <div className="pt-2 text-center">
+        <p className="text-sm text-gray-600">
+          Masz już konto?{" "}
+          <Link
+            href={loginHref}
+            className="font-semibold text-emerald-600 transition-colors hover:text-emerald-700"
+          >
+            Zaloguj się
+          </Link>
+        </p>
+      </div>
+    </>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <AuthShell>
+      <Suspense
+        fallback={<p className="text-sm text-gray-500">Ładowanie…</p>}
+      >
+        <RegisterForm />
+      </Suspense>
+    </AuthShell>
   );
 }

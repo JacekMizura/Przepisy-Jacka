@@ -509,4 +509,145 @@ describe('Shopping list and purchases (e2e)', () => {
     );
     expect(alreadyResolvedCheckout.status).toBe(400);
   });
+
+  it('handles concurrent add without merge as one success and one conflict', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+
+    const kitchenRes = await apiFetch(api.origin, '/api/kitchens', {
+      method: 'POST',
+      webOrigin: WEB_ORIGIN,
+      cookies: owner.cookies,
+      body: { name: 'Concurrent no merge' },
+    });
+    const kitchen = kitchenRes.body as { id: string };
+
+    const productRes = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/products`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { name: 'Masło', defaultUnit: 'gram' },
+      },
+    );
+    const product = productRes.body as { id: string };
+
+    const body = {
+      productId: product.id,
+      plannedQuantity: '200.000',
+      plannedUnit: 'gram',
+    };
+
+    const [first, second] = await Promise.all([
+      apiFetch(
+        api.origin,
+        `/api/kitchens/${kitchen.id}/shopping-list/items`,
+        {
+          method: 'POST',
+          webOrigin: WEB_ORIGIN,
+          cookies: owner.cookies,
+          body,
+        },
+      ),
+      apiFetch(
+        api.origin,
+        `/api/kitchens/${kitchen.id}/shopping-list/items`,
+        {
+          method: 'POST',
+          webOrigin: WEB_ORIGIN,
+          cookies: owner.cookies,
+          body,
+        },
+      ),
+    ]);
+
+    expect([first.status, second.status].sort((a, b) => a - b)).toEqual([
+      201, 409,
+    ]);
+
+    const listed = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/shopping-list/items`,
+      {
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+      },
+    );
+    expect(listed.status).toBe(200);
+    expect((listed.body as unknown[]).length).toBe(1);
+  });
+
+  it('handles concurrent add with merge as one item with summed quantity', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+
+    const kitchenRes = await apiFetch(api.origin, '/api/kitchens', {
+      method: 'POST',
+      webOrigin: WEB_ORIGIN,
+      cookies: owner.cookies,
+      body: { name: 'Concurrent merge' },
+    });
+    const kitchen = kitchenRes.body as { id: string };
+
+    const productRes = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/products`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { name: 'Sok', defaultUnit: 'milliliter' },
+      },
+    );
+    const product = productRes.body as { id: string };
+
+    const [first, second] = await Promise.all([
+      apiFetch(
+        api.origin,
+        `/api/kitchens/${kitchen.id}/shopping-list/items`,
+        {
+          method: 'POST',
+          webOrigin: WEB_ORIGIN,
+          cookies: owner.cookies,
+          body: {
+            productId: product.id,
+            plannedQuantity: '1.000',
+            plannedUnit: 'liter',
+            mergeQuantity: true,
+          },
+        },
+      ),
+      apiFetch(
+        api.origin,
+        `/api/kitchens/${kitchen.id}/shopping-list/items`,
+        {
+          method: 'POST',
+          webOrigin: WEB_ORIGIN,
+          cookies: owner.cookies,
+          body: {
+            productId: product.id,
+            plannedQuantity: '0.500',
+            plannedUnit: 'liter',
+            mergeQuantity: true,
+          },
+        },
+      ),
+    ]);
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+
+    const listed = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/shopping-list/items`,
+      {
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+      },
+    );
+    expect(listed.status).toBe(200);
+    const items = listed.body as Array<{ plannedQuantity: string }>;
+    expect(items).toHaveLength(1);
+    expect(items[0]?.plannedQuantity).toBe('1.500');
+  });
 });

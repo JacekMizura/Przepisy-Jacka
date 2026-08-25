@@ -11,6 +11,7 @@ import {
   type Product,
   type Purchase,
   type PurchaseLineItem,
+  type ShoppingList,
   type ShoppingListItem,
 } from '../generated/prisma/client';
 
@@ -128,64 +129,26 @@ export class ShoppingService {
       const shoppingList = await ensureShoppingList(tx, kitchenId);
 
       if (dto.productId) {
-        const existing = await tx.shoppingListItem.findFirst({
-          where: {
-            shoppingListId: shoppingList.id,
-            productId: dto.productId,
-            status: ShoppingListItemStatus.pending,
-            resolvedAt: null,
-          },
-          include: { product: true },
-        });
-        if (existing) {
-          if (!dto.mergeQuantity) {
-            throw new ConflictException(
-              'Aktywna pozycja pending dla tego produktu już istnieje.',
-            );
-          }
-          const mergedQuantity = mergePlannedQuantities(
-            existing.plannedQuantity,
-            existing.plannedUnit,
-            plannedQuantity,
-            dto.plannedUnit,
-          );
-          const updated = await tx.shoppingListItem.update({
-            where: { id: existing.id },
-            data: {
-              plannedQuantity: mergedQuantity.quantity,
-              plannedUnit: mergedQuantity.unit,
-              note:
-                dto.note !== undefined
-                  ? normalizeOptionalNote(dto.note)
-                  : undefined,
-            },
-            include: { product: true },
-          });
-          await tx.shoppingList.update({
-            where: { id: shoppingList.id },
-            data: { updatedAt: new Date() },
-          });
-          return updated;
-        }
+        return upsertPendingProductListItem(
+          tx,
+          shoppingList,
+          dto,
+          plannedQuantity,
+        );
       }
 
       const created = await tx.shoppingListItem.create({
         data: {
           shoppingListId: shoppingList.id,
-          productId: dto.productId ?? null,
-          customName: dto.productId
-            ? normalizeOptionalCustomName(dto.customName)
-            : (dto.customName?.trim() ?? null),
+          productId: null,
+          customName: dto.customName?.trim() ?? null,
           plannedQuantity,
           plannedUnit: dto.plannedUnit ?? null,
           note: normalizeOptionalNote(dto.note),
         },
         include: { product: true },
       });
-      await tx.shoppingList.update({
-        where: { id: shoppingList.id },
-        data: { updatedAt: new Date() },
-      });
+      await touchShoppingListUpdatedAt(tx, shoppingList.id);
       return created;
     });
 
@@ -493,12 +456,184 @@ export class ShoppingService {
 async function ensureShoppingList(
   tx: Prisma.TransactionClient,
   kitchenId: string,
-) {
-  return tx.shoppingList.upsert({
+): Promise<ShoppingList> {
+  await tx.$executeRaw`
+    INSERT INTO "ShoppingList" ("id", "kitchenId", "createdAt", "updatedAt")
+    VALUES (gen_random_uuid(), ${kitchenId}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    ON CONFLICT ("kitchenId") DO NOTHING
+  `;
+  return tx.shoppingList.findUniqueOrThrow({
     where: { kitchenId },
-    create: { kitchenId },
-    update: {},
   });
+}
+
+async function touchShoppingListUpdatedAt(
+  tx: Prisma.TransactionClient,
+  shoppingListId: string,
+): Promise<void> {
+  await tx.shoppingList.update({
+    where: { id: shoppingListId },
+    data: { updatedAt: new Date() },
+  });
+}
+
+function pendingProductConflictMessage(): string {
+  return 'Aktywna pozycja pending dla tego produktu już istnieje.';
+}
+
+function isPendingProductUniqueViolation(error: unknown): boolean {
+  if (
+    !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+    error.code !== 'P2002'
+  ) {
+    return false;
+  }
+  const target = error.meta?.target;
+  if (Array.isArray(target)) {
+    return target.includes('shoppingListId') && target.includes('productId');
+  }
+  const constraint = error.meta?.constraint;
+  return (
+    typeof constraint === 'string' &&
+    constraint.includes('ShoppingListItem_shoppingListId_productId_pending')
+  );
+}
+
+async function findPendingProductItemForUpdate(
+  tx: Prisma.TransactionClient,
+  shoppingListId: string,
+  productId: string,
+): Promise<ShoppingListItemWithProduct | null> {
+  const rows = await tx.$queryRaw<Array<{ id: string }>>`
+    SELECT "id"
+    FROM "ShoppingListItem"
+    WHERE "shoppingListId" = ${shoppingListId}
+      AND "productId" = ${productId}
+      AND "status" = 'pending'::"ShoppingListItemStatus"
+      AND "resolvedAt" IS NULL
+    FOR UPDATE
+  `;
+  const row = rows[0];
+  if (!row) {
+    return null;
+  }
+  return tx.shoppingListItem.findUnique({
+    where: { id: row.id },
+    include: { product: true },
+  });
+}
+
+async function mergePendingProductItem(
+  tx: Prisma.TransactionClient,
+  shoppingList: ShoppingList,
+  existing: ShoppingListItemWithProduct,
+  dto: CreateShoppingListItemDto,
+  plannedQuantity: Prisma.Decimal | null,
+): Promise<ShoppingListItemWithProduct> {
+  const mergedQuantity = mergePlannedQuantities(
+    existing.plannedQuantity,
+    existing.plannedUnit,
+    plannedQuantity,
+    dto.plannedUnit,
+  );
+  const updated = await tx.shoppingListItem.update({
+    where: { id: existing.id },
+    data: {
+      plannedQuantity: mergedQuantity.quantity,
+      plannedUnit: mergedQuantity.unit,
+      note:
+        dto.note !== undefined ? normalizeOptionalNote(dto.note) : undefined,
+    },
+    include: { product: true },
+  });
+  await touchShoppingListUpdatedAt(tx, shoppingList.id);
+  return updated;
+}
+
+async function createProductListItem(
+  tx: Prisma.TransactionClient,
+  shoppingList: ShoppingList,
+  dto: CreateShoppingListItemDto,
+  plannedQuantity: Prisma.Decimal | null,
+): Promise<ShoppingListItemWithProduct> {
+  const created = await tx.shoppingListItem.create({
+    data: {
+      shoppingListId: shoppingList.id,
+      productId: dto.productId ?? null,
+      customName: normalizeOptionalCustomName(dto.customName),
+      plannedQuantity,
+      plannedUnit: dto.plannedUnit ?? null,
+      note: normalizeOptionalNote(dto.note),
+    },
+    include: { product: true },
+  });
+  await touchShoppingListUpdatedAt(tx, shoppingList.id);
+  return created;
+}
+
+async function upsertPendingProductListItem(
+  tx: Prisma.TransactionClient,
+  shoppingList: ShoppingList,
+  dto: CreateShoppingListItemDto,
+  plannedQuantity: Prisma.Decimal | null,
+): Promise<ShoppingListItemWithProduct> {
+  const productId = dto.productId;
+  if (!productId) {
+    throw new BadRequestException('productId jest wymagane.');
+  }
+
+  const locked = await findPendingProductItemForUpdate(
+    tx,
+    shoppingList.id,
+    productId,
+  );
+  if (locked) {
+    if (!dto.mergeQuantity) {
+      throw new ConflictException(pendingProductConflictMessage());
+    }
+    return mergePendingProductItem(
+      tx,
+      shoppingList,
+      locked,
+      dto,
+      plannedQuantity,
+    );
+  }
+
+  try {
+    await tx.$executeRaw`SAVEPOINT create_pending_product_item`;
+    const created = await createProductListItem(
+      tx,
+      shoppingList,
+      dto,
+      plannedQuantity,
+    );
+    await tx.$executeRaw`RELEASE SAVEPOINT create_pending_product_item`;
+    return created;
+  } catch (error) {
+    await tx.$executeRaw`ROLLBACK TO SAVEPOINT create_pending_product_item`;
+    if (!isPendingProductUniqueViolation(error)) {
+      throw error;
+    }
+    if (!dto.mergeQuantity) {
+      throw new ConflictException(pendingProductConflictMessage());
+    }
+    const existing = await findPendingProductItemForUpdate(
+      tx,
+      shoppingList.id,
+      productId,
+    );
+    if (!existing) {
+      throw new ConflictException(pendingProductConflictMessage());
+    }
+    return mergePendingProductItem(
+      tx,
+      shoppingList,
+      existing,
+      dto,
+      plannedQuantity,
+    );
+  }
 }
 
 function validateCreateShoppingListItem(dto: CreateShoppingListItemDto): void {

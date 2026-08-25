@@ -90,10 +90,10 @@ export default function StockPage() {
         { params: { path: { kitchenId } } },
       );
       if (response.status === 404) {
-        throw new Error("Nie znaleziono kuchni albo nie masz do niej dostÄ™pu.");
+        throw new Error("Nie znaleziono kuchni albo nie masz do niej dostępu.");
       }
       if (error) {
-        throw new Error(readApiError(error, "Nie udaĹ‚o siÄ™ pobraÄ‡ produktĂłw."));
+        throw new Error(readApiError(error, "Nie udało się pobrać produktów."));
       }
       return data ?? [];
     },
@@ -113,7 +113,7 @@ export default function StockPage() {
         },
       );
       if (error) {
-        throw new Error(readApiError(error, "Nie udaĹ‚o siÄ™ pobraÄ‡ zapasĂłw."));
+        throw new Error(readApiError(error, "Nie udało się pobrać zapasów."));
       }
       return data ?? [];
     },
@@ -220,7 +220,7 @@ export default function StockPage() {
         },
       );
       if (error) {
-        throw new Error(readApiError(error, "Nie udaĹ‚o siÄ™ dodaÄ‡ produktu."));
+        throw new Error(readApiError(error, "Nie udało się dodać produktu."));
       }
       return data;
     },
@@ -259,7 +259,7 @@ export default function StockPage() {
       }
       const purchasePriceMinor = minorFromZloty(price);
       if (purchasePriceMinor === null) {
-        throw new Error("Podaj cenÄ™ w zĹ‚otych, np. 5,99.");
+        throw new Error("Podaj cenę w złotych, np. 5,99.");
       }
       const client = createWebApiClient();
       const { data, error } = await client.POST(
@@ -281,7 +281,7 @@ export default function StockPage() {
         },
       );
       if (error) {
-        throw new Error(readApiError(error, "Nie udaĹ‚o siÄ™ dodaÄ‡ partii."));
+        throw new Error(readApiError(error, "Nie udało się dodać partii."));
       }
       return data;
     },
@@ -327,7 +327,7 @@ export default function StockPage() {
       );
       if (error) {
         throw new Error(
-          readApiError(error, "Nie udaĹ‚o siÄ™ zaktualizowaÄ‡ partii."),
+          readApiError(error, "Nie udało się zaktualizować partii."),
         );
       }
     },
@@ -345,7 +345,7 @@ export default function StockPage() {
         { params: { path: { kitchenId, stockItemId } } },
       );
       if (error) {
-        throw new Error(readApiError(error, "Nie udaĹ‚o siÄ™ usunÄ…Ä‡ partii."));
+        throw new Error(readApiError(error, "Nie udało się usunąć partii."));
       }
     },
     onSuccess: async () => {
@@ -356,7 +356,7 @@ export default function StockPage() {
   const deleteProduct = useMutation({
     mutationFn: async (confirmCascade: boolean) => {
       if (!productToDelete) {
-        throw new Error("Brak produktu do usuniÄ™cia.");
+        throw new Error("Brak produktu do usunięcia.");
       }
       const client = createWebApiClient();
       const { error } = await client.DELETE(
@@ -369,7 +369,7 @@ export default function StockPage() {
         },
       );
       if (error) {
-        throw new Error(readApiError(error, "Nie udaĹ‚o siÄ™ usunÄ…Ä‡ produktu."));
+        throw new Error(readApiError(error, "Nie udało się usunąć produktu."));
       }
     },
     onSuccess: async () => {
@@ -406,14 +406,14 @@ export default function StockPage() {
             <div className="max-w-xl">
               <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs font-semibold tracking-wide text-emerald-700 uppercase shadow-sm ring-1 ring-emerald-100">
                 <ChefHat size={14} />
-                SpiĹĽarnia kuchni
+                Spiżarnia kuchni
               </div>
               <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
                 Co masz w domu?
               </h1>
               <p className="mt-2 text-base leading-relaxed text-gray-600">
-                Tu trzymasz zapasy pod rÄ™kÄ… â€” ĹĽeby mniej wyrzucaÄ‡, szybciej
-                gotowaÄ‡ i wiedzieÄ‡, czego brakuje przed zakupami.
+                Tu trzymasz zapasy pod ręką — żeby mniej wyrzucać, szybciej
+                gotować i wiedzieć, czego brakuje przed zakupami.
               </p>
             </div>
             <div className="flex flex-col gap-2 sm:items-end">
@@ -433,7 +433,7 @@ export default function StockPage() {
                 )}
               >
                 <ShoppingBasket size={18} />
-                {stockFormOpen ? "Zamknij dodawanie na pĂłĹ‚kÄ™" : "OdĹ‚ĂłĹĽ na pĂłĹ‚kÄ™"}
+                {stockFormOpen ? "Zamknij dodawanie na półkę" : "Odłóż na półkę"}
               </button>
               <button
                 type="button"
@@ -467,8 +467,8 @@ export default function StockPage() {
                 katalogu
               </h2>
               <p className="mt-1 text-sm text-gray-500">
-                Najpierw dodaj rzecz do katalogu (np. mleko, ryĹĽ), potem moĹĽesz
-                odĹ‚oĹĽyÄ‡ konkretnÄ… partiÄ™ na pĂłĹ‚kÄ™.
+                Najpierw dodaj rzecz do katalogu (np. mleko, ryż), potem możesz
+                odłożyć konkretną partię na półkę.
               </p>
             </div>
             <div className="p-6">
@@ -555,7 +555,7 @@ export default function StockPage() {
                   </Button>
                   <Button type="submit" disabled={createProduct.isPending}>
                     {createProduct.isPending
-                      ? "Dodawanieâ€¦"
+                      ? "Dodawanie…"
                       : "Dodaj do katalogu"}
                   </Button>
                 </div>
@@ -573,11 +573,11 @@ export default function StockPage() {
           <section className="overflow-hidden rounded-3xl border border-amber-100 bg-white shadow-sm">
             <div className="border-b border-amber-50 bg-amber-50/50 px-5 py-4">
               <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
-                <Package size={20} className="text-amber-600" /> OdĹ‚ĂłĹĽ na pĂłĹ‚kÄ™
+                <Package size={20} className="text-amber-600" /> Odłóż na półkę
               </h2>
               <p className="mt-1 text-sm text-gray-500">
-                Wybierz produkt z katalogu i zapisz partiÄ™ w lodĂłwce, spiĹĽarni
-                albo zamraĹĽarce.
+                Wybierz produkt z katalogu i zapisz partię w lodówce, spiżarni
+                albo zamrażarce.
               </p>
             </div>
             <div className="p-6">
@@ -616,7 +616,7 @@ export default function StockPage() {
                     {(productsQuery.data ?? []).map((product) => (
                       <option key={product.id} value={product.id}>
                         {product.name} ({UNIT_LABELS[product.defaultUnit]}
-                        {product.category ? ` Â· ${product.category}` : ""})
+                        {product.category ? ` · ${product.category}` : ""})
                       </option>
                     ))}
                   </select>
@@ -638,7 +638,7 @@ export default function StockPage() {
                   ) : null}
                 </div>
                 <div>
-                  <Label htmlFor="stock-qty">IloĹ›Ä‡</Label>
+                  <Label htmlFor="stock-qty">Ilość</Label>
                   <Input
                     id="stock-qty"
                     inputMode="decimal"
@@ -693,7 +693,7 @@ export default function StockPage() {
                 </div>
                 <div>
                   <Label htmlFor="stock-price">
-                    Cena zakupu za caĹ‚oĹ›Ä‡ (zĹ‚)
+                    Cena zakupu za całość (zł)
                   </Label>
                   <Input
                     id="stock-price"
@@ -710,7 +710,7 @@ export default function StockPage() {
                     className="flex items-center gap-2"
                   >
                     <Calendar size={16} className="text-gray-400" /> Data
-                    waĹĽnoĹ›ci
+                    ważności
                   </Label>
                   <Input
                     id="stock-expires"
@@ -767,7 +767,7 @@ export default function StockPage() {
                     variant="amber"
                     disabled={createStock.isPending}
                   >
-                    {createStock.isPending ? "Dodawanieâ€¦" : "OdĹ‚ĂłĹĽ na pĂłĹ‚kÄ™"}
+                    {createStock.isPending ? "Dodawanie…" : "Odłóż na półkę"}
                   </Button>
                 </div>
               </form>
@@ -783,16 +783,16 @@ export default function StockPage() {
         <section className="space-y-4">
           <div className="flex flex-col gap-1">
             <h2 className="text-2xl font-bold tracking-tight text-gray-900">
-              Twoja spiĹĽarnia
+              Twoja spiżarnia
             </h2>
             <p className="text-sm text-gray-500">
-              PrzeglÄ…daj to, co juĹĽ masz â€” wedĹ‚ug kategorii, jednostki i miejsca.
+              Przeglądaj to, co już masz — według kategorii, jednostki i miejsca.
             </p>
           </div>
           <div className="flex flex-col gap-3 rounded-2xl border border-gray-100 bg-white/80 p-4 shadow-sm lg:flex-row lg:flex-wrap lg:items-center">
             <Input
               aria-label="Szukaj w zapasach"
-              placeholder="Szukaj: nazwa, EAN, kategoriaâ€¦"
+              placeholder="Szukaj: nazwa, EAN, kategoria…"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               className="lg:max-w-xs"
@@ -853,7 +853,7 @@ export default function StockPage() {
           <div className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
             {stockQuery.isPending || productsQuery.isPending ? (
               <div className="p-12 text-center text-sm text-gray-500">
-                Ĺadowanie spiĹĽarniâ€¦
+                Ładowanie spiżarni…
               </div>
             ) : null}
             {stockQuery.isError ? (
@@ -869,11 +869,11 @@ export default function StockPage() {
                   <ChefHat size={32} />
                 </div>
                 <p className="text-lg font-semibold text-gray-900">
-                  SpiĹĽarnia czeka na pierwsze produkty
+                  Spiżarnia czeka na pierwsze produkty
                 </p>
                 <p className="mx-auto mt-2 max-w-md text-sm text-gray-500">
-                  Dodaj produkt do katalogu, a potem odĹ‚ĂłĹĽ partiÄ™ na pĂłĹ‚kÄ™ â€”
-                  zobaczysz tu iloĹ›ci, miejsca i daty waĹĽnoĹ›ci.
+                  Dodaj produkt do katalogu, a potem odłóż partię na półkę —
+                  zobaczysz tu ilości, miejsca i daty ważności.
                 </p>
                 <div className="mt-6 flex flex-wrap justify-center gap-3">
                   <Button
@@ -893,7 +893,7 @@ export default function StockPage() {
                       setProductFormOpen(false);
                     }}
                   >
-                    OdĹ‚ĂłĹĽ na pĂłĹ‚kÄ™
+                    Odłóż na półkę
                   </Button>
                 </div>
               </div>
@@ -904,7 +904,7 @@ export default function StockPage() {
                   <thead className="border-b border-gray-100 bg-emerald-50/50">
                     <tr>
                       <th className="px-4 py-3 font-semibold text-gray-700">
-                        ZdjÄ™cie
+                        Zdjęcie
                       </th>
                       <th className="px-4 py-3 font-semibold text-gray-700">
                         Produkt
@@ -913,7 +913,7 @@ export default function StockPage() {
                         Jednostka
                       </th>
                       <th className="px-4 py-3 font-semibold text-gray-700">
-                        PozostaĹ‚o / start
+                        Pozostało / start
                       </th>
                       <th className="px-4 py-3 font-semibold text-gray-700">
                         Miejsce
@@ -922,7 +922,7 @@ export default function StockPage() {
                         Cena partii
                       </th>
                       <th className="px-4 py-3 font-semibold text-gray-700">
-                        WaĹĽnoĹ›Ä‡
+                        Ważność
                       </th>
                       <th className="px-4 py-3 font-semibold text-gray-700">
                         Akcje
@@ -981,7 +981,7 @@ export default function StockPage() {
                               <td className="px-4 py-3 text-gray-700">
                                 {product
                                   ? UNIT_LABELS[product.defaultUnit]
-                                  : "â€”"}
+                                  : "—"}
                               </td>
                               <td className="px-4 py-3 text-gray-700">
                                 {editingId === item.id ? (
@@ -993,7 +993,7 @@ export default function StockPage() {
                                     }}
                                   >
                                     <Input
-                                      aria-label="Nowa pozostaĹ‚a iloĹ›Ä‡"
+                                      aria-label="Nowa pozostała ilość"
                                       value={editQuantity}
                                       onChange={(event) =>
                                         setEditQuantity(event.target.value)
@@ -1019,7 +1019,7 @@ export default function StockPage() {
                                   ? new Date(item.expiresAt).toLocaleDateString(
                                       "pl-PL",
                                     )
-                                  : "â€”"}
+                                  : "—"}
                               </td>
                               <td className="px-4 py-3">
                                 <div className="flex flex-wrap gap-2">
@@ -1038,7 +1038,7 @@ export default function StockPage() {
                                     variant="destructive"
                                     onClick={() => deleteStock.mutate(item.id)}
                                   >
-                                    UsuĹ„
+                                    Usuń
                                   </Button>
                                 </div>
                               </td>
@@ -1063,11 +1063,11 @@ export default function StockPage() {
           >
             <div>
               <h2 className="text-lg font-bold text-gray-900">
-                Katalog produktĂłw
+                Katalog produktów
               </h2>
               <p className="text-sm text-gray-500">
-                {(productsQuery.data ?? []).length} pozycji Â· baza do odkĹ‚adania
-                na pĂłĹ‚ki
+                {(productsQuery.data ?? []).length} pozycji · baza do odkładania
+                na półki
               </p>
             </div>
             <ChevronDown
@@ -1082,7 +1082,7 @@ export default function StockPage() {
             <div className="border-t border-gray-100">
               {(productsQuery.data ?? []).length === 0 ? (
                 <div className="p-8 text-center text-gray-500">
-                  Katalog jest pusty. Dodaj pierwszy produkt przyciskiem u gĂłry.
+                  Katalog jest pusty. Dodaj pierwszy produkt przyciskiem u góry.
                 </div>
               ) : (
                 <ul>
@@ -1117,7 +1117,7 @@ export default function StockPage() {
                             </p>
                             <p className="truncate text-xs text-gray-400">
                               {product.category ?? UNCATEGORIZED}
-                              {product.ean ? ` Â· EAN ${product.ean}` : ""}
+                              {product.ean ? ` · EAN ${product.ean}` : ""}
                             </p>
                           </div>
                         </div>
@@ -1132,7 +1132,7 @@ export default function StockPage() {
                             })
                           }
                         >
-                          UsuĹ„ produkt
+                          Usuń produkt
                         </Button>
                       </li>
                     );
@@ -1140,8 +1140,8 @@ export default function StockPage() {
                 </ul>
               )}
               <p className="border-t border-gray-50 px-4 py-3 text-xs text-gray-400">
-                UsuniÄ™cie produktu z katalogu usuwa teĹĽ wszystkie jego partie na
-                pĂłĹ‚kach.
+                Usunięcie produktu z katalogu usuwa też wszystkie jego partie na
+                półkach.
               </p>
             </div>
           ) : null}
@@ -1150,13 +1150,13 @@ export default function StockPage() {
 
       {productToDelete ? (
         <ConfirmDialog
-          title={`UsunÄ…Ä‡ produkt â€ž${productToDelete.name}â€ť?`}
+          title={`Usunąć produkt „${productToDelete.name}”?`}
           description={
             productToDelete.hasStock
-              ? "Produkt ma partie zapasĂłw. Potwierdzenie usunie produkt oraz wszystkie jego partie."
-              : "Produkt nie ma partii i zostanie usuniÄ™ty."
+              ? "Produkt ma partie zapasów. Potwierdzenie usunie produkt oraz wszystkie jego partie."
+              : "Produkt nie ma partii i zostanie usunięty."
           }
-          confirmLabel="UsuĹ„"
+          confirmLabel="Usuń"
           pending={deleteProduct.isPending}
           onCancel={() => setProductToDelete(null)}
           onConfirm={() => deleteProduct.mutate(productToDelete.hasStock)}

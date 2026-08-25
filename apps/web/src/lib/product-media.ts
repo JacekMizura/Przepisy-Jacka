@@ -11,6 +11,25 @@ export const PRODUCT_CATEGORY_OPTIONS = [
   "Inne",
 ] as const;
 
+/** EAN-8 / UPC-A / EAN-13 / GTIN-14 */
+export const EAN_PATTERN = /^\d{8}$|^\d{12}$|^\d{13}$|^\d{14}$/;
+
+export function normalizeOptionalEan(raw: string): string | null {
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+export function validateOptionalEan(raw: string): string | null {
+  const ean = normalizeOptionalEan(raw);
+  if (!ean) {
+    return null;
+  }
+  if (!EAN_PATTERN.test(ean)) {
+    return "EAN musi mieć 8, 12, 13 albo 14 cyfr (np. 5901234123457).";
+  }
+  return null;
+}
+
 const MAX_IMAGE_SIDE = 512;
 const JPEG_QUALITY = 0.72;
 const MAX_DATA_URL_LENGTH = 300_000;

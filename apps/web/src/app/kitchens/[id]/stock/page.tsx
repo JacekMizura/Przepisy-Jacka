@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createWebApiClient } from "@/lib/api";
 import { LOCATION_LABELS, UNIT_LABELS, readApiError } from "@/lib/errors";
-import { PRODUCT_CATEGORY_OPTIONS } from "@/lib/product-media";
+import { PRODUCT_CATEGORY_OPTIONS, validateOptionalEan } from "@/lib/product-media";
 import {
   convertToBaseQuantity,
   inputUnitsFor,
@@ -186,6 +186,10 @@ export default function StockPage() {
 
   const createProduct = useMutation({
     mutationFn: async () => {
+      const eanError = validateOptionalEan(productEan);
+      if (eanError) {
+        throw new Error(eanError);
+      }
       const client = createWebApiClient();
       const { data, error } = await client.POST(
         "/api/kitchens/{kitchenId}/products",
@@ -223,6 +227,10 @@ export default function StockPage() {
     mutationFn: async () => {
       if (!selectedProduct) {
         throw new Error("Wybierz produkt.");
+      }
+      const eanError = validateOptionalEan(stockEan);
+      if (eanError) {
+        throw new Error(eanError);
       }
       const converted = convertToBaseQuantity(
         quantity,
@@ -412,29 +420,33 @@ export default function StockPage() {
               </div>
               <div>
                 <Label htmlFor="product-category">Kategoria</Label>
-                <input
+                <select
                   id="product-category"
-                  list="product-category-options"
                   className="field-input"
-                  placeholder="np. Nabiał"
                   value={productCategory}
                   onChange={(event) => setProductCategory(event.target.value)}
-                />
-                <datalist id="product-category-options">
+                >
+                  <option value="">Bez kategorii</option>
                   {categoryOptions.map((category) => (
-                    <option key={category} value={category} />
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
                   ))}
-                </datalist>
+                </select>
               </div>
               <div>
-                <Label htmlFor="product-ean">EAN</Label>
+                <Label htmlFor="product-ean">EAN (opcjonalnie)</Label>
                 <Input
                   id="product-ean"
                   inputMode="numeric"
                   placeholder="np. 5901234123457"
                   value={productEan}
                   onChange={(event) => setProductEan(event.target.value)}
+                  aria-describedby="product-ean-hint"
                 />
+                <p id="product-ean-hint" className="mt-1 text-xs text-gray-500">
+                  8, 12, 13 albo 14 cyfr. Puste pole = bez kodu.
+                </p>
               </div>
               <div className="md:col-span-2">
                 <ImageField
@@ -605,14 +617,18 @@ export default function StockPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="stock-ean">EAN</Label>
+                <Label htmlFor="stock-ean">EAN (opcjonalnie)</Label>
                 <Input
                   id="stock-ean"
                   inputMode="numeric"
                   placeholder="np. 5901234123457"
                   value={stockEan}
                   onChange={(event) => setStockEan(event.target.value)}
+                  aria-describedby="stock-ean-hint"
                 />
+                <p id="stock-ean-hint" className="mt-1 text-xs text-gray-500">
+                  8, 12, 13 albo 14 cyfr. Puste = bez kodu.
+                </p>
               </div>
               <div className="md:col-span-2">
                 <ImageField

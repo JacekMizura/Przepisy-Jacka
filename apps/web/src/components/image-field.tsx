@@ -43,7 +43,8 @@ export function ImageField({
         <div className="min-w-0 flex-1 space-y-2">
           <Input
             id={fieldId}
-            type="url"
+            type="text"
+            inputMode="url"
             placeholder="https://… albo wgraj plik poniżej"
             value={value.startsWith("data:") ? "" : value}
             onChange={(event) => {

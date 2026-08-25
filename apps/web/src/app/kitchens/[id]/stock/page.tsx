@@ -1,6 +1,14 @@
 "use client";
 
-import { Calendar, MapPin, Package, Plus } from "lucide-react";
+import {
+  Calendar,
+  ChefHat,
+  ChevronDown,
+  MapPin,
+  Package,
+  Plus,
+  ShoppingBasket,
+} from "lucide-react";
 import { useParams } from "next/navigation";
 import { type FormEvent, Fragment, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -13,7 +21,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createWebApiClient } from "@/lib/api";
 import { LOCATION_LABELS, UNIT_LABELS, readApiError } from "@/lib/errors";
-import { PRODUCT_CATEGORY_OPTIONS, validateOptionalEan } from "@/lib/product-media";
+import {
+  PRODUCT_CATEGORY_OPTIONS,
+  validateOptionalEan,
+} from "@/lib/product-media";
 import {
   convertToBaseQuantity,
   inputUnitsFor,
@@ -22,6 +33,7 @@ import {
   type BaseUnit,
   type InputUnit,
 } from "@/lib/quantity-input";
+import { cn } from "@/lib/utils";
 
 type LocationFilter = "" | keyof typeof LOCATION_LABELS;
 type UnitFilter = "" | BaseUnit;
@@ -65,6 +77,9 @@ export default function StockPage() {
   } | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editQuantity, setEditQuantity] = useState("");
+  const [productFormOpen, setProductFormOpen] = useState(false);
+  const [stockFormOpen, setStockFormOpen] = useState(false);
+  const [catalogOpen, setCatalogOpen] = useState(false);
 
   const productsQuery = useQuery({
     queryKey: ["products", kitchenId],
@@ -75,10 +90,10 @@ export default function StockPage() {
         { params: { path: { kitchenId } } },
       );
       if (response.status === 404) {
-        throw new Error("Nie znaleziono kuchni albo nie masz do niej dostępu.");
+        throw new Error("Nie znaleziono kuchni albo nie masz do niej dostÄ™pu.");
       }
       if (error) {
-        throw new Error(readApiError(error, "Nie udało się pobrać produktów."));
+        throw new Error(readApiError(error, "Nie udaĹ‚o siÄ™ pobraÄ‡ produktĂłw."));
       }
       return data ?? [];
     },
@@ -98,7 +113,7 @@ export default function StockPage() {
         },
       );
       if (error) {
-        throw new Error(readApiError(error, "Nie udało się pobrać zapasów."));
+        throw new Error(readApiError(error, "Nie udaĹ‚o siÄ™ pobraÄ‡ zapasĂłw."));
       }
       return data ?? [];
     },
@@ -205,7 +220,7 @@ export default function StockPage() {
         },
       );
       if (error) {
-        throw new Error(readApiError(error, "Nie udało się dodać produktu."));
+        throw new Error(readApiError(error, "Nie udaĹ‚o siÄ™ dodaÄ‡ produktu."));
       }
       return data;
     },
@@ -215,10 +230,12 @@ export default function StockPage() {
       setProductEan("");
       setProductImageUrl("");
       setProductCategory("");
+      setProductFormOpen(false);
       if (product) {
         setSelectedProductId(product.id);
         const units = inputUnitsFor(product.defaultUnit);
         setInputUnit(units[0]?.value ?? "gram");
+        setStockFormOpen(true);
       }
     },
   });
@@ -242,7 +259,7 @@ export default function StockPage() {
       }
       const purchasePriceMinor = minorFromZloty(price);
       if (purchasePriceMinor === null) {
-        throw new Error("Podaj cenę w złotych, np. 5,99.");
+        throw new Error("Podaj cenÄ™ w zĹ‚otych, np. 5,99.");
       }
       const client = createWebApiClient();
       const { data, error } = await client.POST(
@@ -264,7 +281,7 @@ export default function StockPage() {
         },
       );
       if (error) {
-        throw new Error(readApiError(error, "Nie udało się dodać partii."));
+        throw new Error(readApiError(error, "Nie udaĹ‚o siÄ™ dodaÄ‡ partii."));
       }
       return data;
     },
@@ -276,6 +293,7 @@ export default function StockPage() {
       setStockEan("");
       setStockImageUrl("");
       setFormError(null);
+      setStockFormOpen(false);
     },
     onError: (error) => {
       setFormError(readApiError(error));
@@ -309,7 +327,7 @@ export default function StockPage() {
       );
       if (error) {
         throw new Error(
-          readApiError(error, "Nie udało się zaktualizować partii."),
+          readApiError(error, "Nie udaĹ‚o siÄ™ zaktualizowaÄ‡ partii."),
         );
       }
     },
@@ -327,7 +345,7 @@ export default function StockPage() {
         { params: { path: { kitchenId, stockItemId } } },
       );
       if (error) {
-        throw new Error(readApiError(error, "Nie udało się usunąć partii."));
+        throw new Error(readApiError(error, "Nie udaĹ‚o siÄ™ usunÄ…Ä‡ partii."));
       }
     },
     onSuccess: async () => {
@@ -338,7 +356,7 @@ export default function StockPage() {
   const deleteProduct = useMutation({
     mutationFn: async (confirmCascade: boolean) => {
       if (!productToDelete) {
-        throw new Error("Brak produktu do usunięcia.");
+        throw new Error("Brak produktu do usuniÄ™cia.");
       }
       const client = createWebApiClient();
       const { error } = await client.DELETE(
@@ -351,7 +369,7 @@ export default function StockPage() {
         },
       );
       if (error) {
-        throw new Error(readApiError(error, "Nie udało się usunąć produktu."));
+        throw new Error(readApiError(error, "Nie udaĹ‚o siÄ™ usunÄ…Ä‡ produktu."));
       }
     },
     onSuccess: async () => {
@@ -375,359 +393,467 @@ export default function StockPage() {
   return (
     <AppShell kitchenId={kitchenId}>
       <div className="mx-auto max-w-5xl space-y-8">
-        <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-          <div className="border-b border-gray-50 bg-gray-50/50 p-5">
-            <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
-              <Plus size={20} className="text-emerald-600" /> Nowy produkt
-            </h2>
-            <p className="mt-1 text-sm text-gray-500">
-              Dodaj do ogólnego katalogu (np. Mleko, Ryż).
-            </p>
-          </div>
-          <div className="p-6">
-            <form
-              onSubmit={onCreateProduct}
-              className="grid grid-cols-1 gap-6 md:grid-cols-2"
-            >
-              <div>
-                <Label htmlFor="product-name">Nazwa produktu</Label>
-                <Input
-                  id="product-name"
-                  placeholder="np. Mleko UHT 3.2%"
-                  value={productName}
-                  onChange={(event) => setProductName(event.target.value)}
-                  required
-                />
+        <header className="relative overflow-hidden rounded-3xl border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-amber-50/60 px-6 py-8 sm:px-8">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -top-16 -right-10 h-44 w-44 rounded-full bg-emerald-200/40 blur-3xl"
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -bottom-20 left-10 h-40 w-40 rounded-full bg-amber-200/30 blur-3xl"
+          />
+          <div className="relative flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
+            <div className="max-w-xl">
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs font-semibold tracking-wide text-emerald-700 uppercase shadow-sm ring-1 ring-emerald-100">
+                <ChefHat size={14} />
+                SpiĹĽarnia kuchni
               </div>
-              <div>
-                <Label htmlFor="product-unit">Jednostka bazowa</Label>
-                <select
-                  id="product-unit"
-                  className="field-input"
-                  value={productUnit}
-                  onChange={(event) =>
-                    setProductUnit(event.target.value as BaseUnit)
-                  }
-                >
-                  {(Object.keys(UNIT_OPTION_LABELS) as BaseUnit[]).map(
-                    (unit) => (
-                      <option key={unit} value={unit}>
-                        {UNIT_OPTION_LABELS[unit]}
-                      </option>
-                    ),
-                  )}
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="product-category">Kategoria</Label>
-                <select
-                  id="product-category"
-                  className="field-input"
-                  value={productCategory}
-                  onChange={(event) => setProductCategory(event.target.value)}
-                >
-                  <option value="">Bez kategorii</option>
-                  {categoryOptions.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="product-ean">EAN (opcjonalnie)</Label>
-                <Input
-                  id="product-ean"
-                  inputMode="numeric"
-                  placeholder="np. 5901234123457"
-                  value={productEan}
-                  onChange={(event) => setProductEan(event.target.value)}
-                  aria-describedby="product-ean-hint"
-                />
-                <p id="product-ean-hint" className="mt-1 text-xs text-gray-500">
-                  8, 12, 13 albo 14 cyfr. Puste pole = bez kodu.
-                </p>
-              </div>
-              <div className="md:col-span-2">
-                <ImageField
-                  id="product-image"
-                  value={productImageUrl}
-                  onChange={setProductImageUrl}
-                />
-              </div>
-              <div className="flex justify-end md:col-span-2">
-                <Button type="submit" disabled={createProduct.isPending}>
-                  {createProduct.isPending
-                    ? "Dodawanie…"
-                    : "Dodaj do katalogu"}
-                </Button>
-              </div>
-            </form>
-            {createProduct.error ? (
-              <p className="mt-3 text-sm text-red-600" role="alert">
-                {readApiError(createProduct.error)}
+              <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
+                Co masz w domu?
+              </h1>
+              <p className="mt-2 text-base leading-relaxed text-gray-600">
+                Tu trzymasz zapasy pod rÄ™kÄ… â€” ĹĽeby mniej wyrzucaÄ‡, szybciej
+                gotowaÄ‡ i wiedzieÄ‡, czego brakuje przed zakupami.
               </p>
-            ) : null}
-          </div>
-        </section>
-
-        <section className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-          <div className="border-b border-gray-50 bg-gray-50/50 p-5">
-            <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
-              <Package size={20} className="text-emerald-600" /> Dodaj do
-              spiżarni (Nowa partia)
-            </h2>
-            <p className="mt-1 text-sm text-gray-500">
-              Włóż konkretny produkt z katalogu do swojej szafki lub lodówki.
-            </p>
-          </div>
-          <div className="p-6">
-            <form
-              onSubmit={onCreateStock}
-              className="grid grid-cols-1 gap-6 md:grid-cols-2"
-            >
-              <div className="md:col-span-2">
-                <Label htmlFor="stock-product">
-                  Wybierz produkt z katalogu
-                </Label>
-                <select
-                  id="stock-product"
-                  className="field-input"
-                  value={selectedProductId}
-                  required
-                  onChange={(event) => {
-                    const nextId = event.target.value;
-                    setSelectedProductId(nextId);
-                    const product = productsQuery.data?.find(
-                      (item) => item.id === nextId,
-                    );
-                    if (product) {
-                      setInputUnit(
-                        inputUnitsFor(product.defaultUnit)[0]?.value ?? "gram",
-                      );
-                      setStockEan(product.ean ?? "");
-                      setStockImageUrl(product.imageUrl ?? "");
-                    }
-                  }}
-                >
-                  <option value="" disabled>
-                    -- Wybierz produkt --
-                  </option>
-                  {(productsQuery.data ?? []).map((product) => (
-                    <option key={product.id} value={product.id}>
-                      {product.name} ({UNIT_LABELS[product.defaultUnit]}
-                      {product.category ? ` · ${product.category}` : ""})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="stock-qty">Ilość</Label>
-                <Input
-                  id="stock-qty"
-                  inputMode="decimal"
-                  placeholder="0"
-                  value={quantity}
-                  onChange={(event) => setQuantity(event.target.value)}
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="stock-unit">Jednostka wpisywana</Label>
-                <select
-                  id="stock-unit"
-                  className="field-input"
-                  value={inputUnit}
-                  onChange={(event) =>
-                    setInputUnit(event.target.value as InputUnit)
+            </div>
+            <div className="flex flex-col gap-2 sm:items-end">
+              <button
+                type="button"
+                onClick={() => {
+                  setStockFormOpen((open) => !open);
+                  if (!stockFormOpen) {
+                    setProductFormOpen(false);
                   }
-                >
-                  {inputUnitsFor(selectedProduct?.defaultUnit ?? "gram").map(
-                    (unit) => (
-                      <option key={unit.value} value={unit.value}>
-                        {unit.label}
-                      </option>
-                    ),
-                  )}
-                </select>
-              </div>
-              <div>
-                <Label
-                  htmlFor="stock-location"
-                  className="flex items-center gap-2"
-                >
-                  <MapPin size={16} className="text-gray-400" /> Miejsce
-                </Label>
-                <select
-                  id="stock-location"
-                  className="field-input"
-                  value={location}
-                  onChange={(event) =>
-                    setLocation(
-                      event.target.value as keyof typeof LOCATION_LABELS,
-                    )
+                }}
+                className={cn(
+                  "inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold shadow-sm transition-all",
+                  stockFormOpen
+                    ? "bg-amber-100 text-amber-900 ring-1 ring-amber-200"
+                    : "bg-amber-500 text-white shadow-amber-200 hover:bg-amber-600",
+                )}
+              >
+                <ShoppingBasket size={18} />
+                {stockFormOpen ? "Zamknij dodawanie na pĂłĹ‚kÄ™" : "OdĹ‚ĂłĹĽ na pĂłĹ‚kÄ™"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setProductFormOpen((open) => !open);
+                  if (!productFormOpen) {
+                    setStockFormOpen(false);
                   }
-                >
-                  {Object.entries(LOCATION_LABELS).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="stock-price">
-                  Cena zakupu za całość (zł)
-                </Label>
-                <Input
-                  id="stock-price"
-                  inputMode="decimal"
-                  placeholder="0.00"
-                  value={price}
-                  onChange={(event) => setPrice(event.target.value)}
-                  required
-                />
-              </div>
-              <div>
-                <Label
-                  htmlFor="stock-expires"
-                  className="flex items-center gap-2"
-                >
-                  <Calendar size={16} className="text-gray-400" /> Data ważności
-                </Label>
-                <Input
-                  id="stock-expires"
-                  type="date"
-                  value={expiresAt}
-                  onChange={(event) => setExpiresAt(event.target.value)}
-                />
-              </div>
-              <div>
-                <Label
-                  htmlFor="stock-purchased"
-                  className="flex items-center gap-2"
-                >
-                  <Calendar size={16} className="text-gray-400" /> Data zakupu
-                </Label>
-                <Input
-                  id="stock-purchased"
-                  type="date"
-                  value={purchasedAt}
-                  onChange={(event) => setPurchasedAt(event.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="stock-ean">EAN (opcjonalnie)</Label>
-                <Input
-                  id="stock-ean"
-                  inputMode="numeric"
-                  placeholder="np. 5901234123457"
-                  value={stockEan}
-                  onChange={(event) => setStockEan(event.target.value)}
-                  aria-describedby="stock-ean-hint"
-                />
-                <p id="stock-ean-hint" className="mt-1 text-xs text-gray-500">
-                  8, 12, 13 albo 14 cyfr. Puste = bez kodu.
-                </p>
-              </div>
-              <div className="md:col-span-2">
-                <ImageField
-                  id="stock-image"
-                  value={stockImageUrl}
-                  onChange={setStockImageUrl}
-                />
-              </div>
-              <div className="flex justify-end md:col-span-2">
-                <Button
-                  type="submit"
-                  variant="amber"
-                  disabled={createStock.isPending}
-                >
-                  {createStock.isPending ? "Dodawanie…" : "Odłóż na półkę"}
-                </Button>
-              </div>
-            </form>
-            {formError || createStock.error ? (
-              <p className="mt-3 text-sm text-red-600" role="alert">
-                {formError ?? readApiError(createStock.error)}
-              </p>
-            ) : null}
-          </div>
-        </section>
-
-        <section>
-          <div className="mb-4 flex flex-col gap-4">
-            <h2 className="text-xl font-bold text-gray-900">
-              Twój stan magazynowy
-            </h2>
-            <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
-              <Input
-                aria-label="Szukaj w zapasach"
-                placeholder="Szukaj: nazwa, EAN, kategoria…"
-                value={searchQuery}
-                onChange={(event) => setSearchQuery(event.target.value)}
-                className="lg:max-w-xs"
-              />
-              <label className="flex items-center gap-2 text-sm text-gray-500">
-                <span className="font-medium whitespace-nowrap">Kategoria:</span>
-                <select
-                  className="rounded-lg border border-gray-200 bg-white p-2 text-sm text-gray-900 shadow-sm"
-                  value={categoryFilter}
-                  onChange={(event) => setCategoryFilter(event.target.value)}
-                >
-                  <option value="">Wszystkie</option>
-                  <option value={UNCATEGORIZED}>{UNCATEGORIZED}</option>
-                  {categoryOptions.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex items-center gap-2 text-sm text-gray-500">
-                <span className="font-medium whitespace-nowrap">Jednostka:</span>
-                <select
-                  className="rounded-lg border border-gray-200 bg-white p-2 text-sm text-gray-900 shadow-sm"
-                  value={unitFilter}
-                  onChange={(event) =>
-                    setUnitFilter(event.target.value as UnitFilter)
-                  }
-                >
-                  <option value="">Wszystkie</option>
-                  {(Object.keys(UNIT_OPTION_LABELS) as BaseUnit[]).map(
-                    (unit) => (
-                      <option key={unit} value={unit}>
-                        {UNIT_OPTION_LABELS[unit]}
-                      </option>
-                    ),
-                  )}
-                </select>
-              </label>
-              <label className="flex items-center gap-2 text-sm text-gray-500">
-                <span className="font-medium whitespace-nowrap">Miejsce:</span>
-                <select
-                  className="rounded-lg border border-gray-200 bg-white p-2 text-sm text-gray-900 shadow-sm"
-                  value={locationFilter}
-                  onChange={(event) =>
-                    setLocationFilter(event.target.value as LocationFilter)
-                  }
-                  aria-label="Filtr miejsca"
-                >
-                  <option value="">Wszystkie miejsca</option>
-                  {Object.entries(LOCATION_LABELS).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                }}
+                className={cn(
+                  "inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-medium transition-all",
+                  productFormOpen
+                    ? "bg-emerald-100 text-emerald-900 ring-1 ring-emerald-200"
+                    : "bg-white text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-50",
+                )}
+              >
+                <Plus size={18} />
+                {productFormOpen
+                  ? "Zamknij nowy produkt"
+                  : "Nowy produkt w katalogu"}
+              </button>
             </div>
           </div>
+        </header>
 
-          <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
+        {productFormOpen ? (
+          <section className="overflow-hidden rounded-3xl border border-emerald-100 bg-white shadow-sm">
+            <div className="border-b border-emerald-50 bg-emerald-50/40 px-5 py-4">
+              <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
+                <Plus size={20} className="text-emerald-600" /> Nowy produkt w
+                katalogu
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">
+                Najpierw dodaj rzecz do katalogu (np. mleko, ryĹĽ), potem moĹĽesz
+                odĹ‚oĹĽyÄ‡ konkretnÄ… partiÄ™ na pĂłĹ‚kÄ™.
+              </p>
+            </div>
+            <div className="p-6">
+              <form
+                onSubmit={onCreateProduct}
+                className="grid grid-cols-1 gap-6 md:grid-cols-2"
+              >
+                <div>
+                  <Label htmlFor="product-name">Nazwa produktu</Label>
+                  <Input
+                    id="product-name"
+                    placeholder="np. Mleko UHT 3.2%"
+                    value={productName}
+                    onChange={(event) => setProductName(event.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="product-unit">Jednostka bazowa</Label>
+                  <select
+                    id="product-unit"
+                    className="field-input"
+                    value={productUnit}
+                    onChange={(event) =>
+                      setProductUnit(event.target.value as BaseUnit)
+                    }
+                  >
+                    {(Object.keys(UNIT_OPTION_LABELS) as BaseUnit[]).map(
+                      (unit) => (
+                        <option key={unit} value={unit}>
+                          {UNIT_OPTION_LABELS[unit]}
+                        </option>
+                      ),
+                    )}
+                  </select>
+                </div>
+                <div>
+                  <Label htmlFor="product-category">Kategoria</Label>
+                  <select
+                    id="product-category"
+                    className="field-input"
+                    value={productCategory}
+                    onChange={(event) => setProductCategory(event.target.value)}
+                  >
+                    <option value="">Bez kategorii</option>
+                    {categoryOptions.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <Label htmlFor="product-ean">EAN (opcjonalnie)</Label>
+                  <Input
+                    id="product-ean"
+                    inputMode="numeric"
+                    placeholder="np. 5901234123457"
+                    value={productEan}
+                    onChange={(event) => setProductEan(event.target.value)}
+                    aria-describedby="product-ean-hint"
+                  />
+                  <p
+                    id="product-ean-hint"
+                    className="mt-1 text-xs text-gray-500"
+                  >
+                    8, 12, 13 albo 14 cyfr. Puste pole = bez kodu.
+                  </p>
+                </div>
+                <div className="md:col-span-2">
+                  <ImageField
+                    id="product-image"
+                    value={productImageUrl}
+                    onChange={setProductImageUrl}
+                  />
+                </div>
+                <div className="flex justify-end gap-2 md:col-span-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setProductFormOpen(false)}
+                  >
+                    Anuluj
+                  </Button>
+                  <Button type="submit" disabled={createProduct.isPending}>
+                    {createProduct.isPending
+                      ? "Dodawanieâ€¦"
+                      : "Dodaj do katalogu"}
+                  </Button>
+                </div>
+              </form>
+              {createProduct.error ? (
+                <p className="mt-3 text-sm text-red-600" role="alert">
+                  {readApiError(createProduct.error)}
+                </p>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
+
+        {stockFormOpen ? (
+          <section className="overflow-hidden rounded-3xl border border-amber-100 bg-white shadow-sm">
+            <div className="border-b border-amber-50 bg-amber-50/50 px-5 py-4">
+              <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
+                <Package size={20} className="text-amber-600" /> OdĹ‚ĂłĹĽ na pĂłĹ‚kÄ™
+              </h2>
+              <p className="mt-1 text-sm text-gray-500">
+                Wybierz produkt z katalogu i zapisz partiÄ™ w lodĂłwce, spiĹĽarni
+                albo zamraĹĽarce.
+              </p>
+            </div>
+            <div className="p-6">
+              <form
+                onSubmit={onCreateStock}
+                className="grid grid-cols-1 gap-6 md:grid-cols-2"
+              >
+                <div className="md:col-span-2">
+                  <Label htmlFor="stock-product">
+                    Wybierz produkt z katalogu
+                  </Label>
+                  <select
+                    id="stock-product"
+                    className="field-input"
+                    value={selectedProductId}
+                    required
+                    onChange={(event) => {
+                      const nextId = event.target.value;
+                      setSelectedProductId(nextId);
+                      const product = productsQuery.data?.find(
+                        (item) => item.id === nextId,
+                      );
+                      if (product) {
+                        setInputUnit(
+                          inputUnitsFor(product.defaultUnit)[0]?.value ??
+                            "gram",
+                        );
+                        setStockEan(product.ean ?? "");
+                        setStockImageUrl(product.imageUrl ?? "");
+                      }
+                    }}
+                  >
+                    <option value="" disabled>
+                      -- Wybierz produkt --
+                    </option>
+                    {(productsQuery.data ?? []).map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.name} ({UNIT_LABELS[product.defaultUnit]}
+                        {product.category ? ` Â· ${product.category}` : ""})
+                      </option>
+                    ))}
+                  </select>
+                  {(productsQuery.data ?? []).length === 0 ? (
+                    <p className="mt-2 text-sm text-amber-800">
+                      Katalog jest pusty.{" "}
+                      <button
+                        type="button"
+                        className="font-semibold underline"
+                        onClick={() => {
+                          setStockFormOpen(false);
+                          setProductFormOpen(true);
+                        }}
+                      >
+                        Dodaj najpierw produkt
+                      </button>
+                      .
+                    </p>
+                  ) : null}
+                </div>
+                <div>
+                  <Label htmlFor="stock-qty">IloĹ›Ä‡</Label>
+                  <Input
+                    id="stock-qty"
+                    inputMode="decimal"
+                    placeholder="0"
+                    value={quantity}
+                    onChange={(event) => setQuantity(event.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="stock-unit">Jednostka wpisywana</Label>
+                  <select
+                    id="stock-unit"
+                    className="field-input"
+                    value={inputUnit}
+                    onChange={(event) =>
+                      setInputUnit(event.target.value as InputUnit)
+                    }
+                  >
+                    {inputUnitsFor(selectedProduct?.defaultUnit ?? "gram").map(
+                      (unit) => (
+                        <option key={unit.value} value={unit.value}>
+                          {unit.label}
+                        </option>
+                      ),
+                    )}
+                  </select>
+                </div>
+                <div>
+                  <Label
+                    htmlFor="stock-location"
+                    className="flex items-center gap-2"
+                  >
+                    <MapPin size={16} className="text-gray-400" /> Miejsce
+                  </Label>
+                  <select
+                    id="stock-location"
+                    className="field-input"
+                    value={location}
+                    onChange={(event) =>
+                      setLocation(
+                        event.target.value as keyof typeof LOCATION_LABELS,
+                      )
+                    }
+                  >
+                    {Object.entries(LOCATION_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <Label htmlFor="stock-price">
+                    Cena zakupu za caĹ‚oĹ›Ä‡ (zĹ‚)
+                  </Label>
+                  <Input
+                    id="stock-price"
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    value={price}
+                    onChange={(event) => setPrice(event.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label
+                    htmlFor="stock-expires"
+                    className="flex items-center gap-2"
+                  >
+                    <Calendar size={16} className="text-gray-400" /> Data
+                    waĹĽnoĹ›ci
+                  </Label>
+                  <Input
+                    id="stock-expires"
+                    type="date"
+                    value={expiresAt}
+                    onChange={(event) => setExpiresAt(event.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label
+                    htmlFor="stock-purchased"
+                    className="flex items-center gap-2"
+                  >
+                    <Calendar size={16} className="text-gray-400" /> Data zakupu
+                  </Label>
+                  <Input
+                    id="stock-purchased"
+                    type="date"
+                    value={purchasedAt}
+                    onChange={(event) => setPurchasedAt(event.target.value)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="stock-ean">EAN (opcjonalnie)</Label>
+                  <Input
+                    id="stock-ean"
+                    inputMode="numeric"
+                    placeholder="np. 5901234123457"
+                    value={stockEan}
+                    onChange={(event) => setStockEan(event.target.value)}
+                    aria-describedby="stock-ean-hint"
+                  />
+                  <p id="stock-ean-hint" className="mt-1 text-xs text-gray-500">
+                    8, 12, 13 albo 14 cyfr. Puste = bez kodu.
+                  </p>
+                </div>
+                <div className="md:col-span-2">
+                  <ImageField
+                    id="stock-image"
+                    value={stockImageUrl}
+                    onChange={setStockImageUrl}
+                  />
+                </div>
+                <div className="flex justify-end gap-2 md:col-span-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setStockFormOpen(false)}
+                  >
+                    Anuluj
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="amber"
+                    disabled={createStock.isPending}
+                  >
+                    {createStock.isPending ? "Dodawanieâ€¦" : "OdĹ‚ĂłĹĽ na pĂłĹ‚kÄ™"}
+                  </Button>
+                </div>
+              </form>
+              {formError || createStock.error ? (
+                <p className="mt-3 text-sm text-red-600" role="alert">
+                  {formError ?? readApiError(createStock.error)}
+                </p>
+              ) : null}
+            </div>
+          </section>
+        ) : null}
+
+        <section className="space-y-4">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-2xl font-bold tracking-tight text-gray-900">
+              Twoja spiĹĽarnia
+            </h2>
+            <p className="text-sm text-gray-500">
+              PrzeglÄ…daj to, co juĹĽ masz â€” wedĹ‚ug kategorii, jednostki i miejsca.
+            </p>
+          </div>
+          <div className="flex flex-col gap-3 rounded-2xl border border-gray-100 bg-white/80 p-4 shadow-sm lg:flex-row lg:flex-wrap lg:items-center">
+            <Input
+              aria-label="Szukaj w zapasach"
+              placeholder="Szukaj: nazwa, EAN, kategoriaâ€¦"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              className="lg:max-w-xs"
+            />
+            <label className="flex items-center gap-2 text-sm text-gray-500">
+              <span className="font-medium whitespace-nowrap">Kategoria:</span>
+              <select
+                className="field-input py-2"
+                value={categoryFilter}
+                onChange={(event) => setCategoryFilter(event.target.value)}
+              >
+                <option value="">Wszystkie</option>
+                <option value={UNCATEGORIZED}>{UNCATEGORIZED}</option>
+                {categoryOptions.map((category) => (
+                  <option key={category} value={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-500">
+              <span className="font-medium whitespace-nowrap">Jednostka:</span>
+              <select
+                className="field-input py-2"
+                value={unitFilter}
+                onChange={(event) =>
+                  setUnitFilter(event.target.value as UnitFilter)
+                }
+              >
+                <option value="">Wszystkie</option>
+                {(Object.keys(UNIT_OPTION_LABELS) as BaseUnit[]).map((unit) => (
+                  <option key={unit} value={unit}>
+                    {UNIT_OPTION_LABELS[unit]}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-500">
+              <span className="font-medium whitespace-nowrap">Miejsce:</span>
+              <select
+                className="field-input py-2"
+                value={locationFilter}
+                onChange={(event) =>
+                  setLocationFilter(event.target.value as LocationFilter)
+                }
+                aria-label="Filtr miejsca"
+              >
+                <option value="">Wszystkie miejsca</option>
+                {Object.entries(LOCATION_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
             {stockQuery.isPending || productsQuery.isPending ? (
               <div className="p-12 text-center text-sm text-gray-500">
-                Ładowanie zapasów…
+                Ĺadowanie spiĹĽarniâ€¦
               </div>
             ) : null}
             {stockQuery.isError ? (
@@ -738,23 +864,47 @@ export default function StockPage() {
             {!stockQuery.isPending &&
             !stockQuery.isError &&
             filteredStock.length === 0 ? (
-              <div className="p-12 text-center">
-                <Package size={48} className="mx-auto mb-4 text-gray-200" />
-                <p className="text-gray-500">
-                  Brak produktów dla wybranych filtrów.
+              <div className="px-6 py-14 text-center">
+                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
+                  <ChefHat size={32} />
+                </div>
+                <p className="text-lg font-semibold text-gray-900">
+                  SpiĹĽarnia czeka na pierwsze produkty
                 </p>
-                <p className="mt-1 text-sm text-gray-400">
-                  Dodaj nową partię powyżej albo zmień wyszukiwanie.
+                <p className="mx-auto mt-2 max-w-md text-sm text-gray-500">
+                  Dodaj produkt do katalogu, a potem odĹ‚ĂłĹĽ partiÄ™ na pĂłĹ‚kÄ™ â€”
+                  zobaczysz tu iloĹ›ci, miejsca i daty waĹĽnoĹ›ci.
                 </p>
+                <div className="mt-6 flex flex-wrap justify-center gap-3">
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setProductFormOpen(true);
+                      setStockFormOpen(false);
+                    }}
+                  >
+                    Nowy produkt
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="amber"
+                    onClick={() => {
+                      setStockFormOpen(true);
+                      setProductFormOpen(false);
+                    }}
+                  >
+                    OdĹ‚ĂłĹĽ na pĂłĹ‚kÄ™
+                  </Button>
+                </div>
               </div>
             ) : null}
             {filteredStock.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-sm">
-                  <thead className="border-b border-gray-100 bg-gray-50/80">
+                  <thead className="border-b border-gray-100 bg-emerald-50/50">
                     <tr>
                       <th className="px-4 py-3 font-semibold text-gray-700">
-                        Zdjęcie
+                        ZdjÄ™cie
                       </th>
                       <th className="px-4 py-3 font-semibold text-gray-700">
                         Produkt
@@ -763,7 +913,7 @@ export default function StockPage() {
                         Jednostka
                       </th>
                       <th className="px-4 py-3 font-semibold text-gray-700">
-                        Pozostało / start
+                        PozostaĹ‚o / start
                       </th>
                       <th className="px-4 py-3 font-semibold text-gray-700">
                         Miejsce
@@ -772,7 +922,7 @@ export default function StockPage() {
                         Cena partii
                       </th>
                       <th className="px-4 py-3 font-semibold text-gray-700">
-                        Ważność
+                        WaĹĽnoĹ›Ä‡
                       </th>
                       <th className="px-4 py-3 font-semibold text-gray-700">
                         Akcje
@@ -802,7 +952,7 @@ export default function StockPage() {
                               className="border-b border-gray-50 last:border-0"
                             >
                               <td className="px-4 py-3">
-                                <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg border border-gray-100 bg-gray-50">
+                                <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl border border-emerald-50 bg-emerald-50/40">
                                   {photo ? (
                                     // eslint-disable-next-line @next/next/no-img-element
                                     <img
@@ -813,7 +963,7 @@ export default function StockPage() {
                                   ) : (
                                     <Package
                                       size={18}
-                                      className="text-gray-300"
+                                      className="text-emerald-300"
                                     />
                                   )}
                                 </div>
@@ -831,7 +981,7 @@ export default function StockPage() {
                               <td className="px-4 py-3 text-gray-700">
                                 {product
                                   ? UNIT_LABELS[product.defaultUnit]
-                                  : "—"}
+                                  : "â€”"}
                               </td>
                               <td className="px-4 py-3 text-gray-700">
                                 {editingId === item.id ? (
@@ -843,7 +993,7 @@ export default function StockPage() {
                                     }}
                                   >
                                     <Input
-                                      aria-label="Nowa pozostała ilość"
+                                      aria-label="Nowa pozostaĹ‚a iloĹ›Ä‡"
                                       value={editQuantity}
                                       onChange={(event) =>
                                         setEditQuantity(event.target.value)
@@ -869,7 +1019,7 @@ export default function StockPage() {
                                   ? new Date(item.expiresAt).toLocaleDateString(
                                       "pl-PL",
                                     )
-                                  : "—"}
+                                  : "â€”"}
                               </td>
                               <td className="px-4 py-3">
                                 <div className="flex flex-wrap gap-2">
@@ -888,7 +1038,7 @@ export default function StockPage() {
                                     variant="destructive"
                                     onClick={() => deleteStock.mutate(item.id)}
                                   >
-                                    Usuń
+                                    UsuĹ„
                                   </Button>
                                 </div>
                               </td>
@@ -904,87 +1054,109 @@ export default function StockPage() {
           </div>
         </section>
 
-        <section className="opacity-90 transition-opacity hover:opacity-100">
-          <h2 className="mb-4 text-xl font-bold text-gray-900">
-            Katalog produktów
-          </h2>
-          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
-            {(productsQuery.data ?? []).length === 0 ? (
-              <div className="p-8 text-center text-gray-500">
-                Katalog jest pusty.
-              </div>
-            ) : (
-              <ul>
-                {(productsQuery.data ?? []).map((product) => {
-                  const hasStock = (stockQuery.data ?? []).some(
-                    (item) => item.productId === product.id,
-                  );
-                  return (
-                    <li
-                      key={product.id}
-                      className="flex flex-col gap-3 border-b border-gray-100 px-4 py-3 last:border-0 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <div className="flex min-w-0 items-center gap-3">
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-100 bg-gray-50">
-                          {product.imageUrl ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={product.imageUrl}
-                              alt=""
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <Package size={18} className="text-gray-300" />
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="font-medium text-gray-900">
-                            {product.name}{" "}
-                            <span className="font-normal text-gray-500">
-                              ({UNIT_LABELS[product.defaultUnit]})
-                            </span>
-                          </p>
-                          <p className="truncate text-xs text-gray-400">
-                            {product.category ?? UNCATEGORIZED}
-                            {product.ean ? ` · EAN ${product.ean}` : ""}
-                          </p>
-                        </div>
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() =>
-                          setProductToDelete({
-                            id: product.id,
-                            name: product.name,
-                            hasStock,
-                          })
-                        }
+        <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
+          <button
+            type="button"
+            onClick={() => setCatalogOpen((open) => !open)}
+            className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left hover:bg-gray-50/80"
+            aria-expanded={catalogOpen}
+          >
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">
+                Katalog produktĂłw
+              </h2>
+              <p className="text-sm text-gray-500">
+                {(productsQuery.data ?? []).length} pozycji Â· baza do odkĹ‚adania
+                na pĂłĹ‚ki
+              </p>
+            </div>
+            <ChevronDown
+              size={20}
+              className={cn(
+                "shrink-0 text-gray-400 transition-transform",
+                catalogOpen && "rotate-180",
+              )}
+            />
+          </button>
+          {catalogOpen ? (
+            <div className="border-t border-gray-100">
+              {(productsQuery.data ?? []).length === 0 ? (
+                <div className="p-8 text-center text-gray-500">
+                  Katalog jest pusty. Dodaj pierwszy produkt przyciskiem u gĂłry.
+                </div>
+              ) : (
+                <ul>
+                  {(productsQuery.data ?? []).map((product) => {
+                    const hasStock = (stockQuery.data ?? []).some(
+                      (item) => item.productId === product.id,
+                    );
+                    return (
+                      <li
+                        key={product.id}
+                        className="flex flex-col gap-3 border-b border-gray-100 px-4 py-3 last:border-0 sm:flex-row sm:items-center sm:justify-between"
                       >
-                        Usuń produkt
-                      </Button>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-          <p className="mt-2 ml-2 text-xs text-gray-400">
-            Usunięcie produktu z katalogu usunie również wszystkie jego partie
-            na półkach.
-          </p>
+                        <div className="flex min-w-0 items-center gap-3">
+                          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-emerald-50 bg-emerald-50/40">
+                            {product.imageUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={product.imageUrl}
+                                alt=""
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <Package size={18} className="text-emerald-300" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-medium text-gray-900">
+                              {product.name}{" "}
+                              <span className="font-normal text-gray-500">
+                                ({UNIT_LABELS[product.defaultUnit]})
+                              </span>
+                            </p>
+                            <p className="truncate text-xs text-gray-400">
+                              {product.category ?? UNCATEGORIZED}
+                              {product.ean ? ` Â· EAN ${product.ean}` : ""}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            setProductToDelete({
+                              id: product.id,
+                              name: product.name,
+                              hasStock,
+                            })
+                          }
+                        >
+                          UsuĹ„ produkt
+                        </Button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+              <p className="border-t border-gray-50 px-4 py-3 text-xs text-gray-400">
+                UsuniÄ™cie produktu z katalogu usuwa teĹĽ wszystkie jego partie na
+                pĂłĹ‚kach.
+              </p>
+            </div>
+          ) : null}
         </section>
       </div>
 
       {productToDelete ? (
         <ConfirmDialog
-          title={`Usunąć produkt „${productToDelete.name}”?`}
+          title={`UsunÄ…Ä‡ produkt â€ž${productToDelete.name}â€ť?`}
           description={
             productToDelete.hasStock
-              ? "Produkt ma partie zapasów. Potwierdzenie usunie produkt oraz wszystkie jego partie."
-              : "Produkt nie ma partii i zostanie usunięty."
+              ? "Produkt ma partie zapasĂłw. Potwierdzenie usunie produkt oraz wszystkie jego partie."
+              : "Produkt nie ma partii i zostanie usuniÄ™ty."
           }
-          confirmLabel="Usuń"
+          confirmLabel="UsuĹ„"
           pending={deleteProduct.isPending}
           onCancel={() => setProductToDelete(null)}
           onConfirm={() => deleteProduct.mutate(productToDelete.hasStock)}

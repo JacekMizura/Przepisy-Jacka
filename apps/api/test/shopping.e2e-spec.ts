@@ -540,26 +540,18 @@ describe('Shopping list and purchases (e2e)', () => {
     };
 
     const [first, second] = await Promise.all([
-      apiFetch(
-        api.origin,
-        `/api/kitchens/${kitchen.id}/shopping-list/items`,
-        {
-          method: 'POST',
-          webOrigin: WEB_ORIGIN,
-          cookies: owner.cookies,
-          body,
-        },
-      ),
-      apiFetch(
-        api.origin,
-        `/api/kitchens/${kitchen.id}/shopping-list/items`,
-        {
-          method: 'POST',
-          webOrigin: WEB_ORIGIN,
-          cookies: owner.cookies,
-          body,
-        },
-      ),
+      apiFetch(api.origin, `/api/kitchens/${kitchen.id}/shopping-list/items`, {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body,
+      }),
+      apiFetch(api.origin, `/api/kitchens/${kitchen.id}/shopping-list/items`, {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body,
+      }),
     ]);
 
     expect([first.status, second.status].sort((a, b) => a - b)).toEqual([
@@ -602,36 +594,28 @@ describe('Shopping list and purchases (e2e)', () => {
     const product = productRes.body as { id: string };
 
     const [first, second] = await Promise.all([
-      apiFetch(
-        api.origin,
-        `/api/kitchens/${kitchen.id}/shopping-list/items`,
-        {
-          method: 'POST',
-          webOrigin: WEB_ORIGIN,
-          cookies: owner.cookies,
-          body: {
-            productId: product.id,
-            plannedQuantity: '1.000',
-            plannedUnit: 'liter',
-            mergeQuantity: true,
-          },
+      apiFetch(api.origin, `/api/kitchens/${kitchen.id}/shopping-list/items`, {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          productId: product.id,
+          plannedQuantity: '1.000',
+          plannedUnit: 'liter',
+          mergeQuantity: true,
         },
-      ),
-      apiFetch(
-        api.origin,
-        `/api/kitchens/${kitchen.id}/shopping-list/items`,
-        {
-          method: 'POST',
-          webOrigin: WEB_ORIGIN,
-          cookies: owner.cookies,
-          body: {
-            productId: product.id,
-            plannedQuantity: '0.500',
-            plannedUnit: 'liter',
-            mergeQuantity: true,
-          },
+      }),
+      apiFetch(api.origin, `/api/kitchens/${kitchen.id}/shopping-list/items`, {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          productId: product.id,
+          plannedQuantity: '0.500',
+          plannedUnit: 'liter',
+          mergeQuantity: true,
         },
-      ),
+      }),
     ]);
 
     expect(first.status).toBe(201);

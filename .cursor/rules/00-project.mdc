@@ -1,0 +1,35 @@
+---
+description: Zasady projektu Moja Kuchnia — architektura, zakres i sposób pracy
+alwaysApply: true
+---
+
+# Projekt Moja Kuchnia
+
+Przed zmianą kodu przeczytaj istniejące pliki i aktualne źródła prawdy. Nie zgaduj struktury.
+
+Aktualne źródła prawdy:
+
+- `docs/product-scope.md`
+- `docs/architecture.md`
+- `docs/project-status.md`
+
+`docs/faza-0-architektura.md` to materiał historyczny z wcześniejszego, niezwiązanego projektu. Nie używaj go do decyzji, nazw, zakresu, architektury ani reguł.
+
+## Architektura
+
+- `apps/api` jest jedynym backendem i jedynym miejscem dostępu do PostgreSQL.
+- `apps/web` i `apps/mobile` komunikują się wyłącznie z REST API przez `packages/api-client`.
+- Nie twórz ręcznych typów odpowiedzi API w web i mobile.
+- Nie twórz wspólnej biblioteki UI dla Next.js i React Native.
+- Nie zmieniaj architektury, stosu ani podziału odpowiedzialności bez wyraźnej zgody.
+
+## Zakres
+
+- Nie implementuj funkcji biznesowych kuchni, dopóki etap fundamentu / dany etap tego nie obejmuje.
+- Nie dodawaj pustych abstrakcji „na przyszłość”.
+- Nie zostawiaj tymczasowych workaroundów jako rozwiązania.
+- Po zmianie funkcjonalnej zaktualizuj `docs/`.
+
+## Raport
+
+Końcowy raport dla użytkownika pisz po polsku.

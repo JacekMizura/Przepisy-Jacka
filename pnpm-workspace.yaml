@@ -1,0 +1,15 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+allowBuilds:
+  "@prisma/engines": true
+  "@scarf/scarf": false
+  esbuild: true
+  prisma: true
+  unrs-resolver: true
+
+# NestJS uses Jest 30; Expo/React Native still pulls jest-environment-node@29.
+# Without this override, hoisted node_modules mixes Jest 30 runtime with a Jest 29 environment.
+overrides:
+  jest-environment-node: "30.4.1"

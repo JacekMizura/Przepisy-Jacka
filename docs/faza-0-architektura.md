@@ -1,3 +1,14 @@
+> **MATERIAŁ HISTORYCZNY — NIE JEST ŹRÓDŁEM PRAWDY**
+>
+> Ten plik pochodzi z wcześniejszego, **niezwiązanego** projektu koncepcyjnego („Przepisy Jacka”, Faza 0). Został zachowany wyłącznie jako artefakt historyczny.
+>
+> **Nie używaj** go do decyzji, nazw, zakresu, architektury ani reguł aplikacji **Moja Kuchnia**.
+>
+> Aktualne źródła prawdy:
+> - `docs/product-scope.md`
+> - `docs/architecture.md`
+> - `docs/project-status.md`
+
 # Przepisy Jacka — Faza 0: raport architektoniczny
 
 Status: projekt koncepcyjny. Brak kodu aplikacji, migracji, szkieletu i zależności.

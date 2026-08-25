@@ -1,0 +1,7 @@
+{
+  "extends": "@moja-kuchnia/typescript-config/library.json",
+  "compilerOptions": {
+    "rootDir": "src"
+  },
+  "include": ["src/**/*.ts"]
+}

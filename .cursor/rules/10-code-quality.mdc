@@ -1,0 +1,25 @@
+---
+description: Jakość kodu TypeScript, walidacja, sekrety i testy
+alwaysApply: true
+---
+
+# Jakość kodu
+
+- TypeScript w trybie `strict`.
+- Nie używaj `any` bez wyraźnego uzasadnienia w tej samej zmianie.
+- Waliduj wszystkie dane wejściowe API (DTOs / pipe / schemat).
+- Nie commituj sekretów, kluczy ani prawdziwych danych uwierzytelniania.
+- Przed raportem końcowym uruchom dostępne kontrole: lint, typecheck, testy i build.
+- Nie obchodź błędów kompilacji wyłączeniem strict, `@ts-ignore` ani `any`.
+
+```ts
+// Źle
+function parse(payload: any) {
+  return payload.userId;
+}
+
+// Dobrze
+function parse(payload: unknown): { userId: string } {
+  return inputSchema.parse(payload);
+}
+```

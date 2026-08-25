@@ -1,0 +1,57 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Build outputs
+dist/
+build/
+.turbo/
+.next/
+out/
+.expo/
+.expo-shared/
+android/
+ios/
+web-build/
+*.tsbuildinfo
+
+# Prisma
+apps/api/src/generated/prisma/
+
+# Logs and caches
+*.log
+npm-debug.log*
+pnpm-debug.log*
+.eslintcache
+.cache/
+coverage/
+.nyc_output/
+
+# Tests / tooling
+.turbo
+.vercel
+.railway
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+.DS_Store
+Thumbs.db
+
+# Expo / EAS
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+eas-cli-*.log
+
+# OS
+Desktop.ini

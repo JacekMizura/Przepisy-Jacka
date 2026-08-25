@@ -1,0 +1,23 @@
+{
+  "name": "moja-kuchnia",
+  "private": true,
+  "packageManager": "pnpm@11.20.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "turbo run dev --filter=@moja-kuchnia/api --filter=@moja-kuchnia/web",
+    "dev:web": "turbo run dev --filter=@moja-kuchnia/web",
+    "dev:api": "turbo run dev --filter=@moja-kuchnia/api",
+    "dev:mobile": "turbo run dev --filter=@moja-kuchnia/mobile",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "api:generate": "pnpm --filter @moja-kuchnia/api generate:openapi && pnpm --filter @moja-kuchnia/api-client generate"
+  },
+  "devDependencies": {
+    "turbo": "^2.10.11",
+    "typescript": "~5.9.3"
+  }
+}

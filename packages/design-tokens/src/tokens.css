@@ -1,0 +1,19 @@
+:root {
+  --color-background: #f7f3ee;
+  --color-foreground: #1c1917;
+  --color-muted: #78716c;
+  --color-accent: #b45309;
+  --color-success: #166534;
+  --color-danger: #b91c1c;
+  --color-border: #e7e5e4;
+  --color-surface: #ffffff;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --space-xl: 32px;
+  --font-size-sm: 14px;
+  --font-size-md: 16px;
+  --font-size-lg: 20px;
+  --font-size-xl: 28px;
+}

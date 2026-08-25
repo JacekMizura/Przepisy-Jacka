@@ -1,0 +1,11 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Modele domenowe (użytkownik, kuchnia, przepis, produkt) pojawią się w kolejnych etapach.

@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    env:
+      NODE_ENV: test
+      API_HOST: 0.0.0.0
+      API_PORT: 3001
+      DATABASE_URL: postgresql://moja_kuchnia:moja_kuchnia_dev@localhost:5432/moja_kuchnia
+      CORS_ORIGINS: http://localhost:3000
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.20.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @moja-kuchnia/api prisma:generate
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build web
+        run: pnpm --filter @moja-kuchnia/web build
+
+      - name: Build API
+        run: pnpm --filter @moja-kuchnia/api build

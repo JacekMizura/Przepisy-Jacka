@@ -1,0 +1,79 @@
+{
+  "name": "@moja-kuchnia/api",
+  "version": "0.0.1",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "prisma generate && nest build",
+    "dev": "prisma generate && nest start --watch",
+    "start": "nest start",
+    "start:debug": "nest start --debug --watch",
+    "start:prod": "node dist/main",
+    "lint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
+    "typecheck": "tsc --noEmit -p tsconfig.build.json",
+    "test": "jest && jest --config ./test/jest-e2e.json",
+    "test:watch": "jest --watch",
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "prisma:generate": "prisma generate",
+    "generate:openapi": "prisma generate && nest build && node dist/generate-openapi.js"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.9",
+    "@nestjs/config": "^4.0.2",
+    "@nestjs/core": "^11.1.9",
+    "@nestjs/platform-fastify": "^11.1.9",
+    "@nestjs/swagger": "^11.2.1",
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^7.9.1",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.3",
+    "dotenv": "^17.2.2",
+    "@fastify/static": "^8.2.0",
+    "fastify": "^5.6.1",
+    "pg": "^8.16.3",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.2.0",
+    "@eslint/js": "^9.18.0",
+    "@moja-kuchnia/eslint-config": "workspace:*",
+    "@moja-kuchnia/typescript-config": "workspace:*",
+    "@nestjs/cli": "^11.0.14",
+    "@nestjs/schematics": "^11.0.9",
+    "@nestjs/testing": "^11.1.9",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.15.6",
+    "eslint": "^9.18.0",
+    "eslint-config-prettier": "^10.0.1",
+    "eslint-plugin-prettier": "^5.2.2",
+    "globals": "^16.0.0",
+    "jest": "^30.0.0",
+    "jest-environment-node": "30.4.1",
+    "prettier": "^3.4.2",
+    "prisma": "^7.9.1",
+    "source-map-support": "^0.5.21",
+    "ts-jest": "^29.2.5",
+    "ts-loader": "^9.5.2",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "~5.9.3",
+    "typescript-eslint": "^8.20.0"
+  },
+  "jest": {
+    "moduleFileExtensions": ["js", "json", "ts"],
+    "rootDir": "src",
+    "testRegex": ".*\\.spec\\.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "moduleNameMapper": {
+      "^(\\.{1,2}/.*)\\.js$": "$1"
+    },
+    "collectCoverageFrom": ["**/*.(t|j)s"],
+    "coverageDirectory": "../coverage",
+    "testEnvironment": "node"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./base.json",
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "noEmit": false,
+    "outDir": "./dist",
+    "incremental": true,
+    "removeComments": true,
+    "declaration": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false
+  }
+}

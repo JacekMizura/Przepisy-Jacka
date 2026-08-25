@@ -87,6 +87,7 @@ Na emulatorze Androida ustaw `EXPO_PUBLIC_API_URL=http://10.0.2.2:3001`. Na fizy
 | `pnpm lint` | ESLint |
 | `pnpm typecheck` | TypeScript `--noEmit` |
 | `pnpm test` | testy |
+| `pnpm test:auth-blackbox` | black-box auth przez prawdziwy `next build` + `next start` |
 | `pnpm api:generate` | OpenAPI z NestJS + typy klienta |
 
 ## Dokumentacja

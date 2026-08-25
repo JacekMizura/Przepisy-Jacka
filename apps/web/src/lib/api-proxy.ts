@@ -1,4 +1,5 @@
-const HOP_BY_HOP = new Set([
+/** Nagłówki hop-by-hop oraz Host — nie przekazywane do upstream. */
+const REQUEST_SKIP = new Set([
   "connection",
   "keep-alive",
   "proxy-authenticate",
@@ -8,7 +9,20 @@ const HOP_BY_HOP = new Set([
   "transfer-encoding",
   "upgrade",
   "host",
+  // Body i Content-Length ustawia fetch na podstawie przekazanego bufora.
   "content-length",
+]);
+
+/** Nagłówki hop-by-hop odpowiedzi — Content-Length zachowujemy dla niezmienionego body. */
+const RESPONSE_SKIP = new Set([
+  "connection",
+  "keep-alive",
+  "proxy-authenticate",
+  "proxy-authorization",
+  "te",
+  "trailers",
+  "transfer-encoding",
+  "upgrade",
 ]);
 
 export function getApiOrigin(): string {
@@ -21,10 +35,11 @@ export function getApiOrigin(): string {
 
 export async function proxyToApi(request: Request): Promise<Response> {
   const url = new URL(request.url);
+  // Destynacja wyłącznie z serwerowego API_ORIGIN + ścieżka/query z żądania.
   const target = `${getApiOrigin()}${url.pathname}${url.search}`;
   const headers = new Headers();
   request.headers.forEach((value, key) => {
-    if (!HOP_BY_HOP.has(key.toLowerCase())) {
+    if (!REQUEST_SKIP.has(key.toLowerCase())) {
       headers.set(key, value);
     }
   });
@@ -36,24 +51,34 @@ export async function proxyToApi(request: Request): Promise<Response> {
 
   const method = request.method;
   const hasBody = method !== "GET" && method !== "HEAD";
-  const upstream = await fetch(target, {
-    method,
-    headers,
-    body: hasBody ? await request.arrayBuffer() : undefined,
-    redirect: "manual",
-  });
+
+  let upstream: Response;
+  try {
+    upstream = await fetch(target, {
+      method,
+      headers,
+      body: hasBody ? await request.arrayBuffer() : undefined,
+      redirect: "manual",
+    });
+  } catch {
+    return new Response(JSON.stringify({ message: "API niedostępne." }), {
+      status: 502,
+      headers: { "content-type": "application/json; charset=utf-8" },
+    });
+  }
 
   const responseHeaders = new Headers();
   upstream.headers.forEach((value, key) => {
-    if (key.toLowerCase() === "set-cookie") {
+    const lower = key.toLowerCase();
+    if (lower === "set-cookie") {
       return;
     }
-    if (!HOP_BY_HOP.has(key.toLowerCase())) {
+    if (!RESPONSE_SKIP.has(lower)) {
       responseHeaders.append(key, value);
     }
   });
-  const cookies = upstream.headers.getSetCookie();
-  for (const cookie of cookies) {
+  // getSetCookie zachowuje osobne wartości — nie łączymy ich w jeden nagłówek.
+  for (const cookie of upstream.headers.getSetCookie()) {
     responseHeaders.append("set-cookie", cookie);
   }
 

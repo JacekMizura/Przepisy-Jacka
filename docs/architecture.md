@@ -36,7 +36,9 @@ Nie ma wspólnej biblioteki komponentów UI dla Next.js i React Native. Interfej
 
 Web **nie** zawiera równoległej logiki biznesowej i **nie** łączy się z bazą.
 
-Przeglądarka woła wyłącznie względne `/api/*`. Next.js przekazuje te żądania mechanicznie do serwerowego `API_ORIGIN` (handler `apps/web/src/app/api/[...path]/route.ts`). Nie używamy `NEXT_PUBLIC_API_URL` wskazującego na Railway.
+Przeglądarka woła wyłącznie względne `/api/*`. Next.js przekazuje te żądania mechanicznie do serwerowego `API_ORIGIN` (handler `apps/web/src/app/api/[...path]/route.ts` + `api-proxy.ts`). Destynacja pochodzi wyłącznie z `API_ORIGIN`; brak logiki domenowej w Next.js. Przy niedostępności API proxy zwraca 502. Nie używamy `NEXT_PUBLIC_API_URL` wskazującego na Railway.
+
+Weryfikacja same-origin: `pnpm test:auth-blackbox` uruchamia prawdziwy NestJS oraz `next build` + `next start` i woła wyłącznie HTTP przez origin weba (nie importuje `proxyToApi`).
 
 ### `apps/mobile`
 

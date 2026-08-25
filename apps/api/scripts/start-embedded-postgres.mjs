@@ -1,4 +1,5 @@
 import EmbeddedPostgres from "embedded-postgres";
+import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
@@ -16,8 +17,20 @@ const pg = new EmbeddedPostgres({
   persistent: true,
 });
 
+function looksInitialized(dir) {
+  return (
+    fs.existsSync(path.join(dir, "PG_VERSION")) ||
+    fs.existsSync(path.join(dir, "postgresql.conf"))
+  );
+}
+
 async function main() {
-  await pg.initialise();
+  if (!looksInitialized(databaseDir)) {
+    if (fs.existsSync(databaseDir)) {
+      fs.rmSync(databaseDir, { recursive: true, force: true });
+    }
+    await pg.initialise();
+  }
   await pg.start();
   try {
     await pg.createDatabase("moja_kuchnia");

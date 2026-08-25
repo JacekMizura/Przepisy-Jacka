@@ -14,6 +14,7 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "test:auth-blackbox": "node scripts/auth-through-next.blackbox.mjs",
     "api:generate": "pnpm --filter @moja-kuchnia/api generate:openapi && pnpm --filter @moja-kuchnia/api-client generate"
   },
   "devDependencies": {

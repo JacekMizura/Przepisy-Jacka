@@ -30,7 +30,8 @@ W tej wersji:
 - zapraszać może wyłącznie owner,
 - zaprosić można wyłącznie jako `member`,
 - nie ma zmiany właściciela ani edycji ról,
-- kuchnia nie może powstać bez ownera (tworzenie kuchni i członkostwa ownera jest transakcyjne).
+- kuchnia nie może powstać bez ownera (tworzenie kuchni i członkostwa ownera jest transakcyjne),
+- właściciel może usunąć kuchnię (kaskadowo: członkowie, zaproszenia, produkty i partie).
 
 ## Dane osobiste użytkownika
 

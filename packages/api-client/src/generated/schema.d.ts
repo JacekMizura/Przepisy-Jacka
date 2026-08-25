@@ -68,7 +68,8 @@ export interface paths {
         get: operations["KitchensController_getOne"];
         put?: never;
         post?: never;
-        delete?: never;
+        /** Usunięcie kuchni przez właściciela (kaskadowo członkowie, zaproszenia, produkty i partie) */
+        delete: operations["KitchensController_remove"];
         options?: never;
         head?: never;
         patch?: never;
@@ -484,6 +485,25 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["KitchenDetailsDto"];
                 };
+            };
+        };
+    };
+    KitchensController_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

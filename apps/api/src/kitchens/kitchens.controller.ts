@@ -1,12 +1,19 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Post,
 } from '@nestjs/common';
-import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiNoContentResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { Session } from '@thallesp/nestjs-better-auth';
 import type { UserSession } from '@thallesp/nestjs-better-auth';
 
@@ -50,6 +57,20 @@ export class KitchensController {
     @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
   ): Promise<KitchenDetailsDto> {
     return this.kitchensService.getDetails(session.user.id, kitchenId);
+  }
+
+  @Delete('kitchens/:kitchenId')
+  @HttpCode(204)
+  @ApiOperation({
+    summary:
+      'Usunięcie kuchni przez właściciela (kaskadowo członkowie, zaproszenia, produkty i partie)',
+  })
+  @ApiNoContentResponse()
+  async remove(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+  ): Promise<void> {
+    await this.kitchensService.remove(session.user.id, kitchenId);
   }
 
   @Get('kitchens/:kitchenId/invites')

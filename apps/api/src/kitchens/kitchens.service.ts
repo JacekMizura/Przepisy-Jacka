@@ -79,6 +79,11 @@ export class KitchensService {
     return this.toDetails(kitchen);
   }
 
+  async remove(userId: string, kitchenId: string): Promise<void> {
+    await requireKitchenOwner(this.prisma, kitchenId, userId);
+    await this.prisma.kitchen.delete({ where: { id: kitchenId } });
+  }
+
   async listInvites(
     userId: string,
     kitchenId: string,

@@ -159,6 +159,28 @@
         "tags": [
           "kitchens"
         ]
+      },
+      "delete": {
+        "operationId": "KitchensController_remove",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Usunięcie kuchni przez właściciela (kaskadowo członkowie, zaproszenia, produkty i partie)",
+        "tags": [
+          "kitchens"
+        ]
       }
     },
     "/api/kitchens/{kitchenId}/invites": {

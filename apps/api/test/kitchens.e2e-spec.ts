@@ -259,4 +259,99 @@ describe('Kitchens and invites (e2e)', () => {
     );
     expect(Number(memberships[0]?.count)).toBe(1);
   });
+
+  it('allows only the owner to delete a kitchen and cascades related data', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+    const member = await signUpUser(api.origin, WEB_ORIGIN);
+    const stranger = await signUpUser(api.origin, WEB_ORIGIN);
+
+    const kitchenRes = await apiFetch(api.origin, '/api/kitchens', {
+      method: 'POST',
+      webOrigin: WEB_ORIGIN,
+      cookies: owner.cookies,
+      body: { name: 'Kuchnia Do Usunięcia' },
+    });
+    expect(kitchenRes.status).toBe(201);
+    const kitchen = kitchenRes.body as { id: string };
+
+    const inviteRes = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/invites`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { email: member.email },
+      },
+    );
+    const invite = inviteRes.body as { inviteUrl: string };
+    const token = invite.inviteUrl.split('/').pop() ?? '';
+    await apiFetch(api.origin, `/api/invites/${token}/accept`, {
+      method: 'POST',
+      webOrigin: WEB_ORIGIN,
+      cookies: member.cookies,
+    });
+
+    await apiFetch(api.origin, `/api/kitchens/${kitchen.id}/products`, {
+      method: 'POST',
+      webOrigin: WEB_ORIGIN,
+      cookies: owner.cookies,
+      body: { name: 'Mleko', defaultUnit: 'milliliter' },
+    });
+
+    const memberDelete = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}`,
+      {
+        method: 'DELETE',
+        webOrigin: WEB_ORIGIN,
+        cookies: member.cookies,
+      },
+    );
+    expect(memberDelete.status).toBe(403);
+
+    const strangerDelete = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}`,
+      {
+        method: 'DELETE',
+        webOrigin: WEB_ORIGIN,
+        cookies: stranger.cookies,
+      },
+    );
+    expect(strangerDelete.status).toBe(404);
+
+    const ownerDelete = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}`,
+      {
+        method: 'DELETE',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+      },
+    );
+    expect(ownerDelete.status).toBe(204);
+
+    const kitchens = await queryTestDb<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM "Kitchen" WHERE id = $1',
+      [kitchen.id],
+    );
+    expect(Number(kitchens[0]?.count)).toBe(0);
+
+    const products = await queryTestDb<{ count: string }>(
+      'SELECT COUNT(*)::text AS count FROM "Product" WHERE "kitchenId" = $1',
+      [kitchen.id],
+    );
+    expect(Number(products[0]?.count)).toBe(0);
+
+    const afterDelete = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}`,
+      {
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+      },
+    );
+    expect(afterDelete.status).toBe(404);
+  });
 });

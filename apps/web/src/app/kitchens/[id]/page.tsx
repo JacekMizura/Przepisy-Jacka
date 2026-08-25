@@ -1,10 +1,11 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { type FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { AppShell } from "@/components/app-shell";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -22,10 +23,12 @@ import { authClient } from "@/lib/auth-client";
 export default function KitchenDetailsPage() {
   const params = useParams<{ id: string }>();
   const kitchenId = params.id;
+  const router = useRouter();
   const queryClient = useQueryClient();
   const session = authClient.useSession();
   const [email, setEmail] = useState("");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const detailsQuery = useQuery({
     queryKey: ["kitchen", kitchenId],
@@ -111,6 +114,28 @@ export default function KitchenDetailsPage() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const client = createWebApiClient();
+      const { error, response } = await client.DELETE(
+        "/api/kitchens/{kitchenId}",
+        { params: { path: { kitchenId } } },
+      );
+      if (error) {
+        throw new Error(readApiError(error, "Nie udało się usunąć kuchni."));
+      }
+      if (response.status !== 204 && response.status !== 200) {
+        throw new Error("Nie udało się usunąć kuchni.");
+      }
+    },
+    onSuccess: async () => {
+      setConfirmDelete(false);
+      await queryClient.invalidateQueries({ queryKey: ["kitchens"] });
+      await queryClient.removeQueries({ queryKey: ["kitchen", kitchenId] });
+      router.push("/kitchens");
+    },
+  });
+
   async function onInvite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     inviteMutation.mutate(email.trim());
@@ -128,12 +153,29 @@ export default function KitchenDetailsPage() {
       ) : null}
       {detailsQuery.data ? (
         <div className="space-y-6">
-          <div>
-            <h1 className="text-2xl font-semibold">{detailsQuery.data.name}</h1>
-            <p className="text-sm text-muted-foreground">
-              Członkowie i zaproszenia. Zmiana właściciela nie jest dostępna.
-            </p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-semibold">{detailsQuery.data.name}</h1>
+              <p className="text-sm text-muted-foreground">
+                Członkowie i zaproszenia. Zmiana właściciela nie jest dostępna.
+              </p>
+            </div>
+            {isOwner ? (
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={() => setConfirmDelete(true)}
+              >
+                Usuń kuchnię
+              </Button>
+            ) : null}
           </div>
+
+          {deleteMutation.error ? (
+            <p className="text-sm text-destructive" role="alert">
+              {readApiError(deleteMutation.error)}
+            </p>
+          ) : null}
 
           <Card>
             <CardHeader>
@@ -238,6 +280,21 @@ export default function KitchenDetailsPage() {
             </p>
           )}
         </div>
+      ) : null}
+
+      {confirmDelete && detailsQuery.data ? (
+        <ConfirmDialog
+          title={`Usunąć kuchnię „${detailsQuery.data.name}”?`}
+          description="Usunięcie jest trwałe. Znikną członkowie, zaproszenia, katalog produktów i wszystkie partie zapasów tej kuchni."
+          confirmLabel="Usuń kuchnię"
+          pending={deleteMutation.isPending}
+          onCancel={() => {
+            if (!deleteMutation.isPending) {
+              setConfirmDelete(false);
+            }
+          }}
+          onConfirm={() => deleteMutation.mutate()}
+        />
       ) : null}
     </AppShell>
   );

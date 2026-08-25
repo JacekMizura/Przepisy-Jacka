@@ -5,6 +5,7 @@ import { type FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { AppShell } from "@/components/app-shell";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -18,11 +19,20 @@ import { Label } from "@/components/ui/label";
 import { createWebApiClient } from "@/lib/api";
 import { readApiError } from "@/lib/errors";
 
+type KitchenSummary = {
+  id: string;
+  name: string;
+  role: "owner" | "member";
+};
+
 export default function KitchensPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
+  const [kitchenToDelete, setKitchenToDelete] = useState<KitchenSummary | null>(
+    null,
+  );
 
   const kitchensQuery = useQuery({
     queryKey: ["kitchens"],
@@ -53,6 +63,29 @@ export default function KitchensPage() {
     onSuccess: async (kitchen) => {
       await queryClient.invalidateQueries({ queryKey: ["kitchens"] });
       router.push(`/kitchens/${kitchen.id}`);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (kitchenId: string) => {
+      const client = createWebApiClient();
+      const { error, response } = await client.DELETE(
+        "/api/kitchens/{kitchenId}",
+        { params: { path: { kitchenId } } },
+      );
+      if (error) {
+        throw new Error(readApiError(error, "Nie udało się usunąć kuchni."));
+      }
+      if (response.status !== 204 && response.status !== 200) {
+        throw new Error("Nie udało się usunąć kuchni.");
+      }
+    },
+    onSuccess: async (_void, kitchenId) => {
+      setKitchenToDelete(null);
+      await queryClient.invalidateQueries({ queryKey: ["kitchens"] });
+      await queryClient.removeQueries({ queryKey: ["kitchen", kitchenId] });
+      await queryClient.removeQueries({ queryKey: ["invites", kitchenId] });
+      await queryClient.removeQueries({ queryKey: ["stock", kitchenId] });
     },
   });
 
@@ -123,23 +156,57 @@ export default function KitchensPage() {
             zaproszenie.
           </p>
         ) : null}
+        {deleteMutation.error ? (
+          <p className="text-sm text-destructive" role="alert">
+            {readApiError(deleteMutation.error)}
+          </p>
+        ) : null}
         <ul className="grid gap-3 sm:grid-cols-2">
           {(kitchensQuery.data ?? []).map((kitchen) => (
             <li key={kitchen.id}>
-              <button
-                type="button"
-                className="w-full rounded-xl border bg-card p-4 text-left hover:bg-secondary"
-                onClick={() => router.push(`/kitchens/${kitchen.id}`)}
-              >
-                <p className="font-medium">{kitchen.name}</p>
-                <p className="text-sm text-muted-foreground">
-                  {kitchen.role === "owner" ? "Właściciel" : "Członek"}
-                </p>
-              </button>
+              <div className="rounded-xl border bg-card p-4">
+                <button
+                  type="button"
+                  className="w-full text-left hover:opacity-90"
+                  onClick={() => router.push(`/kitchens/${kitchen.id}`)}
+                >
+                  <p className="font-medium">{kitchen.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {kitchen.role === "owner" ? "Właściciel" : "Członek"}
+                  </p>
+                </button>
+                {kitchen.role === "owner" ? (
+                  <div className="mt-3 flex justify-end">
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setKitchenToDelete(kitchen)}
+                    >
+                      Usuń
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
             </li>
           ))}
         </ul>
       </div>
+
+      {kitchenToDelete ? (
+        <ConfirmDialog
+          title={`Usunąć kuchnię „${kitchenToDelete.name}”?`}
+          description="Usunięcie jest trwałe. Znikną członkowie, zaproszenia, katalog produktów i wszystkie partie zapasów tej kuchni."
+          confirmLabel="Usuń kuchnię"
+          pending={deleteMutation.isPending}
+          onCancel={() => {
+            if (!deleteMutation.isPending) {
+              setKitchenToDelete(null);
+            }
+          }}
+          onConfirm={() => deleteMutation.mutate(kitchenToDelete.id)}
+        />
+      ) : null}
     </AppShell>
   );
 }

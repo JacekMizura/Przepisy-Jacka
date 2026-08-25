@@ -2,7 +2,7 @@ import createClient from "openapi-fetch";
 
 import type { paths } from "./generated/schema";
 
-export type { paths };
+export type { paths, components } from "./generated/schema";
 
 export type CreateApiClientOptions = {
   baseUrl: string;

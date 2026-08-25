@@ -99,6 +99,10 @@ Cookies sesji:
 - `Kitchen`, `KitchenMember`, `KitchenInvite` (w bazie tylko `tokenHash`),
 - `Product` (`normalizedName`, unikalność `(kitchenId, normalizedName)`, `defaultUnit`, opcjonalne `ean` / `imageUrl` / `category`),
 - `StockItem` (`initialQuantity`, `quantity`, `purchasePriceMinor`, `currency`, miejsce, daty, opcjonalne `ean` / `imageUrl`). Ilości: `DECIMAL(12,3)`.
+- `ShoppingList` (jedna na kuchnię), `ShoppingListItem` (status `pending` / `bought` / `skipped`, opcjonalny `productId`, `customName`, planowana ilość/jednostka, `resolvedAt` po rozliczeniu),
+- `Purchase` (`storeName`, `purchasedAt`, `currency`, `totalPriceMinor`, unikalny `idempotencyKey`), `PurchaseLineItem` (powiązanie z produktem, opcjonalnie `stockItemId` i `shoppingListItemId`).
+
+Endpointy listy i zakupów pod `kitchens/:kitchenId`: `shopping-list/items`, `purchases/checkout`, `purchases`. Każda operacja wymaga członkostwa w kuchni.
 
 Migracje wykonuje wyłącznie Prisma. Seed demo działa tylko gdy `NODE_ENV !== "production"` oraz `ALLOW_DEMO_SEED=true`. Seed nie jest częścią startu ani pre-deploy Railway.
 

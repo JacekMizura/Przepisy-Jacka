@@ -67,6 +67,22 @@ Partia (`StockItem`) może mieć własne opcjonalne `ean` i `imageUrl` (zdjęcie
 
 Usunięcie produktu, który ma partie, wymaga jawnego potwierdzenia. Potwierdzenie usuwa produkt i jego partie kaskadowo.
 
+## Lista zakupów i zakupy
+
+Każda kuchnia ma jedną aktywną, wspólną listę zakupów widoczną dla wszystkich członków.
+
+Pozycja listy może być powiązana z produktem z katalogu albo być własną pozycją tekstową (bez produktu). Statusy: `pending` (do kupienia), `bought` (kupione), `skipped` (pominięte). Oznaczenie „kupione” nie dodaje od razu partii do zapasów.
+
+Rozliczenie zakupu (`checkout`) obejmuje pozycje ze statusem `bought`. Użytkownik podaje faktyczną ilość, jednostkę wejściową, miejsce przechowywania, łączną cenę pozycji w groszach oraz opcjonalną datę ważności. Dla całego zakupu: opcjonalna nazwa sklepu, data (domyślnie bieżąca), waluta `PLN`.
+
+Pozycja tekstowa bez produktu wymaga przy rozliczeniu wyboru istniejącego produktu albo potwierdzenia utworzenia nowego w katalogu.
+
+Rozliczenie jest idempotentne (`idempotencyKey`) i transakcyjne: tworzy zapis zakupu, partie zapasów (`StockItem`) oraz rozlicza pozycje listy. Pozycje `pending` i `skipped` nie trafiają do zapasów.
+
+Duplikat tego samego produktu na aktywnej liście (status `pending`) zwraca konflikt; klient może scalić ilość (`mergeQuantity`).
+
+Historia zakupów pokazuje datę, sklep, liczbę pozycji i łączną wartość w PLN, ze szczegółami linii.
+
 ## Przepisy
 
 Przepisy są domyślnie prywatne. Można je udostępnić:

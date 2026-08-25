@@ -6,6 +6,7 @@ import { validateEnv } from './config/env';
 import { HealthModule } from './health/health.module';
 import { KitchensModule } from './kitchens/kitchens.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { ShoppingModule } from './shopping/shopping.module';
 import { StockModule } from './stock/stock.module';
 import { UsersModule } from './users/users.module';
 
@@ -23,6 +24,7 @@ import { UsersModule } from './users/users.module';
     UsersModule,
     KitchensModule,
     StockModule,
+    ShoppingModule,
   ],
 })
 export class AppModule {}

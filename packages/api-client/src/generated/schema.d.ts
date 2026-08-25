@@ -198,6 +198,110 @@ export interface paths {
         patch: operations["StockController_updateStock"];
         trace?: never;
     };
+    "/api/kitchens/{kitchenId}/shopping-list/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Aktywne pozycje listy zakupów */
+        get: operations["ShoppingController_listShoppingListItems"];
+        put?: never;
+        /** Dodanie pozycji do listy zakupów */
+        post: operations["ShoppingController_createShoppingListItem"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/shopping-list/items/{itemId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Usunięcie pozycji listy zakupów */
+        delete: operations["ShoppingController_deleteShoppingListItem"];
+        options?: never;
+        head?: never;
+        /** Aktualizacja pozycji listy zakupów */
+        patch: operations["ShoppingController_updateShoppingListItem"];
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/shopping-list/items/{itemId}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Zmiana statusu pozycji listy zakupów */
+        patch: operations["ShoppingController_updateShoppingListItemStatus"];
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/purchases/checkout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rozliczenie zakupu z listy (idempotentne) */
+        post: operations["ShoppingController_checkoutPurchase"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/purchases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lista zakupów (skrót) */
+        get: operations["ShoppingController_listPurchases"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/purchases/{purchaseId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Szczegóły zakupu */
+        get: operations["ShoppingController_getPurchase"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -377,6 +481,129 @@ export interface components {
             purchasePriceMinor?: number;
             ean?: string | null;
             imageUrl?: string | null;
+        };
+        ShoppingListItemProductDto: {
+            id: string;
+            name: string;
+            /** @enum {string} */
+            defaultUnit: "piece" | "gram" | "milliliter";
+            ean: string | null;
+            imageUrl: string | null;
+            category: string | null;
+        };
+        ShoppingListItemDto: {
+            id: string;
+            shoppingListId: string;
+            productId: string | null;
+            customName: string | null;
+            /** @example 2.000 */
+            plannedQuantity: string | null;
+            /** @enum {string|null} */
+            plannedUnit: "piece" | "gram" | "kilogram" | "milliliter" | "liter" | null;
+            note: string | null;
+            /** @enum {string} */
+            status: "pending" | "bought" | "skipped";
+            /** Format: date-time */
+            resolvedAt: string | null;
+            product?: components["schemas"]["ShoppingListItemProductDto"] | null;
+        };
+        CreateShoppingListItemDto: {
+            productId?: string;
+            /** @example Papryka czerwona */
+            customName?: string;
+            /** @example 2.000 */
+            plannedQuantity?: string;
+            /** @enum {string} */
+            plannedUnit?: "piece" | "gram" | "kilogram" | "milliliter" | "liter";
+            note?: string | null;
+            /** @description Gdy true, dodaje ilość do istniejącej pozycji pending z tym samym produktem. */
+            mergeQuantity?: boolean;
+        };
+        UpdateShoppingListItemDto: {
+            /** @example Papryka czerwona */
+            customName?: string;
+            /** @example 2.000 */
+            plannedQuantity?: string;
+            /** @enum {string} */
+            plannedUnit?: "piece" | "gram" | "kilogram" | "milliliter" | "liter";
+            note?: string | null;
+        };
+        UpdateShoppingListItemStatusDto: {
+            /** @enum {string} */
+            status: "pending" | "bought" | "skipped";
+        };
+        CheckoutCreateProductDto: {
+            /** @example Papryka */
+            name: string;
+            /** @enum {string} */
+            defaultUnit: "piece" | "gram" | "milliliter";
+        };
+        CheckoutPurchaseLineDto: {
+            shoppingListItemId: string;
+            /** @example 1.000 */
+            quantity: string;
+            /** @enum {string} */
+            inputUnit: "piece" | "gram" | "kilogram" | "milliliter" | "liter";
+            /** @enum {string} */
+            location: "pantry" | "fridge" | "freezer" | "other";
+            /** @example 599 */
+            priceMinor: number;
+            /** Format: date-time */
+            expiresAt?: string;
+            productId?: string;
+            createProduct?: components["schemas"]["CheckoutCreateProductDto"];
+        };
+        CheckoutPurchaseDto: {
+            /** @example checkout-key-001 */
+            idempotencyKey: string;
+            /** @example Biedronka */
+            storeName?: string;
+            /** Format: date-time */
+            purchasedAt?: string;
+            /** @example PLN */
+            currency?: string;
+            lines: components["schemas"]["CheckoutPurchaseLineDto"][];
+        };
+        PurchaseLineItemDto: {
+            id: string;
+            productId: string;
+            productName: string;
+            stockItemId: string | null;
+            shoppingListItemId: string | null;
+            /** @example 500.000 */
+            quantity: string;
+            /** @example 599 */
+            priceMinor: number;
+            /** @enum {string} */
+            location: "pantry" | "fridge" | "freezer" | "other";
+            /** Format: date-time */
+            expiresAt: string | null;
+            displayName: string | null;
+        };
+        PurchaseDetailDto: {
+            id: string;
+            /** Format: date-time */
+            purchasedAt: string;
+            storeName: string | null;
+            itemCount: number;
+            /** @example 1299 */
+            totalPriceMinor: number;
+            /** @example PLN */
+            currency: string;
+            lines: components["schemas"]["PurchaseLineItemDto"][];
+            /** Format: date-time */
+            createdAt: string;
+        };
+        PurchaseSummaryDto: {
+            id: string;
+            /** Format: date-time */
+            purchasedAt: string;
+            storeName: string | null;
+            itemCount: number;
+            /** @example 1299 */
+            totalPriceMinor: number;
+            /** @example PLN */
+            currency: string;
         };
     };
     responses: never;
@@ -778,6 +1005,192 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StockItemDto"];
+                };
+            };
+        };
+    };
+    ShoppingController_listShoppingListItems: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShoppingListItemDto"][];
+                };
+            };
+        };
+    };
+    ShoppingController_createShoppingListItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateShoppingListItemDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShoppingListItemDto"];
+                };
+            };
+        };
+    };
+    ShoppingController_deleteShoppingListItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                itemId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ShoppingController_updateShoppingListItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                itemId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateShoppingListItemDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShoppingListItemDto"];
+                };
+            };
+        };
+    };
+    ShoppingController_updateShoppingListItemStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                itemId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateShoppingListItemStatusDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ShoppingListItemDto"];
+                };
+            };
+        };
+    };
+    ShoppingController_checkoutPurchase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CheckoutPurchaseDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseDetailDto"];
+                };
+            };
+        };
+    };
+    ShoppingController_listPurchases: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseSummaryDto"][];
+                };
+            };
+        };
+    };
+    ShoppingController_getPurchase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                purchaseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseDetailDto"];
                 };
             };
         };

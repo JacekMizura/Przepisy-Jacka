@@ -612,6 +612,321 @@
           "stock"
         ]
       }
+    },
+    "/api/kitchens/{kitchenId}/shopping-list/items": {
+      "get": {
+        "operationId": "ShoppingController_listShoppingListItems",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ShoppingListItemDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Aktywne pozycje listy zakupów",
+        "tags": [
+          "shopping"
+        ]
+      },
+      "post": {
+        "operationId": "ShoppingController_createShoppingListItem",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateShoppingListItemDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShoppingListItemDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Dodanie pozycji do listy zakupów",
+        "tags": [
+          "shopping"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/shopping-list/items/{itemId}": {
+      "patch": {
+        "operationId": "ShoppingController_updateShoppingListItem",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "itemId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateShoppingListItemDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShoppingListItemDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Aktualizacja pozycji listy zakupów",
+        "tags": [
+          "shopping"
+        ]
+      },
+      "delete": {
+        "operationId": "ShoppingController_deleteShoppingListItem",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "itemId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Usunięcie pozycji listy zakupów",
+        "tags": [
+          "shopping"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/shopping-list/items/{itemId}/status": {
+      "patch": {
+        "operationId": "ShoppingController_updateShoppingListItemStatus",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "itemId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateShoppingListItemStatusDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShoppingListItemDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Zmiana statusu pozycji listy zakupów",
+        "tags": [
+          "shopping"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/purchases/checkout": {
+      "post": {
+        "operationId": "ShoppingController_checkoutPurchase",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckoutPurchaseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseDetailDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Rozliczenie zakupu z listy (idempotentne)",
+        "tags": [
+          "shopping"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/purchases": {
+      "get": {
+        "operationId": "ShoppingController_listPurchases",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PurchaseSummaryDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Lista zakupów (skrót)",
+        "tags": [
+          "shopping"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/purchases/{purchaseId}": {
+      "get": {
+        "operationId": "ShoppingController_getPurchase",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "purchaseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseDetailDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Szczegóły zakupu",
+        "tags": [
+          "shopping"
+        ]
+      }
     }
   },
   "info": {
@@ -1147,6 +1462,441 @@
             "nullable": true
           }
         }
+      },
+      "ShoppingListItemProductDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "defaultUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ]
+          },
+          "ean": {
+            "type": "string",
+            "nullable": true
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "category": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "defaultUnit",
+          "ean",
+          "imageUrl",
+          "category"
+        ]
+      },
+      "ShoppingListItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "shoppingListId": {
+            "type": "string"
+          },
+          "productId": {
+            "type": "string",
+            "nullable": true
+          },
+          "customName": {
+            "type": "string",
+            "nullable": true
+          },
+          "plannedQuantity": {
+            "type": "string",
+            "nullable": true,
+            "example": "2.000"
+          },
+          "plannedUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "kilogram",
+              "milliliter",
+              "liter"
+            ],
+            "nullable": true
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "bought",
+              "skipped"
+            ]
+          },
+          "resolvedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "product": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ShoppingListItemProductDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "shoppingListId",
+          "productId",
+          "customName",
+          "plannedQuantity",
+          "plannedUnit",
+          "note",
+          "status",
+          "resolvedAt"
+        ]
+      },
+      "CreateShoppingListItemDto": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "customName": {
+            "type": "string",
+            "example": "Papryka czerwona"
+          },
+          "plannedQuantity": {
+            "type": "string",
+            "example": "2.000"
+          },
+          "plannedUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "kilogram",
+              "milliliter",
+              "liter"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "mergeQuantity": {
+            "type": "boolean",
+            "description": "Gdy true, dodaje ilość do istniejącej pozycji pending z tym samym produktem."
+          }
+        }
+      },
+      "UpdateShoppingListItemDto": {
+        "type": "object",
+        "properties": {
+          "customName": {
+            "type": "string",
+            "example": "Papryka czerwona"
+          },
+          "plannedQuantity": {
+            "type": "string",
+            "example": "2.000"
+          },
+          "plannedUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "kilogram",
+              "milliliter",
+              "liter"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "UpdateShoppingListItemStatusDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "bought",
+              "skipped"
+            ]
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "CheckoutCreateProductDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Papryka"
+          },
+          "defaultUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ]
+          }
+        },
+        "required": [
+          "name",
+          "defaultUnit"
+        ]
+      },
+      "CheckoutPurchaseLineDto": {
+        "type": "object",
+        "properties": {
+          "shoppingListItemId": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "string",
+            "example": "1.000"
+          },
+          "inputUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "kilogram",
+              "milliliter",
+              "liter"
+            ]
+          },
+          "location": {
+            "type": "string",
+            "enum": [
+              "pantry",
+              "fridge",
+              "freezer",
+              "other"
+            ]
+          },
+          "priceMinor": {
+            "type": "number",
+            "example": 599
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "productId": {
+            "type": "string"
+          },
+          "createProduct": {
+            "$ref": "#/components/schemas/CheckoutCreateProductDto"
+          }
+        },
+        "required": [
+          "shoppingListItemId",
+          "quantity",
+          "inputUnit",
+          "location",
+          "priceMinor"
+        ]
+      },
+      "CheckoutPurchaseDto": {
+        "type": "object",
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "minLength": 8,
+            "example": "checkout-key-001"
+          },
+          "storeName": {
+            "type": "string",
+            "example": "Biedronka"
+          },
+          "purchasedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "currency": {
+            "type": "string",
+            "example": "PLN"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CheckoutPurchaseLineDto"
+            }
+          }
+        },
+        "required": [
+          "idempotencyKey",
+          "lines"
+        ]
+      },
+      "PurchaseLineItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "productId": {
+            "type": "string"
+          },
+          "productName": {
+            "type": "string"
+          },
+          "stockItemId": {
+            "type": "string",
+            "nullable": true
+          },
+          "shoppingListItemId": {
+            "type": "string",
+            "nullable": true
+          },
+          "quantity": {
+            "type": "string",
+            "example": "500.000"
+          },
+          "priceMinor": {
+            "type": "number",
+            "example": 599
+          },
+          "location": {
+            "type": "string",
+            "enum": [
+              "pantry",
+              "fridge",
+              "freezer",
+              "other"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "displayName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "productId",
+          "productName",
+          "stockItemId",
+          "shoppingListItemId",
+          "quantity",
+          "priceMinor",
+          "location",
+          "expiresAt",
+          "displayName"
+        ]
+      },
+      "PurchaseDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "purchasedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "storeName": {
+            "type": "string",
+            "nullable": true
+          },
+          "itemCount": {
+            "type": "number"
+          },
+          "totalPriceMinor": {
+            "type": "number",
+            "example": 1299
+          },
+          "currency": {
+            "type": "string",
+            "example": "PLN"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PurchaseLineItemDto"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "purchasedAt",
+          "storeName",
+          "itemCount",
+          "totalPriceMinor",
+          "currency",
+          "lines",
+          "createdAt"
+        ]
+      },
+      "PurchaseSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "purchasedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "storeName": {
+            "type": "string",
+            "nullable": true
+          },
+          "itemCount": {
+            "type": "number"
+          },
+          "totalPriceMinor": {
+            "type": "number",
+            "example": 1299
+          },
+          "currency": {
+            "type": "string",
+            "example": "PLN"
+          }
+        },
+        "required": [
+          "id",
+          "purchasedAt",
+          "storeName",
+          "itemCount",
+          "totalPriceMinor",
+          "currency"
+        ]
       }
     }
   }

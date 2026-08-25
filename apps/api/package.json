@@ -12,6 +12,7 @@
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
     "typecheck": "tsc --noEmit -p tsconfig.build.json",
     "test": "jest && pnpm test:e2e",
+    "test:unit": "jest",
     "test:watch": "jest --watch",
     "test:e2e": "prisma generate && nest build && jest --config ./test/jest-e2e.json",
     "prisma:generate": "prisma generate",

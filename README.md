@@ -95,6 +95,11 @@ Na emulatorze Androida ustaw `EXPO_PUBLIC_API_URL=http://10.0.2.2:3001`. Na fizy
 - [Zakres produktu](docs/product-scope.md)
 - [Architektura](docs/architecture.md)
 - [Status projektu](docs/project-status.md)
+- [Checklist wdrożenia](docs/deploy-checklist.md)
+
+## PostgreSQL
+
+Major produkcyjny (Railway): **18** (sprawdzona wersja `18.6`). Lokalnie i w CI: `postgres:18-alpine`.
 
 ## Zasada architektury
 

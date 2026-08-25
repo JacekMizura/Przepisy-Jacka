@@ -4,6 +4,7 @@
  * Nie importuje proxyToApi ani Route Handlera.
  */
 import { spawn } from "node:child_process";
+import fs from "node:fs";
 import { createConnection, createServer } from "node:net";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -16,6 +17,7 @@ const WEB_DIR = resolve(ROOT, "apps/web");
 
 const PREFERRED_WEB_PORT = 3100;
 const PREFERRED_API_PORT = 3101;
+const IN_CI = process.env.CI === "true" || process.env.GITHUB_ACTIONS === "true";
 
 /** @type {import('node:child_process').ChildProcess[]} */
 const children = [];
@@ -23,6 +25,19 @@ let exitCode = 1;
 
 function log(message) {
   process.stdout.write(`${message}\n`);
+}
+
+function assertSafeDatabaseUrl(url) {
+  const lower = url.toLowerCase();
+  if (
+    lower.includes("railway") ||
+    lower.includes("rlwy.net") ||
+    lower.includes("vercel-storage")
+  ) {
+    throw new Error(
+      "DATABASE_URL wskazuje na zdalną/produkcyjną bazę. Black-box może używać wyłącznie lokalnej lub CI bazy.",
+    );
+  }
 }
 
 function stopChild(child) {
@@ -38,10 +53,21 @@ function stopChild(child) {
   child.kill("SIGTERM");
 }
 
+function cleanupNextArtifacts() {
+  for (const relative of [".next/dev/lock", ".next/lock"]) {
+    try {
+      fs.rmSync(resolve(WEB_DIR, relative), { force: true });
+    } catch {
+      // ignore
+    }
+  }
+}
+
 function cleanup() {
   for (const child of children.splice(0)) {
     stopChild(child);
   }
+  cleanupNextArtifacts();
 }
 
 process.on("exit", cleanup);
@@ -248,8 +274,16 @@ async function main() {
   const databaseUrl =
     process.env.DATABASE_URL ??
     "postgresql://moja_kuchnia:moja_kuchnia_dev@127.0.0.1:5432/moja_kuchnia";
+  assertSafeDatabaseUrl(databaseUrl);
 
-  if (!(await canConnect(5432)) && !process.env.DATABASE_URL) {
+  if (IN_CI) {
+    log("CI: używam DATABASE_URL z workflow (bez embedded PostgreSQL).");
+    if (!(await canConnect(5432))) {
+      throw new Error(
+        "W CI PostgreSQL musi nasłuchiwać na 5432 (usługa postgres:18-alpine).",
+      );
+    }
+  } else if (!(await canConnect(5432)) && !process.env.DATABASE_URL) {
     log("Uruchamiam embedded PostgreSQL na 5432…");
     const pg = run(process.execPath, [resolve(API_DIR, "scripts/start-embedded-postgres.mjs")], {
       cwd: API_DIR,
@@ -265,6 +299,10 @@ async function main() {
       await delay(400);
     }
     log("PostgreSQL gotowy.");
+  } else if (!(await canConnect(5432))) {
+    throw new Error(
+      "DATABASE_URL jest ustawione, ale PostgreSQL nie nasłuchuje na 5432.",
+    );
   }
 
   log("prisma migrate deploy…");

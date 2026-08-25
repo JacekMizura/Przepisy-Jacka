@@ -102,6 +102,14 @@ Cookies sesji:
 
 Migracje wykonuje wyłącznie Prisma. Seed demo działa tylko gdy `NODE_ENV !== "production"` oraz `ALLOW_DEMO_SEED=true`. Seed nie jest częścią startu ani pre-deploy Railway.
 
+## PostgreSQL
+
+- Produkcja (Railway): major **18**, sprawdzona `18.6 (Debian 18.6-1.pgdg13+2)`.
+- Lokalnie: `postgres:18-alpine` w `docker-compose.yml` (bez pinu patcha).
+- CI: usługa `postgres:18-alpine`, baza `moja_kuchnia_test`.
+
+Checklist wdrożenia: `docs/deploy-checklist.md`.
+
 ## Źródło prawdy
 
 Aktualne źródła prawdy dla Mojej Kuchni to ten dokument, `docs/product-scope.md` i `docs/project-status.md`.

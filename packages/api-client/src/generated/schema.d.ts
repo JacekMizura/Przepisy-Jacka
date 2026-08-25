@@ -286,6 +286,9 @@ export interface components {
             normalizedName: string;
             /** @enum {string} */
             defaultUnit: "piece" | "gram" | "milliliter";
+            ean: string | null;
+            imageUrl: string | null;
+            category: string | null;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -299,6 +302,15 @@ export interface components {
              * @enum {string}
              */
             defaultUnit: "piece" | "gram" | "milliliter";
+            /**
+             * @description Kod EAN/GTIN (8, 12, 13 lub 14 cyfr).
+             * @example 5901234123457
+             */
+            ean?: string | null;
+            /** @description URL http(s) albo data URL obrazu (jpeg/png/webp/gif). */
+            imageUrl?: string | null;
+            /** @example Nabiał */
+            category?: string | null;
         };
         StockItemDto: {
             id: string;
@@ -317,6 +329,8 @@ export interface components {
             purchasePriceMinor: number;
             /** @example PLN */
             currency: string;
+            ean: string | null;
+            imageUrl: string | null;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -342,6 +356,13 @@ export interface components {
             purchasePriceMinor: number;
             /** @example PLN */
             currency?: string;
+            /**
+             * @description Kod EAN partii; uzupełnia też produkt, gdy ten nie ma EAN.
+             * @example 5901234123457
+             */
+            ean?: string | null;
+            /** @description Zdjęcie partii (URL lub data URL); uzupełnia też produkt bez zdjęcia. */
+            imageUrl?: string | null;
         };
         UpdateStockItemDto: {
             /** @example 200.000 */
@@ -354,6 +375,8 @@ export interface components {
             purchasedAt?: string | null;
             /** @example 599 */
             purchasePriceMinor?: number;
+            ean?: string | null;
+            imageUrl?: string | null;
         };
     };
     responses: never;

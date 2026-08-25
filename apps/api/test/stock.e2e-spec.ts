@@ -53,11 +53,41 @@ describe('Products and stock (e2e)', () => {
         method: 'POST',
         webOrigin: WEB_ORIGIN,
         cookies: ownerA.cookies,
-        body: { name: 'Mleko', defaultUnit: 'milliliter' },
+        body: {
+          name: 'Mleko',
+          defaultUnit: 'milliliter',
+          ean: '5901234123457',
+          category: 'Nabiał',
+          imageUrl: 'https://example.com/mleko.jpg',
+        },
       },
     );
     expect(milk.status).toBe(201);
-    const product = milk.body as { id: string };
+    const product = milk.body as {
+      id: string;
+      ean: string | null;
+      category: string | null;
+      imageUrl: string | null;
+    };
+    expect(product.ean).toBe('5901234123457');
+    expect(product.category).toBe('Nabiał');
+    expect(product.imageUrl).toBe('https://example.com/mleko.jpg');
+
+    const duplicateEan = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchenA.id}/products`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: ownerA.cookies,
+        body: {
+          name: 'Mleko 2',
+          defaultUnit: 'milliliter',
+          ean: '5901234123457',
+        },
+      },
+    );
+    expect(duplicateEan.status).toBe(409);
 
     const duplicate = await apiFetch(
       api.origin,

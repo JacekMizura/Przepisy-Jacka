@@ -57,6 +57,14 @@ Cena nie zmienia znaczenia po częściowym zużyciu. Ilości w JSON są decimal 
 
 Nazwy produktów są unikalne w kuchni po normalizacji (trim, lowercase, zbiciu spacji). Wyświetlana pozostaje oryginalna `name`.
 
+Produkt może mieć opcjonalnie:
+
+- `ean` — kod EAN/GTIN (8, 12, 13 lub 14 cyfr), unikalny w kuchni,
+- `imageUrl` — URL http(s) albo skompresowany data URL obrazu,
+- `category` — etykieta kategorii do filtrowania i grupowania w stanie magazynowym.
+
+Partia (`StockItem`) może mieć własne opcjonalne `ean` i `imageUrl` (zdjęcie partii ma pierwszeństwo w widoku zapasów). Przy dodawaniu partii brakujące EAN/zdjęcie produktu są uzupełniane z partii.
+
 Usunięcie produktu, który ma partie, wymaga jawnego potwierdzenia. Potwierdzenie usuwa produkt i jego partie kaskadowo.
 
 ## Przepisy

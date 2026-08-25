@@ -903,6 +903,18 @@
               "milliliter"
             ]
           },
+          "ean": {
+            "type": "string",
+            "nullable": true
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "category": {
+            "type": "string",
+            "nullable": true
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -918,6 +930,9 @@
           "name",
           "normalizedName",
           "defaultUnit",
+          "ean",
+          "imageUrl",
+          "category",
           "createdAt",
           "updatedAt"
         ]
@@ -937,6 +952,22 @@
               "milliliter"
             ],
             "example": "milliliter"
+          },
+          "ean": {
+            "type": "string",
+            "nullable": true,
+            "example": "5901234123457",
+            "description": "Kod EAN/GTIN (8, 12, 13 lub 14 cyfr)."
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "URL http(s) albo data URL obrazu (jpeg/png/webp/gif)."
+          },
+          "category": {
+            "type": "string",
+            "nullable": true,
+            "example": "Nabiał"
           }
         },
         "required": [
@@ -988,6 +1019,14 @@
             "type": "string",
             "example": "PLN"
           },
+          "ean": {
+            "type": "string",
+            "nullable": true
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -1007,6 +1046,8 @@
           "purchasedAt",
           "purchasePriceMinor",
           "currency",
+          "ean",
+          "imageUrl",
           "createdAt",
           "updatedAt"
         ]
@@ -1047,6 +1088,17 @@
           "currency": {
             "type": "string",
             "example": "PLN"
+          },
+          "ean": {
+            "type": "string",
+            "nullable": true,
+            "example": "5901234123457",
+            "description": "Kod EAN partii; uzupełnia też produkt, gdy ten nie ma EAN."
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Zdjęcie partii (URL lub data URL); uzupełnia też produkt bez zdjęcia."
           }
         },
         "required": [
@@ -1085,6 +1137,14 @@
           "purchasePriceMinor": {
             "type": "number",
             "example": 599
+          },
+          "ean": {
+            "type": "string",
+            "nullable": true
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
           }
         }
       }

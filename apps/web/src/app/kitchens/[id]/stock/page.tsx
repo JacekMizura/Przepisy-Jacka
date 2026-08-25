@@ -2,16 +2,18 @@
 
 import { Calendar, MapPin, Package, Plus } from "lucide-react";
 import { useParams } from "next/navigation";
-import { type FormEvent, useMemo, useState } from "react";
+import { type FormEvent, Fragment, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { AppShell } from "@/components/app-shell";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { ImageField } from "@/components/image-field";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createWebApiClient } from "@/lib/api";
 import { LOCATION_LABELS, UNIT_LABELS, readApiError } from "@/lib/errors";
+import { PRODUCT_CATEGORY_OPTIONS } from "@/lib/product-media";
 import {
   convertToBaseQuantity,
   inputUnitsFor,
@@ -22,6 +24,7 @@ import {
 } from "@/lib/quantity-input";
 
 type LocationFilter = "" | keyof typeof LOCATION_LABELS;
+type UnitFilter = "" | BaseUnit;
 
 const UNIT_OPTION_LABELS: Record<BaseUnit, string> = {
   gram: "gramy (g)",
@@ -29,13 +32,21 @@ const UNIT_OPTION_LABELS: Record<BaseUnit, string> = {
   milliliter: "mililitry (ml)",
 };
 
+const UNCATEGORIZED = "Bez kategorii";
+
 export default function StockPage() {
   const params = useParams<{ id: string }>();
   const kitchenId = params.id;
   const queryClient = useQueryClient();
   const [locationFilter, setLocationFilter] = useState<LocationFilter>("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [unitFilter, setUnitFilter] = useState<UnitFilter>("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [productName, setProductName] = useState("");
   const [productUnit, setProductUnit] = useState<BaseUnit>("gram");
+  const [productEan, setProductEan] = useState("");
+  const [productImageUrl, setProductImageUrl] = useState("");
+  const [productCategory, setProductCategory] = useState("");
   const [selectedProductId, setSelectedProductId] = useState("");
   const [quantity, setQuantity] = useState("");
   const [inputUnit, setInputUnit] = useState<InputUnit>("gram");
@@ -44,6 +55,8 @@ export default function StockPage() {
   const [price, setPrice] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
   const [purchasedAt, setPurchasedAt] = useState("");
+  const [stockEan, setStockEan] = useState("");
+  const [stockImageUrl, setStockImageUrl] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [productToDelete, setProductToDelete] = useState<{
     id: string;
@@ -97,6 +110,80 @@ export default function StockPage() {
     [productsQuery.data, selectedProductId],
   );
 
+  const categoryOptions = useMemo(() => {
+    const fromCatalog = new Set<string>(PRODUCT_CATEGORY_OPTIONS);
+    for (const product of productsQuery.data ?? []) {
+      if (product.category) {
+        fromCatalog.add(product.category);
+      }
+    }
+    return Array.from(fromCatalog).sort((a, b) => a.localeCompare(b, "pl"));
+  }, [productsQuery.data]);
+
+  const filteredStock = useMemo(() => {
+    const needle = searchQuery.trim().toLowerCase();
+    return (stockQuery.data ?? []).filter((item) => {
+      const product = productsQuery.data?.find(
+        (entry) => entry.id === item.productId,
+      );
+      if (!product) {
+        return false;
+      }
+      if (categoryFilter) {
+        const category = product.category?.trim() || UNCATEGORIZED;
+        if (category !== categoryFilter) {
+          return false;
+        }
+      }
+      if (unitFilter && product.defaultUnit !== unitFilter) {
+        return false;
+      }
+      if (needle) {
+        const haystack = [
+          product.name,
+          product.category ?? "",
+          product.ean ?? "",
+          item.ean ?? "",
+          UNIT_LABELS[product.defaultUnit],
+        ]
+          .join(" ")
+          .toLowerCase();
+        if (!haystack.includes(needle)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }, [
+    categoryFilter,
+    productsQuery.data,
+    searchQuery,
+    stockQuery.data,
+    unitFilter,
+  ]);
+
+  const stockByCategory = useMemo(() => {
+    const groups = new Map<string, typeof filteredStock>();
+    for (const item of filteredStock) {
+      const product = productsQuery.data?.find(
+        (entry) => entry.id === item.productId,
+      );
+      const key = product?.category?.trim() || UNCATEGORIZED;
+      const list = groups.get(key) ?? [];
+      list.push(item);
+      groups.set(key, list);
+    }
+    return Array.from(groups.entries()).sort(([a], [b]) => {
+      if (a === UNCATEGORIZED) {
+        return 1;
+      }
+      if (b === UNCATEGORIZED) {
+        return -1;
+      }
+      return a.localeCompare(b, "pl");
+    });
+  }, [filteredStock, productsQuery.data]);
+
   const createProduct = useMutation({
     mutationFn: async () => {
       const client = createWebApiClient();
@@ -104,7 +191,13 @@ export default function StockPage() {
         "/api/kitchens/{kitchenId}/products",
         {
           params: { path: { kitchenId } },
-          body: { name: productName.trim(), defaultUnit: productUnit },
+          body: {
+            name: productName.trim(),
+            defaultUnit: productUnit,
+            ean: productEan.trim() || null,
+            imageUrl: productImageUrl.trim() || null,
+            category: productCategory.trim() || null,
+          },
         },
       );
       if (error) {
@@ -115,6 +208,9 @@ export default function StockPage() {
     onSuccess: async (product) => {
       await queryClient.invalidateQueries({ queryKey: ["products", kitchenId] });
       setProductName("");
+      setProductEan("");
+      setProductImageUrl("");
+      setProductCategory("");
       if (product) {
         setSelectedProductId(product.id);
         const units = inputUnitsFor(product.defaultUnit);
@@ -154,6 +250,8 @@ export default function StockPage() {
             purchasedAt: purchasedAt
               ? new Date(purchasedAt).toISOString()
               : undefined,
+            ean: stockEan.trim() || null,
+            imageUrl: stockImageUrl.trim() || null,
           },
         },
       );
@@ -164,8 +262,11 @@ export default function StockPage() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["stock", kitchenId] });
+      await queryClient.invalidateQueries({ queryKey: ["products", kitchenId] });
       setQuantity("");
       setPrice("");
+      setStockEan("");
+      setStockImageUrl("");
       setFormError(null);
     },
     onError: (error) => {
@@ -309,6 +410,39 @@ export default function StockPage() {
                   )}
                 </select>
               </div>
+              <div>
+                <Label htmlFor="product-category">Kategoria</Label>
+                <input
+                  id="product-category"
+                  list="product-category-options"
+                  className="field-input"
+                  placeholder="np. Nabiał"
+                  value={productCategory}
+                  onChange={(event) => setProductCategory(event.target.value)}
+                />
+                <datalist id="product-category-options">
+                  {categoryOptions.map((category) => (
+                    <option key={category} value={category} />
+                  ))}
+                </datalist>
+              </div>
+              <div>
+                <Label htmlFor="product-ean">EAN</Label>
+                <Input
+                  id="product-ean"
+                  inputMode="numeric"
+                  placeholder="np. 5901234123457"
+                  value={productEan}
+                  onChange={(event) => setProductEan(event.target.value)}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <ImageField
+                  id="product-image"
+                  value={productImageUrl}
+                  onChange={setProductImageUrl}
+                />
+              </div>
               <div className="flex justify-end md:col-span-2">
                 <Button type="submit" disabled={createProduct.isPending}>
                   {createProduct.isPending
@@ -359,6 +493,8 @@ export default function StockPage() {
                       setInputUnit(
                         inputUnitsFor(product.defaultUnit)[0]?.value ?? "gram",
                       );
+                      setStockEan(product.ean ?? "");
+                      setStockImageUrl(product.imageUrl ?? "");
                     }
                   }}
                 >
@@ -367,7 +503,8 @@ export default function StockPage() {
                   </option>
                   {(productsQuery.data ?? []).map((product) => (
                     <option key={product.id} value={product.id}>
-                      {product.name} ({UNIT_LABELS[product.defaultUnit]})
+                      {product.name} ({UNIT_LABELS[product.defaultUnit]}
+                      {product.category ? ` · ${product.category}` : ""})
                     </option>
                   ))}
                 </select>
@@ -467,6 +604,23 @@ export default function StockPage() {
                   onChange={(event) => setPurchasedAt(event.target.value)}
                 />
               </div>
+              <div>
+                <Label htmlFor="stock-ean">EAN</Label>
+                <Input
+                  id="stock-ean"
+                  inputMode="numeric"
+                  placeholder="np. 5901234123457"
+                  value={stockEan}
+                  onChange={(event) => setStockEan(event.target.value)}
+                />
+              </div>
+              <div className="md:col-span-2">
+                <ImageField
+                  id="stock-image"
+                  value={stockImageUrl}
+                  onChange={setStockImageUrl}
+                />
+              </div>
               <div className="flex justify-end md:col-span-2">
                 <Button
                   type="submit"
@@ -486,27 +640,71 @@ export default function StockPage() {
         </section>
 
         <section>
-          <div className="mb-4 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+          <div className="mb-4 flex flex-col gap-4">
             <h2 className="text-xl font-bold text-gray-900">
               Twój stan magazynowy
             </h2>
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-medium text-gray-500">Miejsce:</span>
-              <select
-                className="block rounded-lg border border-gray-200 bg-white p-2 text-sm text-gray-900 shadow-sm focus:border-emerald-500 focus:ring-emerald-500"
-                value={locationFilter}
-                onChange={(event) =>
-                  setLocationFilter(event.target.value as LocationFilter)
-                }
-                aria-label="Filtr miejsca"
-              >
-                <option value="">Wszystkie miejsca</option>
-                {Object.entries(LOCATION_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+            <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
+              <Input
+                aria-label="Szukaj w zapasach"
+                placeholder="Szukaj: nazwa, EAN, kategoria…"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                className="lg:max-w-xs"
+              />
+              <label className="flex items-center gap-2 text-sm text-gray-500">
+                <span className="font-medium whitespace-nowrap">Kategoria:</span>
+                <select
+                  className="rounded-lg border border-gray-200 bg-white p-2 text-sm text-gray-900 shadow-sm"
+                  value={categoryFilter}
+                  onChange={(event) => setCategoryFilter(event.target.value)}
+                >
+                  <option value="">Wszystkie</option>
+                  <option value={UNCATEGORIZED}>{UNCATEGORIZED}</option>
+                  {categoryOptions.map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-500">
+                <span className="font-medium whitespace-nowrap">Jednostka:</span>
+                <select
+                  className="rounded-lg border border-gray-200 bg-white p-2 text-sm text-gray-900 shadow-sm"
+                  value={unitFilter}
+                  onChange={(event) =>
+                    setUnitFilter(event.target.value as UnitFilter)
+                  }
+                >
+                  <option value="">Wszystkie</option>
+                  {(Object.keys(UNIT_OPTION_LABELS) as BaseUnit[]).map(
+                    (unit) => (
+                      <option key={unit} value={unit}>
+                        {UNIT_OPTION_LABELS[unit]}
+                      </option>
+                    ),
+                  )}
+                </select>
+              </label>
+              <label className="flex items-center gap-2 text-sm text-gray-500">
+                <span className="font-medium whitespace-nowrap">Miejsce:</span>
+                <select
+                  className="rounded-lg border border-gray-200 bg-white p-2 text-sm text-gray-900 shadow-sm"
+                  value={locationFilter}
+                  onChange={(event) =>
+                    setLocationFilter(event.target.value as LocationFilter)
+                  }
+                  aria-label="Filtr miejsca"
+                >
+                  <option value="">Wszystkie miejsca</option>
+                  {Object.entries(LOCATION_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
           </div>
 
@@ -523,24 +721,30 @@ export default function StockPage() {
             ) : null}
             {!stockQuery.isPending &&
             !stockQuery.isError &&
-            (stockQuery.data?.length ?? 0) === 0 ? (
+            filteredStock.length === 0 ? (
               <div className="p-12 text-center">
                 <Package size={48} className="mx-auto mb-4 text-gray-200" />
                 <p className="text-gray-500">
-                  Brak produktów w wybranym miejscu.
+                  Brak produktów dla wybranych filtrów.
                 </p>
                 <p className="mt-1 text-sm text-gray-400">
-                  Dodaj nową partię powyżej, aby zacząć śledzić zapasy.
+                  Dodaj nową partię powyżej albo zmień wyszukiwanie.
                 </p>
               </div>
             ) : null}
-            {(stockQuery.data?.length ?? 0) > 0 ? (
+            {filteredStock.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-sm">
                   <thead className="border-b border-gray-100 bg-gray-50/80">
                     <tr>
                       <th className="px-4 py-3 font-semibold text-gray-700">
+                        Zdjęcie
+                      </th>
+                      <th className="px-4 py-3 font-semibold text-gray-700">
                         Produkt
+                      </th>
+                      <th className="px-4 py-3 font-semibold text-gray-700">
+                        Jednostka
                       </th>
                       <th className="px-4 py-3 font-semibold text-gray-700">
                         Pozostało / start
@@ -560,84 +764,123 @@ export default function StockPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {(stockQuery.data ?? []).map((item) => {
-                      const product = productsQuery.data?.find(
-                        (entry) => entry.id === item.productId,
-                      );
-                      return (
-                        <tr
-                          key={item.id}
-                          className="border-b border-gray-50 last:border-0"
-                        >
-                          <td className="px-4 py-3 font-medium text-gray-900">
-                            {product?.name ?? item.productId}
-                          </td>
-                          <td className="px-4 py-3 text-gray-700">
-                            {editingId === item.id ? (
-                              <form
-                                className="flex gap-2"
-                                onSubmit={(event) => {
-                                  event.preventDefault();
-                                  updateStock.mutate(item.id);
-                                }}
-                              >
-                                <Input
-                                  aria-label="Nowa pozostała ilość"
-                                  value={editQuantity}
-                                  onChange={(event) =>
-                                    setEditQuantity(event.target.value)
-                                  }
-                                />
-                                <Button type="submit" size="sm">
-                                  Zapisz
-                                </Button>
-                              </form>
-                            ) : (
-                              `${item.quantity} / ${item.initialQuantity} ${
-                                product
-                                  ? UNIT_LABELS[product.defaultUnit]
-                                  : ""
-                              }`
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-gray-700">
-                            {LOCATION_LABELS[item.location]}
-                          </td>
-                          <td className="px-4 py-3 text-gray-700">
-                            {zlotyFromMinor(item.purchasePriceMinor)}{" "}
-                            {item.currency}
-                          </td>
-                          <td className="px-4 py-3 text-gray-700">
-                            {item.expiresAt
-                              ? new Date(item.expiresAt).toLocaleDateString(
-                                  "pl-PL",
-                                )
-                              : "—"}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex flex-wrap gap-2">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => {
-                                  setEditingId(item.id);
-                                  setEditQuantity(item.quantity);
-                                }}
-                              >
-                                Edytuj
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => deleteStock.mutate(item.id)}
-                              >
-                                Usuń
-                              </Button>
-                            </div>
+                    {stockByCategory.map(([category, items]) => (
+                      <Fragment key={category}>
+                        <tr className="bg-emerald-50/40">
+                          <td
+                            colSpan={8}
+                            className="px-4 py-2 text-xs font-semibold tracking-wide text-emerald-800 uppercase"
+                          >
+                            {category}
                           </td>
                         </tr>
-                      );
-                    })}
+                        {items.map((item) => {
+                          const product = productsQuery.data?.find(
+                            (entry) => entry.id === item.productId,
+                          );
+                          const photo =
+                            item.imageUrl || product?.imageUrl || null;
+                          return (
+                            <tr
+                              key={item.id}
+                              className="border-b border-gray-50 last:border-0"
+                            >
+                              <td className="px-4 py-3">
+                                <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-lg border border-gray-100 bg-gray-50">
+                                  {photo ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={photo}
+                                      alt=""
+                                      className="h-full w-full object-cover"
+                                    />
+                                  ) : (
+                                    <Package
+                                      size={18}
+                                      className="text-gray-300"
+                                    />
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <p className="font-medium text-gray-900">
+                                  {product?.name ?? item.productId}
+                                </p>
+                                {(item.ean || product?.ean) && (
+                                  <p className="text-xs text-gray-400">
+                                    EAN {item.ean || product?.ean}
+                                  </p>
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-gray-700">
+                                {product
+                                  ? UNIT_LABELS[product.defaultUnit]
+                                  : "—"}
+                              </td>
+                              <td className="px-4 py-3 text-gray-700">
+                                {editingId === item.id ? (
+                                  <form
+                                    className="flex gap-2"
+                                    onSubmit={(event) => {
+                                      event.preventDefault();
+                                      updateStock.mutate(item.id);
+                                    }}
+                                  >
+                                    <Input
+                                      aria-label="Nowa pozostała ilość"
+                                      value={editQuantity}
+                                      onChange={(event) =>
+                                        setEditQuantity(event.target.value)
+                                      }
+                                    />
+                                    <Button type="submit" size="sm">
+                                      Zapisz
+                                    </Button>
+                                  </form>
+                                ) : (
+                                  `${item.quantity} / ${item.initialQuantity}`
+                                )}
+                              </td>
+                              <td className="px-4 py-3 text-gray-700">
+                                {LOCATION_LABELS[item.location]}
+                              </td>
+                              <td className="px-4 py-3 text-gray-700">
+                                {zlotyFromMinor(item.purchasePriceMinor)}{" "}
+                                {item.currency}
+                              </td>
+                              <td className="px-4 py-3 text-gray-700">
+                                {item.expiresAt
+                                  ? new Date(item.expiresAt).toLocaleDateString(
+                                      "pl-PL",
+                                    )
+                                  : "—"}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex flex-wrap gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setEditingId(item.id);
+                                      setEditQuantity(item.quantity);
+                                    }}
+                                  >
+                                    Edytuj
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => deleteStock.mutate(item.id)}
+                                  >
+                                    Usuń
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </Fragment>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -663,14 +906,34 @@ export default function StockPage() {
                   return (
                     <li
                       key={product.id}
-                      className="flex flex-col gap-2 border-b border-gray-100 px-4 py-3 last:border-0 sm:flex-row sm:items-center sm:justify-between"
+                      className="flex flex-col gap-3 border-b border-gray-100 px-4 py-3 last:border-0 sm:flex-row sm:items-center sm:justify-between"
                     >
-                      <p className="font-medium text-gray-900">
-                        {product.name}{" "}
-                        <span className="font-normal text-gray-500">
-                          ({UNIT_LABELS[product.defaultUnit]})
-                        </span>
-                      </p>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-100 bg-gray-50">
+                          {product.imageUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={product.imageUrl}
+                              alt=""
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <Package size={18} className="text-gray-300" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-medium text-gray-900">
+                            {product.name}{" "}
+                            <span className="font-normal text-gray-500">
+                              ({UNIT_LABELS[product.defaultUnit]})
+                            </span>
+                          </p>
+                          <p className="truncate text-xs text-gray-400">
+                            {product.category ?? UNCATEGORIZED}
+                            {product.ean ? ` · EAN ${product.ean}` : ""}
+                          </p>
+                        </div>
+                      </div>
                       <Button
                         size="sm"
                         variant="outline"

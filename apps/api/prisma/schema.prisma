@@ -140,12 +140,17 @@ model Product {
   name           String
   normalizedName String
   defaultUnit    ProductUnit
+  ean            String?     @db.VarChar(14)
+  imageUrl       String?
+  category       String?     @db.VarChar(80)
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
   kitchen        Kitchen     @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
   stockItems     StockItem[]
 
   @@unique([kitchenId, normalizedName])
+  @@unique([kitchenId, ean])
+  @@index([kitchenId, category])
 }
 
 model StockItem {
@@ -158,6 +163,8 @@ model StockItem {
   purchasedAt        DateTime?
   purchasePriceMinor Int
   currency           String          @default("PLN") @db.VarChar(3)
+  ean                String?         @db.VarChar(14)
+  imageUrl           String?
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
   product            Product         @relation(fields: [productId], references: [id], onDelete: Cascade)

@@ -25,6 +25,34 @@ import {
   UpdateStockItemDto,
 } from './dto/stock-item.dto';
 
+function normalizeOptionalEan(value: string | null | undefined): string | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeOptionalImageUrl(
+  value: string | null | undefined,
+): string | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function normalizeOptionalCategory(
+  value: string | null | undefined,
+): string | null {
+  if (value === undefined || value === null) {
+    return null;
+  }
+  const trimmed = value.trim().replace(/\s+/g, ' ');
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 @Injectable()
 export class StockService {
   constructor(private readonly prisma: PrismaService) {}
@@ -33,7 +61,7 @@ export class StockService {
     await requireKitchenMember(this.prisma, kitchenId, userId);
     const products = await this.prisma.product.findMany({
       where: { kitchenId },
-      orderBy: { name: 'asc' },
+      orderBy: [{ category: 'asc' }, { name: 'asc' }],
     });
     return products.map(toProductDto);
   }
@@ -49,6 +77,9 @@ export class StockService {
     if (!normalizedName) {
       throw new BadRequestException('Nazwa produktu jest wymagana.');
     }
+    const ean = normalizeOptionalEan(dto.ean);
+    const imageUrl = normalizeOptionalImageUrl(dto.imageUrl);
+    const category = normalizeOptionalCategory(dto.category);
     try {
       const product = await this.prisma.product.create({
         data: {
@@ -56,19 +87,14 @@ export class StockService {
           name,
           normalizedName,
           defaultUnit: dto.defaultUnit,
+          ean,
+          imageUrl,
+          category,
         },
       });
       return toProductDto(product);
     } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        throw new ConflictException(
-          'Produkt o tej nazwie już istnieje w kuchni.',
-        );
-      }
-      throw error;
+      throw toProductWriteError(error);
     }
   }
 
@@ -140,19 +166,43 @@ export class StockService {
         'currency musi być kodem ISO 4217 (3 litery).',
       );
     }
-    const item = await this.prisma.stockItem.create({
-      data: {
-        productId: product.id,
-        initialQuantity: quantity,
-        quantity,
-        location: dto.location,
-        expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
-        purchasedAt: dto.purchasedAt ? new Date(dto.purchasedAt) : null,
-        purchasePriceMinor: dto.purchasePriceMinor,
-        currency,
-      },
-    });
-    return toStockItemDto(item);
+    const ean = normalizeOptionalEan(dto.ean);
+    const imageUrl = normalizeOptionalImageUrl(dto.imageUrl);
+
+    try {
+      const item = await this.prisma.$transaction(async (tx) => {
+        const productPatch: Prisma.ProductUpdateInput = {};
+        if (ean && !product.ean) {
+          productPatch.ean = ean;
+        }
+        if (imageUrl && !product.imageUrl) {
+          productPatch.imageUrl = imageUrl;
+        }
+        if (Object.keys(productPatch).length > 0) {
+          await tx.product.update({
+            where: { id: product.id },
+            data: productPatch,
+          });
+        }
+        return tx.stockItem.create({
+          data: {
+            productId: product.id,
+            initialQuantity: quantity,
+            quantity,
+            location: dto.location,
+            expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
+            purchasedAt: dto.purchasedAt ? new Date(dto.purchasedAt) : null,
+            purchasePriceMinor: dto.purchasePriceMinor,
+            currency,
+            ean,
+            imageUrl,
+          },
+        });
+      });
+      return toStockItemDto(item);
+    } catch (error) {
+      throw toProductWriteError(error);
+    }
   }
 
   async updateStockItem(
@@ -186,6 +236,11 @@ export class StockService {
         purchasedAt:
           dto.purchasedAt === undefined ? undefined : new Date(dto.purchasedAt),
         purchasePriceMinor: dto.purchasePriceMinor,
+        ean: dto.ean === undefined ? undefined : normalizeOptionalEan(dto.ean),
+        imageUrl:
+          dto.imageUrl === undefined
+            ? undefined
+            : normalizeOptionalImageUrl(dto.imageUrl),
       },
     });
     return toStockItemDto(item);
@@ -207,6 +262,27 @@ export class StockService {
   }
 }
 
+function toProductWriteError(error: unknown): Error {
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    error.code === 'P2002'
+  ) {
+    const targetMeta = error.meta?.target;
+    const target = Array.isArray(targetMeta)
+      ? targetMeta.map(String).join(',')
+      : typeof targetMeta === 'string'
+        ? targetMeta
+        : '';
+    if (target.includes('ean')) {
+      return new ConflictException(
+        'Produkt o tym kodzie EAN już istnieje w kuchni.',
+      );
+    }
+    return new ConflictException('Produkt o tej nazwie już istnieje w kuchni.');
+  }
+  return error instanceof Error ? error : new Error('Nieznany błąd zapisu.');
+}
+
 function toProductDto(product: Product): ProductDto {
   return {
     id: product.id,
@@ -214,6 +290,9 @@ function toProductDto(product: Product): ProductDto {
     name: product.name,
     normalizedName: product.normalizedName,
     defaultUnit: product.defaultUnit,
+    ean: product.ean,
+    imageUrl: product.imageUrl,
+    category: product.category,
     createdAt: product.createdAt.toISOString(),
     updatedAt: product.updatedAt.toISOString(),
   };
@@ -230,6 +309,8 @@ function toStockItemDto(item: StockItem): StockItemDto {
     purchasedAt: item.purchasedAt?.toISOString() ?? null,
     purchasePriceMinor: item.purchasePriceMinor,
     currency: item.currency,
+    ean: item.ean,
+    imageUrl: item.imageUrl,
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),
   };

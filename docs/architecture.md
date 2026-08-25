@@ -97,8 +97,8 @@ Cookies sesji:
 
 - Better Auth: `User`, `Session`, `Account` (w tym `issuer` wymagane od 1.7), `Verification`,
 - `Kitchen`, `KitchenMember`, `KitchenInvite` (w bazie tylko `tokenHash`),
-- `Product` (`normalizedName`, unikalność `(kitchenId, normalizedName)`, `defaultUnit`),
-- `StockItem` (`initialQuantity`, `quantity`, `purchasePriceMinor`, `currency`, miejsce, daty). Ilości: `DECIMAL(12,3)`.
+- `Product` (`normalizedName`, unikalność `(kitchenId, normalizedName)`, `defaultUnit`, opcjonalne `ean` / `imageUrl` / `category`),
+- `StockItem` (`initialQuantity`, `quantity`, `purchasePriceMinor`, `currency`, miejsce, daty, opcjonalne `ean` / `imageUrl`). Ilości: `DECIMAL(12,3)`.
 
 Migracje wykonuje wyłącznie Prisma. Seed demo działa tylko gdy `NODE_ENV !== "production"` oraz `ALLOW_DEMO_SEED=true`. Seed nie jest częścią startu ani pre-deploy Railway.
 

@@ -39,9 +39,9 @@ export function HealthStatus() {
 
   let apiBaseUrl = "";
   try {
-    apiBaseUrl = getApiBaseUrl();
+    apiBaseUrl = getApiBaseUrl() || "(ten sam origin /api)";
   } catch {
-    apiBaseUrl = "(brak NEXT_PUBLIC_API_URL)";
+    apiBaseUrl = "(ten sam origin /api)";
   }
 
   return (

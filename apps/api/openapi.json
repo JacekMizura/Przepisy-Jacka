@@ -22,6 +22,574 @@
           "health"
         ]
       }
+    },
+    "/api/me": {
+      "get": {
+        "operationId": "UsersController_getMe",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentUserDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Bieżący zalogowany użytkownik",
+        "tags": [
+          "me"
+        ]
+      },
+      "patch": {
+        "operationId": "UsersController_updateMe",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentUserDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Aktualizacja profilu bieżącego użytkownika",
+        "tags": [
+          "me"
+        ]
+      }
+    },
+    "/api/kitchens": {
+      "get": {
+        "operationId": "KitchensController_list",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KitchenSummaryDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Lista kuchni użytkownika",
+        "tags": [
+          "kitchens"
+        ]
+      },
+      "post": {
+        "operationId": "KitchensController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateKitchenDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KitchenDetailsDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Utworzenie kuchni",
+        "tags": [
+          "kitchens"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}": {
+      "get": {
+        "operationId": "KitchensController_getOne",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KitchenDetailsDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Szczegóły kuchni i członkowie",
+        "tags": [
+          "kitchens"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/invites": {
+      "get": {
+        "operationId": "KitchensController_listInvites",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/KitchenInviteDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Lista zaproszeń kuchni (owner)",
+        "tags": [
+          "kitchens"
+        ]
+      },
+      "post": {
+        "operationId": "KitchensController_createInvite",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInviteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteCreatedDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Utworzenie zaproszenia z linkiem do skopiowania",
+        "tags": [
+          "kitchens"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/invites/{inviteId}/revoke": {
+      "post": {
+        "operationId": "KitchensController_revoke",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "inviteId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KitchenInviteDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Unieważnienie zaproszenia",
+        "tags": [
+          "kitchens"
+        ]
+      }
+    },
+    "/api/invites/{token}/accept": {
+      "post": {
+        "operationId": "KitchensController_accept",
+        "parameters": [
+          {
+            "name": "token",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KitchenDetailsDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Przyjęcie zaproszenia przez zalogowanego użytkownika",
+        "tags": [
+          "kitchens"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/products": {
+      "get": {
+        "operationId": "StockController_listProducts",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProductDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Katalog produktów kuchni",
+        "tags": [
+          "stock"
+        ]
+      },
+      "post": {
+        "operationId": "StockController_createProduct",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Dodanie produktu do katalogu",
+        "tags": [
+          "stock"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/products/{productId}": {
+      "delete": {
+        "operationId": "StockController_deleteProduct",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "confirmCascade",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Usunięcie produktu (kaskada partii po potwierdzeniu)",
+        "tags": [
+          "stock"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/stock-items": {
+      "get": {
+        "operationId": "StockController_listStock",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "location",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "pantry",
+                "fridge",
+                "freezer",
+                "other"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StockItemDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Partie zapasów",
+        "tags": [
+          "stock"
+        ]
+      },
+      "post": {
+        "operationId": "StockController_createStock",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStockItemDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockItemDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Dodanie partii zapasu",
+        "tags": [
+          "stock"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/stock-items/{stockItemId}": {
+      "patch": {
+        "operationId": "StockController_updateStock",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "stockItemId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStockItemDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockItemDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Aktualizacja partii zapasu",
+        "tags": [
+          "stock"
+        ]
+      },
+      "delete": {
+        "operationId": "StockController_deleteStock",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "stockItemId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Usunięcie partii zapasu",
+        "tags": [
+          "stock"
+        ]
+      }
     }
   },
   "info": {
@@ -37,6 +605,13 @@
     }
   ],
   "components": {
+    "securitySchemes": {
+      "cookie": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "better-auth.session_token"
+      }
+    },
     "schemas": {
       "HealthResponseDto": {
         "type": "object",
@@ -58,6 +633,438 @@
           "status",
           "timestamp"
         ]
+      },
+      "CurrentUserDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "emailVerified": {
+            "type": "boolean"
+          },
+          "image": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email",
+          "emailVerified",
+          "image",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "UpdateMeDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Jacek",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "KitchenSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "member"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "role"
+        ]
+      },
+      "CreateKitchenDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Dom Jacka",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "KitchenMemberDto": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "member"
+            ]
+          },
+          "joinedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "userId",
+          "email",
+          "name",
+          "role",
+          "joinedAt"
+        ]
+      },
+      "KitchenDetailsDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/KitchenMemberDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "createdAt",
+          "members"
+        ]
+      },
+      "KitchenInviteDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "member"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "acceptedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "revokedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "role",
+          "expiresAt",
+          "acceptedAt",
+          "revokedAt"
+        ]
+      },
+      "CreateInviteDto": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "example": "anna@example.com"
+          }
+        },
+        "required": [
+          "email"
+        ]
+      },
+      "InviteCreatedDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "inviteUrl": {
+            "type": "string",
+            "description": "Jednorazowy link z surowym tokenem. Token nie jest ponownie zwracany."
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "expiresAt",
+          "inviteUrl"
+        ]
+      },
+      "ProductDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kitchenId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "normalizedName": {
+            "type": "string"
+          },
+          "defaultUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "kitchenId",
+          "name",
+          "normalizedName",
+          "defaultUnit",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateProductDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Mleko"
+          },
+          "defaultUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ],
+            "example": "milliliter"
+          }
+        },
+        "required": [
+          "name",
+          "defaultUnit"
+        ]
+      },
+      "StockItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "productId": {
+            "type": "string"
+          },
+          "initialQuantity": {
+            "type": "string",
+            "example": "500.000"
+          },
+          "quantity": {
+            "type": "string",
+            "example": "500.000"
+          },
+          "location": {
+            "type": "string",
+            "enum": [
+              "pantry",
+              "fridge",
+              "freezer",
+              "other"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "purchasedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "purchasePriceMinor": {
+            "type": "number",
+            "example": 599
+          },
+          "currency": {
+            "type": "string",
+            "example": "PLN"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "productId",
+          "initialQuantity",
+          "quantity",
+          "location",
+          "expiresAt",
+          "purchasedAt",
+          "purchasePriceMinor",
+          "currency",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateStockItemDto": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "string",
+            "example": "500.000",
+            "description": "Początkowa i bieżąca ilość jako decimal string (max 3 miejsca)."
+          },
+          "location": {
+            "type": "string",
+            "enum": [
+              "pantry",
+              "fridge",
+              "freezer",
+              "other"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "purchasedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "purchasePriceMinor": {
+            "type": "number",
+            "example": 599,
+            "description": "Łączna cena zakupu początkowej partii w groszach."
+          },
+          "currency": {
+            "type": "string",
+            "example": "PLN"
+          }
+        },
+        "required": [
+          "productId",
+          "quantity",
+          "location",
+          "purchasePriceMinor"
+        ]
+      },
+      "UpdateStockItemDto": {
+        "type": "object",
+        "properties": {
+          "quantity": {
+            "type": "string",
+            "example": "200.000"
+          },
+          "location": {
+            "type": "string",
+            "enum": [
+              "pantry",
+              "fridge",
+              "freezer",
+              "other"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "purchasedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "purchasePriceMinor": {
+            "type": "number",
+            "example": 599
+          }
+        }
       }
     }
   }

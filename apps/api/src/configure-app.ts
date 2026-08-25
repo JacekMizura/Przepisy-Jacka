@@ -40,6 +40,7 @@ export function buildOpenApiDocument(app: INestApplication) {
     .setDescription('REST API aplikacji Moja Kuchnia')
     .setVersion('0.1.0')
     .addServer('http://localhost:3001')
+    .addCookieAuth('better-auth.session_token')
     .build();
 
   return SwaggerModule.createDocument(app, swaggerConfig);

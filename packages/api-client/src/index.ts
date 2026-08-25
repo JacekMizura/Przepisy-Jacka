@@ -6,12 +6,14 @@ export type { paths };
 
 export type CreateApiClientOptions = {
   baseUrl: string;
+  credentials?: RequestCredentials;
   getHeaders?: () => HeadersInit | Promise<HeadersInit>;
 };
 
 export function createApiClient(options: CreateApiClientOptions) {
   const client = createClient<paths>({
     baseUrl: options.baseUrl,
+    credentials: options.credentials ?? "same-origin",
   });
 
   if (options.getHeaders) {

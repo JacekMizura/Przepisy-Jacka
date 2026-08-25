@@ -24,6 +24,9 @@ web-build/
 # Prisma
 apps/api/src/generated/prisma/
 
+# Lokalny embedded Postgres (tylko maszyny deweloperskie)
+.embedded-pg/
+
 # Logs and caches
 *.log
 npm-debug.log*

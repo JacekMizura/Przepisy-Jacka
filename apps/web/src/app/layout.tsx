@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Moja Kuchnia",
-  description: "Aplikacja webowa Moja Kuchnia — ekran diagnostyczny.",
+  description: "Wspólna kuchnia, zapasy i zaproszenia.",
 };
 
 export default function RootLayout({

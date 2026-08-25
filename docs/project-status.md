@@ -2,29 +2,50 @@
 
 ## Aktualnie ukończony etap
 
-Etap 1: fundament repozytorium. Monorepo, szkielet web / API / mobile, health check, OpenAPI, klient API, CI, dokumentacja i reguły Cursora.
+Etap: uwierzytelnianie Better Auth, wspólne kuchnie, zaproszenia, katalog produktów i zapasy na webie. Fundament repozytorium z Etapu 1 pozostaje w mocy. **Etap 4 (jakość / CI / PostgreSQL 18) jest domknięty lokalnie**; pierwszy przebieg GitHub Actions wymaga pusha feature brancha.
 
 `docs/faza-0-architektura.md` pochodzi z wcześniejszego, niezwiązanego projektu. Plik pozostaje na dysku jako materiał historyczny i nie jest źródłem prawdy.
+
+## PostgreSQL — zgodność major 18
+
+| Środowisko | Obraz / wersja |
+| --- | --- |
+| Railway (produkcja) | major **18**, sprawdzona: `18.6 (Debian 18.6-1.pgdg13+2)` |
+| Lokalny Compose | `postgres:18-alpine` (bez pinu patcha) |
+| GitHub Actions CI | `postgres:18-alpine` (baza `moja_kuchnia_test`) |
+
+Nie wymagamy identycznego patcha `18.6` lokalnie ani w CI — tylko major 18.
 
 ## Co rzeczywiście działa
 
 - monorepo pnpm + Turborepo,
-- `apps/api` — NestJS + Fastify, prefix `/api`, `GET /api/health`, walidacja env, CORS, Swagger poza produkcją, Prisma bez modeli domenowych,
-- `packages/api-client` — `openapi-fetch` + typy z OpenAPI,
-- `apps/web` — ekran kontrolny „Moja Kuchnia” ze stanami ładowanie / sukces / błąd health,
-- `apps/mobile` — analogiczny ekran kontrolny z `EXPO_PUBLIC_API_URL`,
-- lokalny PostgreSQL przez `docker-compose.yml`,
-- GitHub Actions: instalacja z lockfile, lint, typecheck, testy, build web i API,
-- lokalne kontrole: lint, typecheck, testy jednostkowe i e2e health, build web i API.
+- `apps/api` — NestJS + Fastify, prefix `/api`, Better Auth, Prisma, kuchnie, zaproszenia, produkty, partie zapasów, `GET /api/health`, walidacja env, CORS, Swagger poza produkcją,
+- `packages/api-client` — `openapi-fetch` + typy z OpenAPI dla endpointów domenowych,
+- `apps/web` — logowanie, rejestracja, kuchnie, zaproszenia, zapasy; względne `/api/*` przez serwerowy proxy do `API_ORIGIN`,
+- `apps/mobile` — ekran kontrolny health z `EXPO_PUBLIC_API_URL` (bez zmian funkcjonalnych w tym etapie),
+- lokalny PostgreSQL 18 przez `docker-compose.yml`,
+- GitHub Actions: Postgres 18, migracje, OpenAPI, lint, typecheck, unit, e2e API, black-box Next, build, mobile,
+- black-box `pnpm test:auth-blackbox`: prawdziwy NestJS + `next build`/`next start`.
 
 ## Co jest tylko decyzją docelową
 
-- Better Auth i pełny proces logowania,
-- wspólne kuchnie, zaproszenia, produkty, przepisy, zapasy, zakupy, dziennik żywienia,
+- auth i zapasy na mobile / Expo Secure Store,
+- przepisy, zakupy, dziennik żywienia, statystyki,
 - import przepisów ze stron,
-- wdrożenia na Vercel, Railway i EAS,
-- automatyczne pipeline’y deploy.
+- preview Vercel z osobnym trusted origin.
 
 ## Następny sugerowany etap
 
-Uwierzytelnianie: Better Auth w API, sesja cookie na webie, bezpieczna sesja w Expo, wspólne konta, bez jeszcze domeny kuchni.
+Mobile: sesja Better Auth w Expo oraz odczyt kuchni i zapasów. Albo przepisy, gdy webowy fundament kuchni ma zostać rozszerzony.
+
+## Checklist przed pierwszym wdrożeniem (nie ustawiane automatycznie)
+
+Szczegóły: [docs/deploy-checklist.md](./deploy-checklist.md).
+
+Krótko:
+
+1. Railway: pre-deploy `pnpm --filter @moja-kuchnia/api exec prisma migrate deploy`, potem start API.
+2. Railway: zmienne produkcyjne (originy = `https://przepisy-jacka-web.vercel.app`, nowy `BETTER_AUTH_SECRET`).
+3. Vercel: serwerowe `API_ORIGIN=https://przepisy-jacka-production-ae86.up.railway.app`; usuń zbędne `NEXT_PUBLIC_API_URL`.
+4. Push feature brancha / PR — pierwszy prawdziwy przebieg GitHub Actions.
+5. Dopiero potem merge i deploy.

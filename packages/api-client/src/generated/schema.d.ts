@@ -21,6 +21,182 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Bieżący zalogowany użytkownik */
+        get: operations["UsersController_getMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Aktualizacja profilu bieżącego użytkownika */
+        patch: operations["UsersController_updateMe"];
+        trace?: never;
+    };
+    "/api/kitchens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lista kuchni użytkownika */
+        get: operations["KitchensController_list"];
+        put?: never;
+        /** Utworzenie kuchni */
+        post: operations["KitchensController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Szczegóły kuchni i członkowie */
+        get: operations["KitchensController_getOne"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/invites": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lista zaproszeń kuchni (owner) */
+        get: operations["KitchensController_listInvites"];
+        put?: never;
+        /** Utworzenie zaproszenia z linkiem do skopiowania */
+        post: operations["KitchensController_createInvite"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/invites/{inviteId}/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unieważnienie zaproszenia */
+        post: operations["KitchensController_revoke"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/invites/{token}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Przyjęcie zaproszenia przez zalogowanego użytkownika */
+        post: operations["KitchensController_accept"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Katalog produktów kuchni */
+        get: operations["StockController_listProducts"];
+        put?: never;
+        /** Dodanie produktu do katalogu */
+        post: operations["StockController_createProduct"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/products/{productId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Usunięcie produktu (kaskada partii po potwierdzeniu) */
+        delete: operations["StockController_deleteProduct"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/stock-items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Partie zapasów */
+        get: operations["StockController_listStock"];
+        put?: never;
+        /** Dodanie partii zapasu */
+        post: operations["StockController_createStock"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/stock-items/{stockItemId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Usunięcie partii zapasu */
+        delete: operations["StockController_deleteStock"];
+        options?: never;
+        head?: never;
+        /** Aktualizacja partii zapasu */
+        patch: operations["StockController_updateStock"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -36,6 +212,147 @@ export interface components {
              * @example 2026-08-24T21:54:00.000Z
              */
             timestamp: string;
+        };
+        CurrentUserDto: {
+            id: string;
+            name: string;
+            email: string;
+            emailVerified: boolean;
+            image: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        UpdateMeDto: {
+            /** @example Jacek */
+            name: string;
+        };
+        KitchenSummaryDto: {
+            id: string;
+            name: string;
+            /** @enum {string} */
+            role: "owner" | "member";
+        };
+        CreateKitchenDto: {
+            /** @example Dom Jacka */
+            name: string;
+        };
+        KitchenMemberDto: {
+            userId: string;
+            email: string;
+            name: string;
+            /** @enum {string} */
+            role: "owner" | "member";
+            /** Format: date-time */
+            joinedAt: string;
+        };
+        KitchenDetailsDto: {
+            id: string;
+            name: string;
+            /** Format: date-time */
+            createdAt: string;
+            members: components["schemas"]["KitchenMemberDto"][];
+        };
+        KitchenInviteDto: {
+            id: string;
+            email: string;
+            /** @enum {string} */
+            role: "member";
+            /** Format: date-time */
+            expiresAt: string;
+            /** Format: date-time */
+            acceptedAt: string | null;
+            /** Format: date-time */
+            revokedAt: string | null;
+        };
+        CreateInviteDto: {
+            /** @example anna@example.com */
+            email: string;
+        };
+        InviteCreatedDto: {
+            id: string;
+            email: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /** @description Jednorazowy link z surowym tokenem. Token nie jest ponownie zwracany. */
+            inviteUrl: string;
+        };
+        ProductDto: {
+            id: string;
+            kitchenId: string;
+            name: string;
+            normalizedName: string;
+            /** @enum {string} */
+            defaultUnit: "piece" | "gram" | "milliliter";
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        CreateProductDto: {
+            /** @example Mleko */
+            name: string;
+            /**
+             * @example milliliter
+             * @enum {string}
+             */
+            defaultUnit: "piece" | "gram" | "milliliter";
+        };
+        StockItemDto: {
+            id: string;
+            productId: string;
+            /** @example 500.000 */
+            initialQuantity: string;
+            /** @example 500.000 */
+            quantity: string;
+            /** @enum {string} */
+            location: "pantry" | "fridge" | "freezer" | "other";
+            /** Format: date-time */
+            expiresAt: string | null;
+            /** Format: date-time */
+            purchasedAt: string | null;
+            /** @example 599 */
+            purchasePriceMinor: number;
+            /** @example PLN */
+            currency: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        CreateStockItemDto: {
+            productId: string;
+            /**
+             * @description Początkowa i bieżąca ilość jako decimal string (max 3 miejsca).
+             * @example 500.000
+             */
+            quantity: string;
+            /** @enum {string} */
+            location: "pantry" | "fridge" | "freezer" | "other";
+            /** Format: date-time */
+            expiresAt?: string;
+            /** Format: date-time */
+            purchasedAt?: string;
+            /**
+             * @description Łączna cena zakupu początkowej partii w groszach.
+             * @example 599
+             */
+            purchasePriceMinor: number;
+            /** @example PLN */
+            currency?: string;
+        };
+        UpdateStockItemDto: {
+            /** @example 200.000 */
+            quantity?: string;
+            /** @enum {string} */
+            location?: "pantry" | "fridge" | "freezer" | "other";
+            /** Format: date-time */
+            expiresAt?: string | null;
+            /** Format: date-time */
+            purchasedAt?: string | null;
+            /** @example 599 */
+            purchasePriceMinor?: number;
         };
     };
     responses: never;
@@ -61,6 +378,363 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponseDto"];
+                };
+            };
+        };
+    };
+    UsersController_getMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurrentUserDto"];
+                };
+            };
+        };
+    };
+    UsersController_updateMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateMeDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurrentUserDto"];
+                };
+            };
+        };
+    };
+    KitchensController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KitchenSummaryDto"][];
+                };
+            };
+        };
+    };
+    KitchensController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateKitchenDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KitchenDetailsDto"];
+                };
+            };
+        };
+    };
+    KitchensController_getOne: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KitchenDetailsDto"];
+                };
+            };
+        };
+    };
+    KitchensController_listInvites: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KitchenInviteDto"][];
+                };
+            };
+        };
+    };
+    KitchensController_createInvite: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInviteDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InviteCreatedDto"];
+                };
+            };
+        };
+    };
+    KitchensController_revoke: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                inviteId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KitchenInviteDto"];
+                };
+            };
+        };
+    };
+    KitchensController_accept: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KitchenDetailsDto"];
+                };
+            };
+        };
+    };
+    StockController_listProducts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductDto"][];
+                };
+            };
+        };
+    };
+    StockController_createProduct: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateProductDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductDto"];
+                };
+            };
+        };
+    };
+    StockController_deleteProduct: {
+        parameters: {
+            query?: {
+                confirmCascade?: boolean;
+            };
+            header?: never;
+            path: {
+                kitchenId: string;
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    StockController_listStock: {
+        parameters: {
+            query?: {
+                productId?: string;
+                location?: "pantry" | "fridge" | "freezer" | "other";
+            };
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockItemDto"][];
+                };
+            };
+        };
+    };
+    StockController_createStock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateStockItemDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockItemDto"];
+                };
+            };
+        };
+    };
+    StockController_deleteStock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                stockItemId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    StockController_updateStock: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                stockItemId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateStockItemDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockItemDto"];
                 };
             };
         };

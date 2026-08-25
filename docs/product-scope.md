@@ -85,13 +85,18 @@ Historia zakupów pokazuje datę, sklep, liczbę pozycji i łączną wartość w
 
 ## Przepisy
 
-Przepisy są domyślnie prywatne. Można je udostępnić:
+Przepis należy do kuchni i ma autora. Widoczność:
 
-- kuchni,
-- konkretnemu użytkownikowi,
-- przez prywatny link.
+- `private` — widzi wyłącznie autor,
+- `kitchen` — widzą wszyscy członkowie kuchni.
 
-Docelowo możliwe będzie importowanie przepisów ze stron internetowych.
+Domyślnie nowy przepis jest prywatny. Tylko autor może edytować, usuwać i zmieniać widoczność.
+
+Przepis zawiera składniki (z opcjonalnym powiązaniem z `Product`) i kroki w ustalonej kolejności. Jednostki przepisu (`RecipeIngredientUnit`) są oddzielne od jednostek produktu i listy zakupów.
+
+API zwraca dostępność składników względem zapasów (`available`, `partial`, `missing`, `unknown`) z bezpiecznym skalowaniem porcji oraz przeliczeniami g/kg i ml/l. Braki można dodać do istniejącej listy zakupów z idempotencją.
+
+Publiczne linki, import ze stron, zdjęcia, kalorie i planowanie posiłków — poza tym etapem.
 
 ## Uwierzytelnianie
 

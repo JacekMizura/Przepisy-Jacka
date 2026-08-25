@@ -143,7 +143,7 @@ export function AppShell({
     },
     {
       id: "przepisy",
-      label: "Przepisy (wkrótce)",
+      label: "Przepisy",
       icon: BookOpen,
       href: activeKitchenId
         ? `/kitchens/${activeKitchenId}/recipes`

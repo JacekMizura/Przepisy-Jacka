@@ -22,6 +22,8 @@ model User {
   memberships   KitchenMember[]
   createdInvites KitchenInvite[] @relation("InviteCreator")
   createdPurchases Purchase[]
+  authoredRecipes Recipe[] @relation("RecipeAuthor")
+  recipeGapAdditions RecipeGapAddition[]
 
   @@unique([email])
   @@map("user")
@@ -109,6 +111,31 @@ enum ShoppingInputUnit {
   liter
 }
 
+enum RecipeVisibility {
+  private
+  kitchen
+}
+
+enum RecipeDifficulty {
+  easy
+  medium
+  hard
+}
+
+enum RecipeIngredientUnit {
+  piece
+  gram
+  kilogram
+  milliliter
+  liter
+  teaspoon
+  tablespoon
+  cup
+  pinch
+  package
+  to_taste
+}
+
 model Kitchen {
   id              String          @id @default(uuid())
   name            String
@@ -120,6 +147,7 @@ model Kitchen {
   products        Product[]
   shoppingList    ShoppingList?
   purchases       Purchase[]
+  recipes         Recipe[]
 }
 
 model KitchenMember {
@@ -166,6 +194,7 @@ model Product {
   stockItems         StockItem[]
   shoppingListItems  ShoppingListItem[]
   purchaseLineItems  PurchaseLineItem[]
+  recipeIngredients  RecipeIngredient[]
 
   @@unique([kitchenId, normalizedName])
   @@unique([kitchenId, ean])
@@ -252,4 +281,69 @@ model PurchaseLineItem {
   product             Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
   stockItem           StockItem?      @relation(fields: [stockItemId], references: [id], onDelete: SetNull)
   shoppingListItem    ShoppingListItem? @relation(fields: [shoppingListItemId], references: [id], onDelete: SetNull)
+}
+
+model Recipe {
+  id              String             @id @default(uuid())
+  kitchenId       String
+  authorUserId    String
+  name            String
+  description     String?
+  servings        Int
+  prepTimeMinutes Int?
+  cookTimeMinutes Int?
+  difficulty      RecipeDifficulty
+  tags            String[]           @default([])
+  visibility      RecipeVisibility   @default(private)
+  sourceUrl       String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  kitchen         Kitchen            @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+  author          User               @relation("RecipeAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  ingredients     RecipeIngredient[]
+  steps           RecipeStep[]
+  gapAdditions    RecipeGapAddition[]
+
+  @@index([kitchenId])
+  @@index([kitchenId, authorUserId])
+  @@index([kitchenId, visibility])
+}
+
+model RecipeIngredient {
+  id        String               @id @default(uuid())
+  recipeId  String
+  name      String
+  quantity  Decimal?             @db.Decimal(12, 3)
+  unit      RecipeIngredientUnit
+  note      String?
+  productId String?
+  sortOrder Int
+  recipe    Recipe               @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  product   Product?             @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([recipeId, sortOrder])
+}
+
+model RecipeStep {
+  id          String @id @default(uuid())
+  recipeId    String
+  instruction String
+  sortOrder   Int
+  recipe      Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@index([recipeId, sortOrder])
+}
+
+model RecipeGapAddition {
+  id              String   @id @default(uuid())
+  recipeId        String
+  idempotencyKey  String   @unique
+  servings        Int
+  createdByUserId String
+  result          Json
+  createdAt       DateTime @default(now())
+  recipe          Recipe   @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  createdBy       User     @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([recipeId])
 }

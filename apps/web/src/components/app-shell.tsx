@@ -6,6 +6,8 @@ import {
   ChevronDown,
   Menu,
   Package,
+  Receipt,
+  ShoppingCart,
   Users,
   X,
 } from "lucide-react";
@@ -62,6 +64,12 @@ export function AppShell({
     if (pathname.includes("/stock")) {
       return "zapasy";
     }
+    if (pathname.includes("/shopping-list")) {
+      return "lista-zakupow";
+    }
+    if (pathname.includes("/purchases")) {
+      return "historia-zakupow";
+    }
     if (pathname.includes("/recipes") || pathname.includes("/przepisy")) {
       return "przepisy";
     }
@@ -110,9 +118,27 @@ export function AppShell({
   const navItems = [
     {
       id: "zapasy",
-      label: "Moje Zapasy",
+      label: "Moje zapasy",
       icon: Package,
       href: activeKitchenId ? `/kitchens/${activeKitchenId}/stock` : "/kitchens",
+      disabled: !activeKitchenId,
+    },
+    {
+      id: "lista-zakupow",
+      label: "Lista zakupów",
+      icon: ShoppingCart,
+      href: activeKitchenId
+        ? `/kitchens/${activeKitchenId}/shopping-list`
+        : "/kitchens",
+      disabled: !activeKitchenId,
+    },
+    {
+      id: "historia-zakupow",
+      label: "Historia zakupów",
+      icon: Receipt,
+      href: activeKitchenId
+        ? `/kitchens/${activeKitchenId}/purchases`
+        : "/kitchens",
       disabled: !activeKitchenId,
     },
     {
@@ -193,6 +219,10 @@ export function AppShell({
                     router.push(`/kitchens/${nextId}`);
                   } else if (activeView === "przepisy") {
                     router.push(`/kitchens/${nextId}/recipes`);
+                  } else if (activeView === "lista-zakupow") {
+                    router.push(`/kitchens/${nextId}/shopping-list`);
+                  } else if (activeView === "historia-zakupow") {
+                    router.push(`/kitchens/${nextId}/purchases`);
                   } else {
                     router.push(`/kitchens/${nextId}/stock`);
                   }

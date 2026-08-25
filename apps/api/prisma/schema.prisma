@@ -21,6 +21,7 @@ model User {
   createdKitchens Kitchen[] @relation("KitchenCreator")
   memberships   KitchenMember[]
   createdInvites KitchenInvite[] @relation("InviteCreator")
+  createdPurchases Purchase[]
 
   @@unique([email])
   @@map("user")
@@ -94,6 +95,20 @@ enum StorageLocation {
   other
 }
 
+enum ShoppingListItemStatus {
+  pending
+  bought
+  skipped
+}
+
+enum ShoppingInputUnit {
+  piece
+  gram
+  kilogram
+  milliliter
+  liter
+}
+
 model Kitchen {
   id              String          @id @default(uuid())
   name            String
@@ -103,6 +118,8 @@ model Kitchen {
   members         KitchenMember[]
   invites         KitchenInvite[]
   products        Product[]
+  shoppingList    ShoppingList?
+  purchases       Purchase[]
 }
 
 model KitchenMember {
@@ -145,8 +162,10 @@ model Product {
   category       String?     @db.VarChar(80)
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
-  kitchen        Kitchen     @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
-  stockItems     StockItem[]
+  kitchen            Kitchen             @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+  stockItems         StockItem[]
+  shoppingListItems  ShoppingListItem[]
+  purchaseLineItems  PurchaseLineItem[]
 
   @@unique([kitchenId, normalizedName])
   @@unique([kitchenId, ean])
@@ -167,8 +186,70 @@ model StockItem {
   imageUrl           String?
   createdAt          DateTime        @default(now())
   updatedAt          DateTime        @updatedAt
-  product            Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product            Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  purchaseLineItem   PurchaseLineItem?
 
   @@index([productId])
   @@index([location])
+}
+
+model ShoppingList {
+  id        String             @id @default(uuid())
+  kitchenId String             @unique
+  items     ShoppingListItem[]
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  kitchen   Kitchen            @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+}
+
+model ShoppingListItem {
+  id               String                 @id @default(uuid())
+  shoppingListId   String
+  productId        String?
+  customName       String?
+  plannedQuantity  Decimal?               @db.Decimal(12, 3)
+  plannedUnit      ShoppingInputUnit?
+  note             String?
+  status           ShoppingListItemStatus @default(pending)
+  resolvedAt       DateTime?
+  shoppingList     ShoppingList           @relation(fields: [shoppingListId], references: [id], onDelete: Cascade)
+  product          Product?               @relation(fields: [productId], references: [id], onDelete: SetNull)
+  purchaseLineItem PurchaseLineItem?
+
+  @@index([shoppingListId, status])
+  @@index([shoppingListId, productId])
+}
+
+model Purchase {
+  id              String             @id @default(uuid())
+  kitchenId       String
+  storeName       String?
+  purchasedAt     DateTime
+  currency        String             @default("PLN") @db.VarChar(3)
+  totalPriceMinor Int
+  idempotencyKey  String             @unique
+  createdByUserId String
+  createdAt       DateTime           @default(now())
+  kitchen         Kitchen            @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+  createdBy       User               @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  items           PurchaseLineItem[]
+
+  @@index([kitchenId, purchasedAt])
+}
+
+model PurchaseLineItem {
+  id                  String          @id @default(uuid())
+  purchaseId          String
+  productId           String
+  stockItemId         String?         @unique
+  shoppingListItemId  String?         @unique
+  quantity            Decimal         @db.Decimal(12, 3)
+  priceMinor          Int
+  location            StorageLocation
+  expiresAt           DateTime?
+  displayName         String?
+  purchase            Purchase        @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
+  product             Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  stockItem           StockItem?      @relation(fields: [stockItemId], references: [id], onDelete: SetNull)
+  shoppingListItem    ShoppingListItem? @relation(fields: [shoppingListItemId], references: [id], onDelete: SetNull)
 }

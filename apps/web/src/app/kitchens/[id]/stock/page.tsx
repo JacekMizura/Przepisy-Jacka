@@ -80,6 +80,11 @@ export default function StockPage() {
   const [productFormOpen, setProductFormOpen] = useState(false);
   const [stockFormOpen, setStockFormOpen] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
+  const [listFeedback, setListFeedback] = useState<string | null>(null);
+  const [duplicateProduct, setDuplicateProduct] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
 
   const productsQuery = useQuery({
     queryKey: ["products", kitchenId],
@@ -379,6 +384,58 @@ export default function StockPage() {
     },
   });
 
+  const addToShoppingList = useMutation({
+    mutationFn: async ({
+      productId,
+      mergeQuantity,
+    }: {
+      productId: string;
+      mergeQuantity?: boolean;
+    }) => {
+      const client = createWebApiClient();
+      const { data, error, response } = await client.POST(
+        "/api/kitchens/{kitchenId}/shopping-list/items",
+        {
+          params: { path: { kitchenId } },
+          body: { productId, mergeQuantity },
+        },
+      );
+      if (response.status === 409) {
+        throw Object.assign(new Error("duplicate"), { code: "duplicate" });
+      }
+      if (error) {
+        throw new Error(
+          readApiError(error, "Nie udało się dodać produktu do listy."),
+        );
+      }
+      return data;
+    },
+    onSuccess: async () => {
+      setDuplicateProduct(null);
+      setListFeedback("Produkt dodany do listy zakupów.");
+      await queryClient.invalidateQueries({
+        queryKey: ["shopping-list", kitchenId],
+      });
+    },
+    onError: (error: Error & { code?: string }, variables) => {
+      if (error.code === "duplicate") {
+        const product = productsQuery.data?.find(
+          (entry) => entry.id === variables.productId,
+        );
+        if (product) {
+          setDuplicateProduct({ id: product.id, name: product.name });
+        }
+        return;
+      }
+      setListFeedback(readApiError(error));
+    },
+  });
+
+  function requestAddToList(product: { id: string; name: string }) {
+    setListFeedback(null);
+    addToShoppingList.mutate({ productId: product.id });
+  }
+
   function onCreateProduct(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     createProduct.mutate();
@@ -458,6 +515,15 @@ export default function StockPage() {
             </div>
           </div>
         </header>
+
+        {listFeedback ? (
+          <div
+            className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
+            role="status"
+          >
+            {listFeedback}
+          </div>
+        ) : null}
 
         {productFormOpen ? (
           <section className="overflow-hidden rounded-3xl border border-emerald-100 bg-white shadow-sm">
@@ -1121,19 +1187,34 @@ export default function StockPage() {
                             </p>
                           </div>
                         </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() =>
-                            setProductToDelete({
-                              id: product.id,
-                              name: product.name,
-                              hasStock,
-                            })
-                          }
-                        >
-                          Usuń produkt
-                        </Button>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              requestAddToList({
+                                id: product.id,
+                                name: product.name,
+                              })
+                            }
+                            disabled={addToShoppingList.isPending}
+                          >
+                            Dodaj do listy zakupów
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              setProductToDelete({
+                                id: product.id,
+                                name: product.name,
+                                hasStock,
+                              })
+                            }
+                          >
+                            Usuń produkt
+                          </Button>
+                        </div>
                       </li>
                     );
                   })}
@@ -1160,6 +1241,22 @@ export default function StockPage() {
           pending={deleteProduct.isPending}
           onCancel={() => setProductToDelete(null)}
           onConfirm={() => deleteProduct.mutate(productToDelete.hasStock)}
+        />
+      ) : null}
+
+      {duplicateProduct ? (
+        <ConfirmDialog
+          title={`„${duplicateProduct.name}” jest już na liście`}
+          description="Ten produkt ma już nierozliczoną pozycję na liście zakupów. Możesz zwiększyć planowaną ilość zamiast dodawać duplikat."
+          confirmLabel="Zwiększ ilość"
+          pending={addToShoppingList.isPending}
+          onCancel={() => setDuplicateProduct(null)}
+          onConfirm={() =>
+            addToShoppingList.mutate({
+              productId: duplicateProduct.id,
+              mergeQuantity: true,
+            })
+          }
         />
       ) : null}
     </AppShell>

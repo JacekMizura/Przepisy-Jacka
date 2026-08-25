@@ -2,7 +2,7 @@
 
 ## Aktualnie ukończony etap
 
-Etap: uwierzytelnianie Better Auth, wspólne kuchnie, zaproszenia, katalog produktów i zapasy na webie. Fundament repozytorium z Etapu 1 pozostaje w mocy. **Etap 4 (jakość / CI / PostgreSQL 18) jest domknięty lokalnie**; pierwszy przebieg GitHub Actions wymaga pusha feature brancha.
+Etap: uwierzytelnianie Better Auth, wspólne kuchnie, zaproszenia, katalog produktów, zapasy oraz lista zakupów z rozliczaniem zakupów na webie. Fundament repozytorium z Etapu 1 pozostaje w mocy. **Etap 4 (jakość / CI / PostgreSQL 18) jest domknięty lokalnie**; pierwszy przebieg GitHub Actions wymaga pusha feature brancha.
 
 `docs/faza-0-architektura.md` pochodzi z wcześniejszego, niezwiązanego projektu. Plik pozostaje na dysku jako materiał historyczny i nie jest źródłem prawdy.
 
@@ -19,9 +19,9 @@ Nie wymagamy identycznego patcha `18.6` lokalnie ani w CI — tylko major 18.
 ## Co rzeczywiście działa
 
 - monorepo pnpm + Turborepo,
-- `apps/api` — NestJS + Fastify, prefix `/api`, Better Auth, Prisma, kuchnie, zaproszenia, produkty, partie zapasów, `GET /api/health`, walidacja env, CORS, Swagger poza produkcją,
-- `packages/api-client` — `openapi-fetch` + typy z OpenAPI dla endpointów domenowych,
-- `apps/web` — layout sidebar (Moja Kuchnia / zapasy / przepisy placeholder / domownicy), logowanie, rejestracja, kuchnie (w tym usuwanie przez ownera), zaproszenia, zapasy z EAN/zdjęciem/kategorią; względne `/api/*` przez serwerowy proxy do `API_ORIGIN`,
+- `apps/api` — NestJS + Fastify, prefix `/api`, Better Auth, Prisma, kuchnie, zaproszenia, produkty, partie zapasów, lista zakupów i zakupy (checkout idempotentny), `GET /api/health`, walidacja env, CORS, Swagger poza produkcją,
+- `packages/api-client` — `openapi-fetch` + typy z OpenAPI dla endpointów domenowych (w tym `components`),
+- `apps/web` — layout sidebar (Moja Kuchnia / zapasy / lista zakupów / historia zakupów / przepisy placeholder / domownicy), logowanie, rejestracja, kuchnie (w tym usuwanie przez ownera), zaproszenia, zapasy z EAN/zdjęciem/kategorią i akcją „Dodaj do listy zakupów”; względne `/api/*` przez serwerowy proxy do `API_ORIGIN`,
 - `apps/mobile` — ekran kontrolny health z `EXPO_PUBLIC_API_URL` (bez zmian funkcjonalnych w tym etapie),
 - lokalny PostgreSQL 18 przez `docker-compose.yml`,
 - GitHub Actions: Postgres 18, migracje, OpenAPI, lint, typecheck, unit, e2e API, black-box Next, build, mobile,
@@ -30,13 +30,13 @@ Nie wymagamy identycznego patcha `18.6` lokalnie ani w CI — tylko major 18.
 ## Co jest tylko decyzją docelową
 
 - auth i zapasy na mobile / Expo Secure Store,
-- przepisy, zakupy, dziennik żywienia, statystyki,
+- przepisy, dziennik żywienia, statystyki i budżety zakupów,
 - import przepisów ze stron,
 - preview Vercel z osobnym trusted origin.
 
 ## Następny sugerowany etap
 
-Mobile: sesja Better Auth w Expo oraz odczyt kuchni i zapasów. Albo przepisy, gdy webowy fundament kuchni ma zostać rozszerzony.
+Mobile: sesja Better Auth w Expo oraz odczyt kuchni, zapasów i listy zakupów. Albo przepisy, gdy webowy fundament kuchni ma zostać rozszerzony.
 
 ## Checklist przed pierwszym wdrożeniem (nie ustawiane automatycznie)
 

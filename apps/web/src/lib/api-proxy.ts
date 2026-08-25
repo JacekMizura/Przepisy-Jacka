@@ -11,9 +11,12 @@ const REQUEST_SKIP = new Set([
   "host",
   // Body i Content-Length ustawia fetch na podstawie przekazanego bufora.
   "content-length",
+  // fetch sam dekompresuje odpowiedź — nie proś upstream o encoding, którego klient
+  // proxy potem nie odczyta poprawnie przy skopiowanym Content-Encoding.
+  "accept-encoding",
 ]);
 
-/** Nagłówki hop-by-hop odpowiedzi — Content-Length zachowujemy dla niezmienionego body. */
+/** Nagłówki hop-by-hop i kompresji odpowiedzi — body po fetch jest już zdekodowane. */
 const RESPONSE_SKIP = new Set([
   "connection",
   "keep-alive",
@@ -23,6 +26,8 @@ const RESPONSE_SKIP = new Set([
   "trailers",
   "transfer-encoding",
   "upgrade",
+  "content-encoding",
+  "content-length",
 ]);
 
 export function getApiOrigin(): string {
@@ -43,6 +48,9 @@ export async function proxyToApi(request: Request): Promise<Response> {
       headers.set(key, value);
     }
   });
+  // Nie przekazuj Accept-Encoding klienta; identity blokuje też domyślne
+  // `gzip, deflate` dokładane przez undici/fetch.
+  headers.set("accept-encoding", "identity");
   const host = request.headers.get("host");
   if (host) {
     headers.set("x-forwarded-host", host);

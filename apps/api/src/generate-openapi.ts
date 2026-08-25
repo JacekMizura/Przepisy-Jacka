@@ -14,7 +14,7 @@ async function generateOpenApi() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter(),
-    { logger: false },
+    { logger: false, bodyParser: false },
   );
 
   configureApp(app);

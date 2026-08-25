@@ -8,4 +8,160 @@ datasource db {
   provider = "postgresql"
 }
 
-// Modele domenowe (użytkownik, kuchnia, przepis, produkt) pojawią się w kolejnych etapach.
+model User {
+  id            String    @id
+  name          String
+  email         String
+  emailVerified Boolean
+  image         String?
+  createdAt     DateTime
+  updatedAt     DateTime
+  sessions      Session[]
+  accounts      Account[]
+  createdKitchens Kitchen[] @relation("KitchenCreator")
+  memberships   KitchenMember[]
+  createdInvites KitchenInvite[] @relation("InviteCreator")
+
+  @@unique([email])
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime
+  updatedAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  issuer                String
+  createdAt             DateTime
+  updatedAt             DateTime
+
+  @@unique([issuer, accountId])
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime?
+  updatedAt  DateTime?
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+enum KitchenRole {
+  owner
+  member
+}
+
+enum ProductUnit {
+  piece
+  gram
+  milliliter
+}
+
+enum StorageLocation {
+  pantry
+  fridge
+  freezer
+  other
+}
+
+model Kitchen {
+  id              String          @id @default(uuid())
+  name            String
+  createdByUserId String
+  createdBy       User            @relation("KitchenCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  createdAt       DateTime        @default(now())
+  members         KitchenMember[]
+  invites         KitchenInvite[]
+  products        Product[]
+}
+
+model KitchenMember {
+  kitchenId String
+  userId    String
+  role      KitchenRole
+  joinedAt  DateTime    @default(now())
+  kitchen   Kitchen     @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([kitchenId, userId])
+  @@index([userId])
+}
+
+model KitchenInvite {
+  id              String       @id @default(uuid())
+  kitchenId       String
+  email           String
+  role            KitchenRole  @default(member)
+  tokenHash       String       @unique
+  expiresAt       DateTime
+  acceptedAt      DateTime?
+  revokedAt       DateTime?
+  createdByUserId String
+  createdBy       User         @relation("InviteCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  createdAt       DateTime     @default(now())
+  kitchen         Kitchen      @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+
+  @@index([kitchenId, email])
+}
+
+model Product {
+  id             String      @id @default(uuid())
+  kitchenId      String
+  name           String
+  normalizedName String
+  defaultUnit    ProductUnit
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  kitchen        Kitchen     @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+  stockItems     StockItem[]
+
+  @@unique([kitchenId, normalizedName])
+}
+
+model StockItem {
+  id                 String          @id @default(uuid())
+  productId          String
+  initialQuantity    Decimal         @db.Decimal(12, 3)
+  quantity           Decimal         @db.Decimal(12, 3)
+  location           StorageLocation
+  expiresAt          DateTime?
+  purchasedAt        DateTime?
+  purchasePriceMinor Int
+  currency           String          @default("PLN") @db.VarChar(3)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+  product            Product         @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([location])
+}

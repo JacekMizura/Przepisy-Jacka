@@ -11,13 +11,14 @@
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
     "typecheck": "tsc --noEmit -p tsconfig.build.json",
-    "test": "jest && jest --config ./test/jest-e2e.json",
+    "test": "jest && pnpm test:e2e",
     "test:watch": "jest --watch",
-    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:e2e": "prisma generate && nest build && jest --config ./test/jest-e2e.json",
     "prisma:generate": "prisma generate",
     "generate:openapi": "prisma generate && nest build && node dist/generate-openapi.js"
   },
   "dependencies": {
+    "@fastify/static": "^8.2.0",
     "@nestjs/common": "^11.1.9",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.1.9",
@@ -25,10 +26,11 @@
     "@nestjs/swagger": "^11.2.1",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
+    "@thallesp/nestjs-better-auth": "^2.7.0",
+    "better-auth": "^1.7.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.3",
     "dotenv": "^17.2.2",
-    "@fastify/static": "^8.2.0",
     "fastify": "^5.6.1",
     "pg": "^8.16.3",
     "reflect-metadata": "^0.2.2",
@@ -46,6 +48,7 @@
     "@types/jest": "^30.0.0",
     "@types/node": "^24.0.0",
     "@types/pg": "^8.15.6",
+    "embedded-postgres": "18.4.0-beta.17",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",
@@ -63,7 +66,11 @@
     "typescript-eslint": "^8.20.0"
   },
   "jest": {
-    "moduleFileExtensions": ["js", "json", "ts"],
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
@@ -72,7 +79,9 @@
     "moduleNameMapper": {
       "^(\\.{1,2}/.*)\\.js$": "$1"
     },
-    "collectCoverageFrom": ["**/*.(t|j)s"],
+    "collectCoverageFrom": [
+      "**/*.(t|j)s"
+    ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
   }

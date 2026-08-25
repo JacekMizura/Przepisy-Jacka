@@ -14,7 +14,12 @@ jobs:
       API_PORT: 3001
       DATABASE_URL: postgresql://moja_kuchnia:moja_kuchnia_dev@localhost:5432/moja_kuchnia
       CORS_ORIGINS: http://localhost:3000
-      NEXT_PUBLIC_API_URL: http://localhost:3001
+      API_ORIGIN: http://127.0.0.1:3001
+      PUBLIC_WEB_ORIGIN: http://localhost:3000
+      BETTER_AUTH_URL: http://localhost:3000
+      BETTER_AUTH_SECRET: ci-test-only-not-a-real-secret-32ch
+      AUTH_TRUSTED_ORIGINS: http://localhost:3000
+      ALLOW_DEMO_SEED: "false"
     steps:
       - name: Checkout
         uses: actions/checkout@v5

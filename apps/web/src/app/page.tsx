@@ -1,20 +1,24 @@
-import { HealthStatus } from "@/components/health-status";
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+
+import { authClient } from "@/lib/auth-client";
 
 export default function Home() {
+  const router = useRouter();
+  const session = authClient.useSession();
+
+  useEffect(() => {
+    if (session.isPending) {
+      return;
+    }
+    router.replace(session.data?.user ? "/kitchens" : "/login");
+  }, [router, session.data?.user, session.isPending]);
+
   return (
-    <div className="flex flex-1 flex-col items-center justify-center bg-background px-6 py-16">
-      <main className="flex w-full max-w-lg flex-col items-center gap-6">
-        <div className="space-y-2 text-center">
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-            Moja Kuchnia
-          </h1>
-          <p className="text-muted-foreground">
-            Aplikacja webowa działa. To techniczny ekran kontrolny, nie docelowy
-            pulpit.
-          </p>
-        </div>
-        <HealthStatus />
-      </main>
+    <div className="flex flex-1 items-center justify-center p-6 text-sm text-muted-foreground">
+      Ładowanie…
     </div>
   );
 }

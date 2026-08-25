@@ -12,7 +12,7 @@ Monorepo zawiera trzy aplikacje i wspólne pakiety narzędziowe.
 
 Pakiety:
 
-- `packages/api-client` — typowany klient HTTP generowany z OpenAPI,
+- `packages/api-client` — typowany klient HTTP generowany z OpenAPI (endpointy domenowe; Better Auth pozostaje poza tym klientem),
 - `packages/design-tokens` — kolory, odstępy i typografia,
 - `packages/eslint-config` i `packages/typescript-config` — wspólna jakość kodu.
 
@@ -25,21 +25,26 @@ Nie ma wspólnej biblioteki komponentów UI dla Next.js i React Native. Interfej
 - jedyny właściciel logiki biznesowej,
 - jedyny dostęp do PostgreSQL (Prisma),
 - REST API z prefiksem `/api`,
+- Better Auth (`/api/auth/*`) na NestJS + Fastify + Prisma,
 - walidacja danych wejściowych,
 - dokument OpenAPI / Swagger (Swagger UI poza produkcją).
 
 ### `apps/web`
 
 - UI, routing, stan widoku, wywołania API,
-- sesja przeglądarki (docelowo cookies Better Auth).
+- sesja przeglądarki przez first-party cookies Better Auth.
 
 Web **nie** zawiera równoległej logiki biznesowej i **nie** łączy się z bazą.
+
+Przeglądarka woła wyłącznie względne `/api/*`. Next.js przekazuje te żądania mechanicznie do serwerowego `API_ORIGIN` (handler `apps/web/src/app/api/[...path]/route.ts`). Nie używamy `NEXT_PUBLIC_API_URL` wskazującego na Railway.
 
 ### `apps/mobile`
 
 - uproszczone UI codziennych funkcji,
 - te same konta i to samo API,
 - bezpieczne przechowywanie danych sesji (`expo-secure-store`).
+
+W tym etapie mobile nie zostało zmienione funkcjonalnie.
 
 ## Przepływ danych
 
@@ -55,7 +60,7 @@ Web **nie** zawiera równoległej logiki biznesowej i **nie** łączy się z baz
 
 1. NestJS wystawia REST i generuje dokument OpenAPI.
 2. `pnpm api:generate` buduje typy i klienta w `packages/api-client`.
-3. Web i mobile importują wyłącznie ten klient. Nie tworzymy ręcznych typów odpowiedzi API w aplikacjach klienckich.
+3. Web i mobile importują ten klient dla endpointów domenowych. Klient Better Auth (`better-auth/react`) obsługuje `/api/auth/*` na tym samym originie weba.
 
 ## Współdzielić wolno
 
@@ -72,9 +77,28 @@ Web **nie** zawiera równoległej logiki biznesowej i **nie** łączy się z baz
 - wspólnej biblioteki komponentów UI dla webu i React Native,
 - sekretów w repozytorium.
 
-## Uwierzytelnianie (docelowo, nie w tym etapie)
+## Uwierzytelnianie
 
-Better Auth, wspólne konta, PostgreSQL, cookies na webie, bezpieczny magazyn sesji w Expo.
+Better Auth, wspólne konta, PostgreSQL.
+
+Cookies sesji:
+
+- host-only (bez `Domain`),
+- `HttpOnly`,
+- `Path=/`,
+- `SameSite=Lax`,
+- `Secure` tylko w produkcji.
+
+`BETTER_AUTH_URL` to publiczny origin weba, nie origin Railway. `AUTH_TRUSTED_ORIGINS` zawiera wyłącznie jawne originy (localhost i produkcyjny URL weba). Brak wildcardu dla preview Vercela.
+
+## Model danych (ten etap)
+
+- Better Auth: `User`, `Session`, `Account` (w tym `issuer` wymagane od 1.7), `Verification`,
+- `Kitchen`, `KitchenMember`, `KitchenInvite` (w bazie tylko `tokenHash`),
+- `Product` (`normalizedName`, unikalność `(kitchenId, normalizedName)`, `defaultUnit`),
+- `StockItem` (`initialQuantity`, `quantity`, `purchasePriceMinor`, `currency`, miejsce, daty). Ilości: `DECIMAL(12,3)`.
+
+Migracje wykonuje wyłącznie Prisma. Seed demo działa tylko gdy `NODE_ENV !== "production"` oraz `ALLOW_DEMO_SEED=true`. Seed nie jest częścią startu ani pre-deploy Railway.
 
 ## Źródło prawdy
 

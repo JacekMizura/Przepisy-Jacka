@@ -2,29 +2,35 @@
 
 ## Aktualnie ukończony etap
 
-Etap 1: fundament repozytorium. Monorepo, szkielet web / API / mobile, health check, OpenAPI, klient API, CI, dokumentacja i reguły Cursora.
+Etap: uwierzytelnianie Better Auth, wspólne kuchnie, zaproszenia, katalog produktów i zapasy na webie. Fundament repozytorium z Etapu 1 pozostaje w mocy.
 
 `docs/faza-0-architektura.md` pochodzi z wcześniejszego, niezwiązanego projektu. Plik pozostaje na dysku jako materiał historyczny i nie jest źródłem prawdy.
 
 ## Co rzeczywiście działa
 
 - monorepo pnpm + Turborepo,
-- `apps/api` — NestJS + Fastify, prefix `/api`, `GET /api/health`, walidacja env, CORS, Swagger poza produkcją, Prisma bez modeli domenowych,
-- `packages/api-client` — `openapi-fetch` + typy z OpenAPI,
-- `apps/web` — ekran kontrolny „Moja Kuchnia” ze stanami ładowanie / sukces / błąd health,
-- `apps/mobile` — analogiczny ekran kontrolny z `EXPO_PUBLIC_API_URL`,
-- lokalny PostgreSQL przez `docker-compose.yml`,
-- GitHub Actions: instalacja z lockfile, lint, typecheck, testy, build web i API,
-- lokalne kontrole: lint, typecheck, testy jednostkowe i e2e health, build web i API.
+- `apps/api` — NestJS + Fastify, prefix `/api`, Better Auth, Prisma, kuchnie, zaproszenia, produkty, partie zapasów, `GET /api/health`, walidacja env, CORS, Swagger poza produkcją,
+- `packages/api-client` — `openapi-fetch` + typy z OpenAPI dla endpointów domenowych,
+- `apps/web` — logowanie, rejestracja, kuchnie, zaproszenia, zapasy; względne `/api/*` przez serwerowy proxy do `API_ORIGIN`,
+- `apps/mobile` — ekran kontrolny health z `EXPO_PUBLIC_API_URL` (bez zmian funkcjonalnych w tym etapie),
+- lokalny PostgreSQL przez `docker-compose.yml` (obraz niezmieniony: `postgres:18-alpine`),
+- GitHub Actions: instalacja z lockfile, lint, typecheck, testy, build web i API. Serwisu Postgres w CI nie dodano, bo major produkcyjnego Postgresa na Railway nie został odczytany,
+- test integracyjny auth przez origin weba: rejestracja, sesja, wylogowanie, logowanie, `Set-Cookie`, `GET /api/me`, niepoprawny i poprawny `PATCH /api/me`.
 
 ## Co jest tylko decyzją docelową
 
-- Better Auth i pełny proces logowania,
-- wspólne kuchnie, zaproszenia, produkty, przepisy, zapasy, zakupy, dziennik żywienia,
+- auth i zapasy na mobile / Expo Secure Store,
+- przepisy, zakupy, dziennik żywienia, statystyki,
 - import przepisów ze stron,
-- wdrożenia na Vercel, Railway i EAS,
-- automatyczne pipeline’y deploy.
+- preview Vercel z osobnym trusted origin,
+- automatyczne pipeline’y deploy (wymagają najpierw `prisma migrate deploy` na Railway).
 
 ## Następny sugerowany etap
 
-Uwierzytelnianie: Better Auth w API, sesja cookie na webie, bezpieczna sesja w Expo, wspólne konta, bez jeszcze domeny kuchni.
+Mobile: sesja Better Auth w Expo oraz odczyt kuchni i zapasów. Albo przepisy, gdy webowy fundament kuchni ma zostać rozszerzony.
+
+## Blokady przed pushem
+
+- Odczytać major PostgreSQL na Railway (CLI nie było dostępne w tej sesji). Nie zgadywać wersji.
+- Ustawić na Railway komendę release/pre-deploy: `pnpm --filter @moja-kuchnia/api exec prisma migrate deploy` **przed** startem `node dist/main`.
+- Ustawić sekrety i originy na Vercel i Railway (bez `NEXT_PUBLIC_API_URL` na Railway).

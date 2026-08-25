@@ -1,15 +1,15 @@
 import { createApiClient } from "@moja-kuchnia/api-client";
 
 export function getApiBaseUrl(): string {
-  const url = process.env.NEXT_PUBLIC_API_URL;
-  if (!url) {
-    throw new Error("Brak NEXT_PUBLIC_API_URL.");
+  if (typeof window !== "undefined") {
+    return window.location.origin;
   }
-  return url;
+  return "";
 }
 
 export function createWebApiClient() {
   return createApiClient({
     baseUrl: getApiBaseUrl(),
+    credentials: "same-origin",
   });
 }

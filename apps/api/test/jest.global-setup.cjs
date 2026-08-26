@@ -43,7 +43,8 @@ module.exports = async function globalSetup() {
         "PostgreSQL CI nie nasłuchuje na 5432. Usługa workflow musi być healthy przed e2e.",
       );
     }
-    const EmbeddedPostgres = require("embedded-postgres");
+    const EmbeddedPostgres =
+      require("embedded-postgres").default ?? require("embedded-postgres");
     const databaseDir = path.join(os.tmpdir(), `moja-kuchnia-e2e-pg-${port}`);
     const pg = new EmbeddedPostgres({
       databaseDir,

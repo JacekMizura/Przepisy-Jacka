@@ -302,6 +302,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/kitchens/{kitchenId}/recipes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lista przepisów kuchni */
+        get: operations["RecipeController_list"];
+        put?: never;
+        /** Utworzenie przepisu */
+        post: operations["RecipeController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/recipes/{recipeId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Szczegóły przepisu */
+        get: operations["RecipeController_getOne"];
+        put?: never;
+        post?: never;
+        /** Usunięcie przepisu (autor) */
+        delete: operations["RecipeController_remove"];
+        options?: never;
+        head?: never;
+        /** Aktualizacja przepisu (autor) */
+        patch: operations["RecipeController_update"];
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/recipes/{recipeId}/availability": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Dostępność składników dla liczby porcji */
+        get: operations["RecipeController_availability"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/recipes/{recipeId}/add-gaps-to-shopping-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Dodanie brakujących składników do listy zakupów */
+        post: operations["RecipeController_addGapsToShoppingList"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -604,6 +675,188 @@ export interface components {
             totalPriceMinor: number;
             /** @example PLN */
             currency: string;
+        };
+        RecipeAuthorDto: {
+            id: string;
+            name: string;
+        };
+        RecipeSummaryDto: {
+            id: string;
+            kitchenId: string;
+            name: string;
+            description: string | null;
+            servings: number;
+            prepTimeMinutes: number | null;
+            cookTimeMinutes: number | null;
+            /** @enum {string} */
+            difficulty: "easy" | "medium" | "hard";
+            tags: string[];
+            /** @enum {string} */
+            visibility: "private" | "kitchen";
+            author: components["schemas"]["RecipeAuthorDto"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        RecipeIngredientInputDto: {
+            /** @example Jajka */
+            name: string;
+            /** @example 2.000 */
+            quantity?: string | null;
+            /** @enum {string} */
+            unit: "piece" | "gram" | "kilogram" | "milliliter" | "liter" | "teaspoon" | "tablespoon" | "cup" | "pinch" | "package" | "to_taste";
+            note?: string | null;
+            /** Format: uuid */
+            productId?: string | null;
+            /** @example 0 */
+            sortOrder: number;
+        };
+        RecipeStepInputDto: {
+            /** @example Ugotuj makaron al dente. */
+            instruction: string;
+            /** @example 0 */
+            sortOrder: number;
+        };
+        CreateRecipeDto: {
+            /** @example Makaron z sosem pomidorowym */
+            name: string;
+            description?: string | null;
+            /** @example 4 */
+            servings: number;
+            prepTimeMinutes?: number | null;
+            cookTimeMinutes?: number | null;
+            /** @enum {string} */
+            difficulty: "easy" | "medium" | "hard";
+            /**
+             * @example [
+             *       "obiad",
+             *       "wegetariańskie"
+             *     ]
+             */
+            tags?: string[];
+            /**
+             * @default private
+             * @enum {string}
+             */
+            visibility: "private" | "kitchen";
+            sourceUrl?: string | null;
+            ingredients: components["schemas"]["RecipeIngredientInputDto"][];
+            steps: components["schemas"]["RecipeStepInputDto"][];
+        };
+        RecipeIngredientDto: {
+            id: string;
+            name: string;
+            /** @example 2.000 */
+            quantity: string | null;
+            /** @enum {string} */
+            unit: "piece" | "gram" | "kilogram" | "milliliter" | "liter" | "teaspoon" | "tablespoon" | "cup" | "pinch" | "package" | "to_taste";
+            note: string | null;
+            productId: string | null;
+            sortOrder: number;
+        };
+        RecipeStepDto: {
+            id: string;
+            instruction: string;
+            sortOrder: number;
+        };
+        RecipeDetailDto: {
+            id: string;
+            kitchenId: string;
+            name: string;
+            description: string | null;
+            servings: number;
+            prepTimeMinutes: number | null;
+            cookTimeMinutes: number | null;
+            /** @enum {string} */
+            difficulty: "easy" | "medium" | "hard";
+            tags: string[];
+            /** @enum {string} */
+            visibility: "private" | "kitchen";
+            author: components["schemas"]["RecipeAuthorDto"];
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            sourceUrl: string | null;
+            ingredients: components["schemas"]["RecipeIngredientDto"][];
+            steps: components["schemas"]["RecipeStepDto"][];
+        };
+        UpdateRecipeDto: {
+            /** @example Makaron z sosem pomidorowym */
+            name?: string;
+            description?: string | null;
+            /** @example 4 */
+            servings?: number;
+            prepTimeMinutes?: number | null;
+            cookTimeMinutes?: number | null;
+            /** @enum {string} */
+            difficulty?: "easy" | "medium" | "hard";
+            tags?: string[];
+            /** @enum {string} */
+            visibility?: "private" | "kitchen";
+            sourceUrl?: string | null;
+            ingredients?: components["schemas"]["RecipeIngredientInputDto"][];
+            steps?: components["schemas"]["RecipeStepInputDto"][];
+        };
+        RecipeIngredientAvailabilityDto: {
+            ingredientId: string;
+            name: string;
+            productId: string | null;
+            productName: string | null;
+            /** @example 4.000 */
+            scaledQuantity: string | null;
+            /** @enum {string} */
+            unit: "piece" | "gram" | "kilogram" | "milliliter" | "liter" | "teaspoon" | "tablespoon" | "cup" | "pinch" | "package" | "to_taste";
+            note: string | null;
+            sortOrder: number;
+            /** @enum {string} */
+            status: "available" | "partial" | "missing" | "unknown";
+            /** @example 500.000 */
+            availableQuantity: string | null;
+            /** @enum {string|null} */
+            availableUnit: "piece" | "gram" | "milliliter" | null;
+            /** @example 250.000 */
+            gapQuantity: string | null;
+            /** @enum {string|null} */
+            gapUnit: "piece" | "gram" | "kilogram" | "milliliter" | "liter" | "teaspoon" | "tablespoon" | "cup" | "pinch" | "package" | "to_taste" | null;
+        };
+        RecipeAvailabilityDto: {
+            recipeId: string;
+            servings: number;
+            baseServings: number;
+            ingredients: components["schemas"]["RecipeIngredientAvailabilityDto"][];
+        };
+        AddRecipeGapsDto: {
+            /** @example gap-add-2026-08-25-abc123 */
+            idempotencyKey: string;
+            /** @example 4 */
+            servings: number;
+            /** @description Identyfikatory składników ze statusem unknown, które użytkownik chce dodać ręcznie. */
+            includeIngredientIds?: string[];
+        };
+        AddedRecipeGapItemDto: {
+            ingredientId: string;
+            ingredientName: string;
+            productId: string | null;
+            /** @example 250.000 */
+            quantity: string;
+            unit: string;
+            shoppingListItemId: string;
+        };
+        SkippedRecipeGapItemDto: {
+            ingredientId: string;
+            ingredientName: string;
+            reason: string;
+        };
+        AddRecipeGapsResultDto: {
+            recipeId: string;
+            servings: number;
+            idempotencyKey: string;
+            added: components["schemas"]["AddedRecipeGapItemDto"][];
+            skipped: components["schemas"]["SkippedRecipeGapItemDto"][];
+            /** Format: date-time */
+            createdAt: string;
         };
     };
     responses: never;
@@ -1191,6 +1444,173 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PurchaseDetailDto"];
+                };
+            };
+        };
+    };
+    RecipeController_list: {
+        parameters: {
+            query?: {
+                search?: string;
+                filter?: "all" | "mine" | "kitchen";
+            };
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeSummaryDto"][];
+                };
+            };
+        };
+    };
+    RecipeController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRecipeDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeDetailDto"];
+                };
+            };
+        };
+    };
+    RecipeController_getOne: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                recipeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeDetailDto"];
+                };
+            };
+        };
+    };
+    RecipeController_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                recipeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    RecipeController_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                recipeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateRecipeDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeDetailDto"];
+                };
+            };
+        };
+    };
+    RecipeController_availability: {
+        parameters: {
+            query: {
+                servings: number;
+            };
+            header?: never;
+            path: {
+                kitchenId: string;
+                recipeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeAvailabilityDto"];
+                };
+            };
+        };
+    };
+    RecipeController_addGapsToShoppingList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                recipeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddRecipeGapsDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddRecipeGapsResultDto"];
                 };
             };
         };

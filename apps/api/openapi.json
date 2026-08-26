@@ -927,6 +927,312 @@
           "shopping"
         ]
       }
+    },
+    "/api/kitchens/{kitchenId}/recipes": {
+      "get": {
+        "operationId": "RecipeController_list",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "filter",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "all",
+                "mine",
+                "kitchen"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecipeSummaryDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Lista przepisów kuchni",
+        "tags": [
+          "recipes"
+        ]
+      },
+      "post": {
+        "operationId": "RecipeController_create",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRecipeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeDetailDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Utworzenie przepisu",
+        "tags": [
+          "recipes"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/recipes/{recipeId}": {
+      "get": {
+        "operationId": "RecipeController_getOne",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "recipeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeDetailDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Szczegóły przepisu",
+        "tags": [
+          "recipes"
+        ]
+      },
+      "patch": {
+        "operationId": "RecipeController_update",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "recipeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRecipeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeDetailDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Aktualizacja przepisu (autor)",
+        "tags": [
+          "recipes"
+        ]
+      },
+      "delete": {
+        "operationId": "RecipeController_remove",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "recipeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Usunięcie przepisu (autor)",
+        "tags": [
+          "recipes"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/recipes/{recipeId}/availability": {
+      "get": {
+        "operationId": "RecipeController_availability",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "recipeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "servings",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeAvailabilityDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Dostępność składników dla liczby porcji",
+        "tags": [
+          "recipes"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/recipes/{recipeId}/add-gaps-to-shopping-list": {
+      "post": {
+        "operationId": "RecipeController_addGapsToShoppingList",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "recipeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddRecipeGapsDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AddRecipeGapsResultDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Dodanie brakujących składników do listy zakupów",
+        "tags": [
+          "recipes"
+        ]
+      }
     }
   },
   "info": {
@@ -1896,6 +2202,711 @@
           "itemCount",
           "totalPriceMinor",
           "currency"
+        ]
+      },
+      "RecipeAuthorDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "RecipeSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kitchenId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "servings": {
+            "type": "number"
+          },
+          "prepTimeMinutes": {
+            "type": "number",
+            "nullable": true
+          },
+          "cookTimeMinutes": {
+            "type": "number",
+            "nullable": true
+          },
+          "difficulty": {
+            "type": "string",
+            "enum": [
+              "easy",
+              "medium",
+              "hard"
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "private",
+              "kitchen"
+            ]
+          },
+          "author": {
+            "$ref": "#/components/schemas/RecipeAuthorDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "kitchenId",
+          "name",
+          "description",
+          "servings",
+          "prepTimeMinutes",
+          "cookTimeMinutes",
+          "difficulty",
+          "tags",
+          "visibility",
+          "author",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "RecipeIngredientInputDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Jajka"
+          },
+          "quantity": {
+            "type": "string",
+            "example": "2.000",
+            "nullable": true
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "kilogram",
+              "milliliter",
+              "liter",
+              "teaspoon",
+              "tablespoon",
+              "cup",
+              "pinch",
+              "package",
+              "to_taste"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "productId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "number",
+            "example": 0
+          }
+        },
+        "required": [
+          "name",
+          "unit",
+          "sortOrder"
+        ]
+      },
+      "RecipeStepInputDto": {
+        "type": "object",
+        "properties": {
+          "instruction": {
+            "type": "string",
+            "example": "Ugotuj makaron al dente."
+          },
+          "sortOrder": {
+            "type": "number",
+            "example": 0
+          }
+        },
+        "required": [
+          "instruction",
+          "sortOrder"
+        ]
+      },
+      "CreateRecipeDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Makaron z sosem pomidorowym"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "servings": {
+            "type": "number",
+            "example": 4
+          },
+          "prepTimeMinutes": {
+            "type": "number",
+            "nullable": true
+          },
+          "cookTimeMinutes": {
+            "type": "number",
+            "nullable": true
+          },
+          "difficulty": {
+            "type": "string",
+            "enum": [
+              "easy",
+              "medium",
+              "hard"
+            ]
+          },
+          "tags": {
+            "example": [
+              "obiad",
+              "wegetariańskie"
+            ],
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "private",
+              "kitchen"
+            ],
+            "default": "private"
+          },
+          "sourceUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "ingredients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeIngredientInputDto"
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeStepInputDto"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "servings",
+          "difficulty",
+          "ingredients",
+          "steps"
+        ]
+      },
+      "RecipeIngredientDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "string",
+            "nullable": true,
+            "example": "2.000"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "kilogram",
+              "milliliter",
+              "liter",
+              "teaspoon",
+              "tablespoon",
+              "cup",
+              "pinch",
+              "package",
+              "to_taste"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "productId": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "quantity",
+          "unit",
+          "note",
+          "productId",
+          "sortOrder"
+        ]
+      },
+      "RecipeStepDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "instruction": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "instruction",
+          "sortOrder"
+        ]
+      },
+      "RecipeDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kitchenId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "servings": {
+            "type": "number"
+          },
+          "prepTimeMinutes": {
+            "type": "number",
+            "nullable": true
+          },
+          "cookTimeMinutes": {
+            "type": "number",
+            "nullable": true
+          },
+          "difficulty": {
+            "type": "string",
+            "enum": [
+              "easy",
+              "medium",
+              "hard"
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "private",
+              "kitchen"
+            ]
+          },
+          "author": {
+            "$ref": "#/components/schemas/RecipeAuthorDto"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sourceUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "ingredients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeIngredientDto"
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeStepDto"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "kitchenId",
+          "name",
+          "description",
+          "servings",
+          "prepTimeMinutes",
+          "cookTimeMinutes",
+          "difficulty",
+          "tags",
+          "visibility",
+          "author",
+          "createdAt",
+          "updatedAt",
+          "sourceUrl",
+          "ingredients",
+          "steps"
+        ]
+      },
+      "UpdateRecipeDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Makaron z sosem pomidorowym"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "servings": {
+            "type": "number",
+            "example": 4
+          },
+          "prepTimeMinutes": {
+            "type": "number",
+            "nullable": true
+          },
+          "cookTimeMinutes": {
+            "type": "number",
+            "nullable": true
+          },
+          "difficulty": {
+            "type": "string",
+            "enum": [
+              "easy",
+              "medium",
+              "hard"
+            ]
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "private",
+              "kitchen"
+            ]
+          },
+          "sourceUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "ingredients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeIngredientInputDto"
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeStepInputDto"
+            }
+          }
+        }
+      },
+      "RecipeIngredientAvailabilityDto": {
+        "type": "object",
+        "properties": {
+          "ingredientId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "productId": {
+            "type": "string",
+            "nullable": true
+          },
+          "productName": {
+            "type": "string",
+            "nullable": true
+          },
+          "scaledQuantity": {
+            "type": "string",
+            "nullable": true,
+            "example": "4.000"
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "kilogram",
+              "milliliter",
+              "liter",
+              "teaspoon",
+              "tablespoon",
+              "cup",
+              "pinch",
+              "package",
+              "to_taste"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "number"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "partial",
+              "missing",
+              "unknown"
+            ]
+          },
+          "availableQuantity": {
+            "type": "string",
+            "nullable": true,
+            "example": "500.000"
+          },
+          "availableUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ],
+            "nullable": true
+          },
+          "gapQuantity": {
+            "type": "string",
+            "nullable": true,
+            "example": "250.000"
+          },
+          "gapUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "kilogram",
+              "milliliter",
+              "liter",
+              "teaspoon",
+              "tablespoon",
+              "cup",
+              "pinch",
+              "package",
+              "to_taste"
+            ],
+            "nullable": true
+          }
+        },
+        "required": [
+          "ingredientId",
+          "name",
+          "productId",
+          "productName",
+          "scaledQuantity",
+          "unit",
+          "note",
+          "sortOrder",
+          "status",
+          "availableQuantity",
+          "availableUnit",
+          "gapQuantity",
+          "gapUnit"
+        ]
+      },
+      "RecipeAvailabilityDto": {
+        "type": "object",
+        "properties": {
+          "recipeId": {
+            "type": "string"
+          },
+          "servings": {
+            "type": "number"
+          },
+          "baseServings": {
+            "type": "number"
+          },
+          "ingredients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeIngredientAvailabilityDto"
+            }
+          }
+        },
+        "required": [
+          "recipeId",
+          "servings",
+          "baseServings",
+          "ingredients"
+        ]
+      },
+      "AddRecipeGapsDto": {
+        "type": "object",
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "example": "gap-add-2026-08-25-abc123"
+          },
+          "servings": {
+            "type": "number",
+            "example": 4
+          },
+          "includeIngredientIds": {
+            "description": "Identyfikatory składników ze statusem unknown, które użytkownik chce dodać ręcznie.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "idempotencyKey",
+          "servings"
+        ]
+      },
+      "AddedRecipeGapItemDto": {
+        "type": "object",
+        "properties": {
+          "ingredientId": {
+            "type": "string"
+          },
+          "ingredientName": {
+            "type": "string"
+          },
+          "productId": {
+            "type": "string",
+            "nullable": true
+          },
+          "quantity": {
+            "type": "string",
+            "example": "250.000"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "shoppingListItemId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ingredientId",
+          "ingredientName",
+          "productId",
+          "quantity",
+          "unit",
+          "shoppingListItemId"
+        ]
+      },
+      "SkippedRecipeGapItemDto": {
+        "type": "object",
+        "properties": {
+          "ingredientId": {
+            "type": "string"
+          },
+          "ingredientName": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ingredientId",
+          "ingredientName",
+          "reason"
+        ]
+      },
+      "AddRecipeGapsResultDto": {
+        "type": "object",
+        "properties": {
+          "recipeId": {
+            "type": "string"
+          },
+          "servings": {
+            "type": "number"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          },
+          "added": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AddedRecipeGapItemDto"
+            }
+          },
+          "skipped": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SkippedRecipeGapItemDto"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "recipeId",
+          "servings",
+          "idempotencyKey",
+          "added",
+          "skipped",
+          "createdAt"
         ]
       }
     }

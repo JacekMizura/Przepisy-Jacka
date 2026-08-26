@@ -57,7 +57,15 @@ Cena nie zmienia znaczenia po częściowym zużyciu. Ilości w JSON są decimal 
 
 Nazwy produktów są unikalne w kuchni po normalizacji (trim, lowercase, zbiciu spacji). Wyświetlana pozostaje oryginalna `name`.
 
-Produkt może mieć konfigurowalne **warianty zakupu** (`ProductPurchaseOption`): np. „Karton 1 l” = 1000 ml. Jeden wariant może być domyślny (unikalnie w bazie). Brak wariantu oznacza zakup dokładnej ilości.
+Produkt może mieć **sposób zakupu** (`purchaseMode`):
+
+- `unconfigured` — domyślny dla nowych produktów; wymaga konfiguracji przed dodaniem braków do listy i przed checkoutem,
+- `packaged` — zakup w opakowaniach (`ProductPurchaseOption`); wymaga ≥1 aktywnej opcji i dokładnie jednej domyślnej,
+- `exact` — zakup dokładnej ilości (opcje mogą istnieć historycznie, ale nie są używane).
+
+Istniejące produkty z dowolną opcją zakupu migracja ustawia na `packaged`; bez opcji pozostają `unconfigured` (nigdy auto-`exact`).
+
+Produkt może mieć konfigurowalne **warianty zakupu** (`ProductPurchaseOption`): np. „Karton 1 l” = 1000 ml. Jeden wariant może być domyślny (unikalnie w bazie).
 
 Produkt może mieć opcjonalnie:
 

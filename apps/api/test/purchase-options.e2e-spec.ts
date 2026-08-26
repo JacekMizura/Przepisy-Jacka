@@ -396,7 +396,7 @@ describe('Purchase options and recipe shopping (e2e)', () => {
     expect(item?.purchaseOptionId).not.toBe(cartonId);
   });
 
-  it('uses exact quantity when product has no purchase options', async () => {
+  it('returns unconfigured proposal when product has no purchase options', async () => {
     const owner = await signUpUser(api.origin, WEB_ORIGIN);
     const kitchen = await createKitchen(owner, 'Exact qty');
     const flour = await createProduct(owner, kitchen.id, {
@@ -446,7 +446,7 @@ describe('Purchase options and recipe shopping (e2e)', () => {
         }>;
       }
     ).ingredients[0]?.purchaseProposal;
-    expect(proposal?.mode).toBe('exact');
+    expect(proposal?.mode).toBe('unconfigured');
     expect(proposal?.totalPurchaseQuantity).toBe('300.000');
     expect(proposal?.purchaseOptionId).toBeNull();
 
@@ -463,23 +463,17 @@ describe('Purchase options and recipe shopping (e2e)', () => {
         },
       },
     );
-    expect(addGaps.status).toBe(201);
+    expect(addGaps.status).toBe(400);
+    expect(JSON.stringify(addGaps.body)).toContain(
+      'Produkt wymaga konfiguracji sposobu zakupu.',
+    );
 
     const list = await apiFetch(
       api.origin,
       `/api/kitchens/${kitchen.id}/shopping-list/items`,
       { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
     );
-    const item = (
-      list.body as Array<{
-        plannedQuantity: string;
-        purchaseOptionId: string | null;
-        packageCount: number | null;
-      }>
-    )[0];
-    expect(item?.plannedQuantity).toBe('300.000');
-    expect(item?.purchaseOptionId).toBeNull();
-    expect(item?.packageCount).toBeNull();
+    expect((list.body as unknown[]).length).toBe(0);
   });
 
   it('checkout adds full package content to stock and is idempotent', async () => {
@@ -849,6 +843,17 @@ describe('Purchase options and recipe shopping (e2e)', () => {
     );
     expect(differentCount.status).toBe(409);
 
+    await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/products/${milk.id}`,
+      {
+        method: 'PATCH',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { purchaseMode: 'exact' },
+      },
+    );
+
     const exactKey = `gap-exact-sel-${crypto.randomUUID()}`;
     const exactFirst = await apiFetch(
       api.origin,
@@ -1007,6 +1012,17 @@ describe('Purchase options and recipe shopping (e2e)', () => {
       name: 'Legacy produkt',
       defaultUnit: 'piece',
     });
+
+    await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/products/${product.id}`,
+      {
+        method: 'PATCH',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { purchaseMode: 'exact' },
+      },
+    );
 
     const legacyItem = await apiFetch(
       api.origin,

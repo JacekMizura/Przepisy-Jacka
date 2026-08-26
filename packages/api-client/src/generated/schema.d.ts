@@ -159,6 +159,24 @@ export interface paths {
         delete: operations["StockController_deleteProduct"];
         options?: never;
         head?: never;
+        /** Aktualizacja produktu (m.in. purchaseMode) */
+        patch: operations["StockController_updateProduct"];
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/products/{productId}/configure-purchase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Konfiguracja sposobu zakupu produktu (opakowania / dokładna ilość) */
+        post: operations["StockController_configureProductPurchase"];
+        delete?: never;
+        options?: never;
+        head?: never;
         patch?: never;
         trace?: never;
     };
@@ -512,6 +530,8 @@ export interface components {
             normalizedName: string;
             /** @enum {string} */
             defaultUnit: "piece" | "gram" | "milliliter";
+            /** @enum {string} */
+            purchaseMode: "unconfigured" | "packaged" | "exact";
             ean: string | null;
             imageUrl: string | null;
             category: string | null;
@@ -538,6 +558,28 @@ export interface components {
             imageUrl?: string | null;
             /** @example Nabiał */
             category?: string | null;
+        };
+        UpdateProductDto: {
+            /** @enum {string} */
+            purchaseMode?: "unconfigured" | "packaged" | "exact";
+        };
+        ConfigureProductPurchaseOptionDto: {
+            /** @example Karton 1 l */
+            name: string;
+            /** @example 1000.000 */
+            contentQuantity: string;
+            /** @enum {string} */
+            contentUnit: "piece" | "gram" | "milliliter";
+            /** @default true */
+            isDefault: boolean;
+        };
+        ConfigureProductPurchaseDto: {
+            /**
+             * @description packaged wymaga pierwszej opcji; exact nie wymaga opcji; unconfigured czyści tryb bez usuwania opcji.
+             * @enum {string}
+             */
+            mode: "unconfigured" | "packaged" | "exact";
+            option?: components["schemas"]["ConfigureProductPurchaseOptionDto"];
         };
         CreatePurchaseOptionDto: {
             /** @example Karton 1 l */
@@ -630,6 +672,8 @@ export interface components {
             name: string;
             /** @enum {string} */
             defaultUnit: "piece" | "gram" | "milliliter";
+            /** @enum {string} */
+            purchaseMode: "unconfigured" | "packaged" | "exact";
             ean: string | null;
             imageUrl: string | null;
             category: string | null;
@@ -926,7 +970,7 @@ export interface components {
         };
         PurchaseProposalDto: {
             /** @enum {string} */
-            mode: "packages" | "exact";
+            mode: "packages" | "exact" | "unconfigured";
             purchaseOptionId: string | null;
             purchaseOptionName: string | null;
             packageCount: number | null;
@@ -945,6 +989,8 @@ export interface components {
             name: string;
             productId: string | null;
             productName: string | null;
+            /** @enum {string|null} */
+            purchaseMode: "unconfigured" | "packaged" | "exact" | null;
             /** @example 4.000 */
             scaledQuantity: string | null;
             /** @enum {string} */
@@ -1319,6 +1365,58 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    StockController_updateProduct: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateProductDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductDto"];
+                };
+            };
+        };
+    };
+    StockController_configureProductPurchase: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfigureProductPurchaseDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductDto"];
+                };
             };
         };
     };

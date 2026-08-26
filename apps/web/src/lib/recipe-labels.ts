@@ -24,7 +24,7 @@ export const RECIPE_INGREDIENT_UNIT_LABELS: Record<
   RecipeIngredientUnit,
   string
 > = {
-  piece: "szt",
+  piece: "szt.",
   gram: "g",
   kilogram: "kg",
   milliliter: "ml",

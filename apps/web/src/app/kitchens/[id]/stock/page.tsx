@@ -82,10 +82,8 @@ export default function StockPage() {
   const [productFormOpen, setProductFormOpen] = useState(false);
   const [stockFormOpen, setStockFormOpen] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
-  const [expandedProductId, setExpandedProductId] = useState<string | null>(
-    null,
-  );
   const [listFeedback, setListFeedback] = useState<string | null>(null);
+  const [listFeedbackError, setListFeedbackError] = useState(false);
   const [duplicateProduct, setDuplicateProduct] = useState<{
     id: string;
     name: string;
@@ -417,6 +415,7 @@ export default function StockPage() {
     },
     onSuccess: async () => {
       setDuplicateProduct(null);
+      setListFeedbackError(false);
       setListFeedback("Produkt dodany do listy zakupów.");
       await queryClient.invalidateQueries({
         queryKey: ["shopping-list", kitchenId],
@@ -432,12 +431,14 @@ export default function StockPage() {
         }
         return;
       }
+      setListFeedbackError(true);
       setListFeedback(readApiError(error));
     },
   });
 
   function requestAddToList(product: { id: string; name: string }) {
     setListFeedback(null);
+    setListFeedbackError(false);
     addToShoppingList.mutate({ productId: product.id });
   }
 
@@ -523,8 +524,13 @@ export default function StockPage() {
 
         {listFeedback ? (
           <div
-            className="rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
-            role="status"
+            className={cn(
+              "rounded-2xl border px-4 py-3 text-sm",
+              listFeedbackError
+                ? "border-red-200 bg-red-50 text-red-800"
+                : "border-emerald-100 bg-emerald-50 text-emerald-900",
+            )}
+            role={listFeedbackError ? "alert" : "status"}
           >
             {listFeedback}
           </div>
@@ -1176,83 +1182,74 @@ export default function StockPage() {
                     return (
                       <li
                         key={product.id}
-                        className="flex flex-col gap-3 border-b border-gray-100 px-4 py-3 last:border-0 sm:flex-row sm:items-center sm:justify-between"
+                        className="border-b border-gray-100 px-4 py-3 last:border-0"
                       >
-                        <div className="flex min-w-0 items-center gap-3">
-                          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-emerald-50 bg-emerald-50/40">
-                            {product.imageUrl ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={product.imageUrl}
-                                alt=""
-                                className="h-full w-full object-cover"
-                              />
-                            ) : (
-                              <Package size={18} className="text-emerald-300" />
-                            )}
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-emerald-50 bg-emerald-50/40">
+                              {product.imageUrl ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={product.imageUrl}
+                                  alt=""
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <Package
+                                  size={18}
+                                  className="text-emerald-300"
+                                />
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-medium text-gray-900">
+                                {product.name}{" "}
+                                <span className="font-normal text-gray-500">
+                                  ({UNIT_LABELS[product.defaultUnit]})
+                                </span>
+                              </p>
+                              <p className="truncate text-xs text-gray-400">
+                                {product.category ?? UNCATEGORIZED}
+                                {product.ean ? ` · EAN ${product.ean}` : ""}
+                              </p>
+                            </div>
                           </div>
-                          <div className="min-w-0">
-                            <p className="font-medium text-gray-900">
-                              {product.name}{" "}
-                              <span className="font-normal text-gray-500">
-                                ({UNIT_LABELS[product.defaultUnit]})
-                              </span>
-                            </p>
-                            <p className="truncate text-xs text-gray-400">
-                              {product.category ?? UNCATEGORIZED}
-                              {product.ean ? ` · EAN ${product.ean}` : ""}
-                            </p>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                requestAddToList({
+                                  id: product.id,
+                                  name: product.name,
+                                })
+                              }
+                              disabled={addToShoppingList.isPending}
+                            >
+                              Dodaj do listy zakupów
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                setProductToDelete({
+                                  id: product.id,
+                                  name: product.name,
+                                  hasStock,
+                                })
+                              }
+                            >
+                              Usuń produkt
+                            </Button>
                           </div>
                         </div>
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() =>
-                              setExpandedProductId((current) =>
-                                current === product.id ? null : product.id,
-                              )
-                            }
-                          >
-                            {expandedProductId === product.id
-                              ? "Zwiń opcje zakupu"
-                              : "Jak kupuję"}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() =>
-                              requestAddToList({
-                                id: product.id,
-                                name: product.name,
-                              })
-                            }
-                            disabled={addToShoppingList.isPending}
-                          >
-                            Dodaj do listy zakupów
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() =>
-                              setProductToDelete({
-                                id: product.id,
-                                name: product.name,
-                                hasStock,
-                              })
-                            }
-                          >
-                            Usuń produkt
-                          </Button>
-                        </div>
-                        {expandedProductId === product.id ? (
-                          <ProductPurchaseOptions
-                            kitchenId={kitchenId}
-                            productId={product.id}
-                            productName={product.name}
-                            defaultUnit={product.defaultUnit as BaseUnit}
-                          />
-                        ) : null}
+                        <ProductPurchaseOptions
+                          kitchenId={kitchenId}
+                          productId={product.id}
+                          productName={product.name}
+                          defaultUnit={product.defaultUnit as BaseUnit}
+                          purchaseMode={product.purchaseMode}
+                        />
                       </li>
                     );
                   })}

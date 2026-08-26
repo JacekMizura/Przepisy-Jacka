@@ -20,6 +20,7 @@ import {
   CheckoutPurchaseDialog,
   checkoutPurchase,
 } from "@/components/checkout-purchase-dialog";
+import { ChangePurchaseModeDialog } from "@/components/change-purchase-mode-dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -251,6 +252,7 @@ function ShoppingRow({
   onToggleBought,
   onSkip,
   onDelete,
+  onChangePurchaseMode,
   pending,
   showUnbuy,
 }: {
@@ -258,6 +260,7 @@ function ShoppingRow({
   onToggleBought: () => void;
   onSkip: () => void;
   onDelete: () => void;
+  onChangePurchaseMode?: () => void;
   pending?: boolean;
   showUnbuy?: boolean;
 }) {
@@ -270,6 +273,8 @@ function ShoppingRow({
   );
   const isBought = item.status === "bought";
   const isSkipped = item.status === "skipped";
+  const canChangePurchaseMode =
+    Boolean(item.productId) && Boolean(onChangePurchaseMode);
 
   return (
     <li
@@ -327,8 +332,11 @@ function ShoppingRow({
           <p className="mt-1 text-xs text-emerald-700">
             Z przepisu: {item.sourceRecipeName}
           </p>
-        ) : requiredHint ? (
-          <p className="mt-1 text-xs text-gray-500">brakuje {requiredHint}</p>
+        ) : null}
+        {requiredHint ? (
+          <p className="mt-1 text-xs text-gray-500">
+            brakuje {requiredHint} do przepisu
+          </p>
         ) : null}
         {item.note &&
         !(
@@ -349,7 +357,19 @@ function ShoppingRow({
           <MoreVertical size={18} />
         </button>
         {menuOpen ? (
-          <div className="absolute right-0 z-10 mt-1 w-40 rounded-lg border border-gray-100 bg-white py-1 shadow-lg">
+          <div className="absolute right-0 z-10 mt-1 w-52 rounded-lg border border-gray-100 bg-white py-1 shadow-lg">
+            {canChangePurchaseMode && item.status === "pending" ? (
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-gray-50"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onChangePurchaseMode?.();
+                }}
+              >
+                Zmień sposób zakupu
+              </button>
+            ) : null}
             {item.status === "pending" ? (
               <button
                 type="button"
@@ -468,6 +488,8 @@ export default function ShoppingListPage() {
   const [itemToDelete, setItemToDelete] = useState<ShoppingListItem | null>(
     null,
   );
+  const [itemToChangePurchase, setItemToChangePurchase] =
+    useState<ShoppingListItem | null>(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
 
   const productsQuery = useQuery({
@@ -704,6 +726,11 @@ export default function ShoppingListPage() {
                           })
                         }
                         onDelete={() => setItemToDelete(item)}
+                        onChangePurchaseMode={
+                          item.productId
+                            ? () => setItemToChangePurchase(item)
+                            : undefined
+                        }
                       />
                     ))}
                   </ul>
@@ -821,6 +848,14 @@ export default function ShoppingListPage() {
           pending={deleteItem.isPending}
           onConfirm={() => deleteItem.mutate(itemToDelete.id)}
           onCancel={() => setItemToDelete(null)}
+        />
+      ) : null}
+
+      {itemToChangePurchase?.productId ? (
+        <ChangePurchaseModeDialog
+          kitchenId={kitchenId}
+          item={itemToChangePurchase}
+          onClose={() => setItemToChangePurchase(null)}
         />
       ) : null}
 

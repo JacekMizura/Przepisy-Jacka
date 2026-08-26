@@ -19,7 +19,7 @@ export const SHOPPING_STATUS_LABELS: Record<ShoppingListItemStatus, string> = {
 };
 
 export const INPUT_UNIT_LABELS: Record<ShoppingInputUnit, string> = {
-  piece: "szt",
+  piece: "szt.",
   gram: "g",
   kilogram: "kg",
   milliliter: "ml",
@@ -34,6 +34,12 @@ export function formatPlannedQuantity(
 }
 
 export function formatShoppingPurchaseLine(item: ShoppingListItem): string {
+  if (
+    item.product?.purchaseMode === "exact" ||
+    (!item.packageCount && !item.purchaseOptionId)
+  ) {
+    return formatQuantityWithUnit(item.plannedQuantity, item.plannedUnit);
+  }
   return formatPackagePurchase(
     item.packageCount,
     item.purchaseOption?.name ?? null,

@@ -1,5 +1,5 @@
 import { Prisma } from '../generated/prisma/client';
-import { ProductUnit } from '../generated/prisma/client';
+import { ProductPurchaseMode, ProductUnit } from '../generated/prisma/client';
 
 import {
   buildPurchaseProposal,
@@ -15,6 +15,7 @@ describe('purchase-proposal', () => {
     const proposal = buildPurchaseProposal({
       gapInProductBase: gap,
       productUnit: ProductUnit.milliliter,
+      purchaseMode: ProductPurchaseMode.packaged,
       options: [
         {
           id: 'opt-1l',
@@ -41,6 +42,7 @@ describe('purchase-proposal', () => {
     const proposal = buildPurchaseProposal({
       gapInProductBase: gap,
       productUnit: ProductUnit.milliliter,
+      purchaseMode: ProductPurchaseMode.packaged,
       options: [
         {
           id: 'opt-1l',
@@ -61,6 +63,7 @@ describe('purchase-proposal', () => {
     const proposal = buildPurchaseProposal({
       gapInProductBase: new Prisma.Decimal('100'),
       productUnit: ProductUnit.milliliter,
+      purchaseMode: ProductPurchaseMode.packaged,
       preferredOptionId: 'opt-500',
       options: [
         {
@@ -87,17 +90,43 @@ describe('purchase-proposal', () => {
     expect(proposal.totalPurchaseQuantity).toBe('500.000');
   });
 
-  it('uses exact quantity when product has no options', () => {
+  it('returns unconfigured when purchaseMode is unconfigured', () => {
     const proposal = buildPurchaseProposal({
       gapInProductBase: new Prisma.Decimal('300'),
       productUnit: ProductUnit.gram,
+      purchaseMode: ProductPurchaseMode.unconfigured,
       options: [],
+    });
+
+    expect(proposal.mode).toBe('unconfigured');
+    expect(proposal.purchaseOptionId).toBeNull();
+    expect(proposal.packageCount).toBeNull();
+    expect(proposal.totalPurchaseQuantity).toBe('300.000');
+    expect(proposal.totalPurchaseUnit).toBe('gram');
+    expect(proposal.alternatives).toEqual([]);
+  });
+
+  it('uses exact mode even when options exist', () => {
+    const proposal = buildPurchaseProposal({
+      gapInProductBase: new Prisma.Decimal('100'),
+      productUnit: ProductUnit.milliliter,
+      purchaseMode: ProductPurchaseMode.exact,
+      exactQuantity: new Prisma.Decimal('100'),
+      options: [
+        {
+          id: 'opt-1l',
+          name: 'Karton 1 l',
+          contentQuantity: new Prisma.Decimal('1000'),
+          contentUnit: ProductUnit.milliliter,
+          isDefault: true,
+          isActive: true,
+        },
+      ],
     });
 
     expect(proposal.mode).toBe('exact');
     expect(proposal.purchaseOptionId).toBeNull();
     expect(proposal.packageCount).toBeNull();
-    expect(proposal.totalPurchaseQuantity).toBe('300.000');
-    expect(proposal.totalPurchaseUnit).toBe('gram');
+    expect(proposal.totalPurchaseQuantity).toBe('100.000');
   });
 });

@@ -8,6 +8,7 @@ import {
 import { Prisma } from '../generated/prisma/client';
 import {
   RecipeVisibility,
+  ProductPurchaseMode,
   ProductUnit,
   type Recipe,
   type RecipeGapAddition,
@@ -20,6 +21,7 @@ import { formatQuantity, parseQuantityString } from '../common/quantity';
 import { requireKitchenMember } from '../kitchens/kitchen-access';
 import { PrismaService } from '../prisma/prisma.service';
 import { ShoppingService } from '../shopping/shopping.service';
+import { PRODUCT_PURCHASE_CONFIG_REQUIRED_MESSAGE } from '../stock/purchase-mode.messages';
 import {
   AddedRecipeGapItemDto,
   AddRecipeGapsDto,
@@ -799,16 +801,51 @@ function buildGapShoppingCandidates(input: {
 
     const options =
       input.purchaseOptionsByProductId.get(ingredient.productId) ?? [];
-    const proposal = buildPurchaseProposal({
-      gapInProductBase,
-      productUnit: ingredient.availableUnit,
-      options,
-      preferredOptionId: selection?.purchaseOptionId,
-      overridePackageCount: selection?.packageCount,
-      exactQuantity: selection?.exactQuantity
-        ? parseQuantityString(selection.exactQuantity, 'exactQuantity')
-        : null,
-    });
+    const purchaseMode =
+      ingredient.purchaseMode ?? ProductPurchaseMode.unconfigured;
+
+    if (purchaseMode === ProductPurchaseMode.unconfigured) {
+      throw new BadRequestException(PRODUCT_PURCHASE_CONFIG_REQUIRED_MESSAGE);
+    }
+
+    if (
+      purchaseMode === ProductPurchaseMode.packaged &&
+      selection?.exactQuantity &&
+      !selection.purchaseOptionId
+    ) {
+      throw new BadRequestException(
+        'Produkt w trybie opakowań wymaga wyboru opcji zakupu (purchaseOptionId i packageCount).',
+      );
+    }
+
+    let proposal;
+    try {
+      proposal = buildPurchaseProposal({
+        gapInProductBase,
+        productUnit: ingredient.availableUnit,
+        purchaseMode,
+        options,
+        preferredOptionId: selection?.purchaseOptionId,
+        overridePackageCount: selection?.packageCount,
+        exactQuantity: selection?.exactQuantity
+          ? parseQuantityString(selection.exactQuantity, 'exactQuantity')
+          : null,
+      });
+    } catch (error) {
+      throw new BadRequestException(
+        error instanceof Error
+          ? error.message
+          : 'Nie udało się zbudować propozycji zakupu.',
+      );
+    }
+
+    if (purchaseMode === ProductPurchaseMode.packaged) {
+      if (!proposal.purchaseOptionId || !proposal.packageCount) {
+        throw new BadRequestException(
+          'Produkt w trybie opakowań wymaga aktywnej opcji zakupu.',
+        );
+      }
+    }
 
     candidates.push({
       ingredientId: ingredient.ingredientId,
@@ -818,8 +855,14 @@ function buildGapShoppingCandidates(input: {
       requiredUnit,
       plannedQuantity: proposal.totalPurchaseQuantity,
       plannedUnit: proposal.totalPurchaseUnit,
-      purchaseOptionId: proposal.purchaseOptionId,
-      packageCount: proposal.packageCount,
+      purchaseOptionId:
+        purchaseMode === ProductPurchaseMode.packaged
+          ? proposal.purchaseOptionId
+          : null,
+      packageCount:
+        purchaseMode === ProductPurchaseMode.packaged
+          ? proposal.packageCount
+          : null,
     });
   }
 

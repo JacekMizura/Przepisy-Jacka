@@ -12,6 +12,7 @@ import {
 } from 'class-validator';
 
 import {
+  ProductPurchaseMode,
   ProductUnit,
   ShoppingInputUnit,
   ShoppingListItemStatus,
@@ -152,6 +153,9 @@ export class ShoppingListItemProductDto {
 
   @ApiProperty({ enum: ProductUnit })
   defaultUnit!: ProductUnit;
+
+  @ApiProperty({ enum: ProductPurchaseMode })
+  purchaseMode!: ProductPurchaseMode;
 
   @ApiProperty({ type: String, nullable: true })
   ean!: string | null;

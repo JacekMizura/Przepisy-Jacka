@@ -50,6 +50,16 @@ describe('Shopping list and purchases (e2e)', () => {
       },
     );
     const product = productRes.body as { id: string };
+    await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/products/${product.id}`,
+      {
+        method: 'PATCH',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { purchaseMode: 'exact' },
+      },
+    );
 
     const missingCustomName = await apiFetch(
       api.origin,
@@ -255,6 +265,16 @@ describe('Shopping list and purchases (e2e)', () => {
       },
     );
     const yogurtProduct = productRes.body as { id: string };
+    await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/products/${yogurtProduct.id}`,
+      {
+        method: 'PATCH',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { purchaseMode: 'exact' },
+      },
+    );
 
     const yogurtItemRes = await apiFetch(
       api.origin,
@@ -532,6 +552,16 @@ describe('Shopping list and purchases (e2e)', () => {
       },
     );
     const product = productRes.body as { id: string };
+    await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/products/${product.id}`,
+      {
+        method: 'PATCH',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { purchaseMode: 'exact' },
+      },
+    );
 
     const body = {
       productId: product.id,
@@ -592,6 +622,16 @@ describe('Shopping list and purchases (e2e)', () => {
       },
     );
     const product = productRes.body as { id: string };
+    await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/products/${product.id}`,
+      {
+        method: 'PATCH',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { purchaseMode: 'exact' },
+      },
+    );
 
     const [first, second] = await Promise.all([
       apiFetch(api.origin, `/api/kitchens/${kitchen.id}/shopping-list/items`, {

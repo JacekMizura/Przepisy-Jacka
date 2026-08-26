@@ -92,7 +92,19 @@ describe('Recipes (e2e)', () => {
       },
     );
     expect(response.status).toBe(201);
-    return response.body as ProductRef;
+    const product = response.body as ProductRef;
+    const modeRes = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchenId}/products/${product.id}`,
+      {
+        method: 'PATCH',
+        webOrigin: WEB_ORIGIN,
+        cookies: user.cookies,
+        body: { purchaseMode: 'exact' },
+      },
+    );
+    expect(modeRes.status).toBe(200);
+    return product;
   }
 
   async function createStockItem(

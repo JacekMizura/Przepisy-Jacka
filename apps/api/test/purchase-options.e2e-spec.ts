@@ -170,6 +170,7 @@ describe('Purchase options and recipe shopping (e2e)', () => {
     );
     const item = (
       list.body as Array<{
+        id: string;
         plannedQuantity: string;
         requiredQuantity: string;
         packageCount: number;
@@ -180,6 +181,72 @@ describe('Purchase options and recipe shopping (e2e)', () => {
     expect(item?.requiredQuantity).toBe('100.000');
     expect(item?.packageCount).toBe(1);
     expect(item?.purchaseOption?.name).toBe('Karton 1 l');
+    // UI formats this as "1 × Karton 1 l" via formatPackagePurchase
+
+    await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/shopping-list/items/${item!.id}/status`,
+      {
+        method: 'PATCH',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { status: 'bought' },
+      },
+    );
+
+    const checkoutKey = `checkout-100ml-carton-${crypto.randomUUID()}`;
+    const checkoutBody = {
+      idempotencyKey: checkoutKey,
+      lines: [
+        {
+          shoppingListItemId: item!.id,
+          quantity: '100.000',
+          inputUnit: 'milliliter',
+          location: 'fridge',
+          priceMinor: 499,
+          productId: milk.id,
+        },
+      ],
+    };
+
+    const checkout = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/purchases/checkout`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: checkoutBody,
+      },
+    );
+    expect(checkout.status).toBe(201);
+    const purchase = checkout.body as { id: string };
+
+    const stockRows = await queryTestDb<{ quantity: string }>(
+      `SELECT "quantity"::text AS quantity FROM "StockItem" WHERE "productId" = $1`,
+      [milk.id],
+    );
+    expect(stockRows).toHaveLength(1);
+    expect(stockRows[0]?.quantity).toBe('1000.000');
+
+    const checkoutAgain = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/purchases/checkout`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: checkoutBody,
+      },
+    );
+    expect(checkoutAgain.status).toBe(201);
+    expect((checkoutAgain.body as { id: string }).id).toBe(purchase.id);
+
+    const stockCount = await queryTestDb<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM "StockItem" WHERE "productId" = $1`,
+      [milk.id],
+    );
+    expect(Number(stockCount[0]?.count)).toBe(1);
   });
 
   it('proposes two packages when gap exceeds one package', async () => {
@@ -517,7 +584,337 @@ describe('Purchase options and recipe shopping (e2e)', () => {
     expect(Number(stockCount[0]?.count)).toBe(1);
   });
 
-  it('keeps only one default purchase option per product', async () => {
+  it('allows many non-default options and changes default atomically', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+    const kitchen = await createKitchen(owner, 'Wiele wariantów');
+    const milk = await createProduct(owner, kitchen.id, {
+      name: 'Mleko warianty',
+      defaultUnit: 'milliliter',
+    });
+
+    const carton = await createPurchaseOption(owner, kitchen.id, milk.id, {
+      name: 'Karton 1 l',
+      contentQuantity: '1000.000',
+      contentUnit: 'milliliter',
+      isDefault: true,
+    });
+    expect(carton.status).toBe(201);
+    const cartonId = (carton.body as { id: string }).id;
+
+    const bottle500 = await createPurchaseOption(owner, kitchen.id, milk.id, {
+      name: 'Butelka 500 ml',
+      contentQuantity: '500.000',
+      contentUnit: 'milliliter',
+      isDefault: false,
+    });
+    expect(bottle500.status).toBe(201);
+    const bottle500Id = (bottle500.body as { id: string }).id;
+
+    const bottle2l = await createPurchaseOption(owner, kitchen.id, milk.id, {
+      name: 'Butelka 2 l',
+      contentQuantity: '2000.000',
+      contentUnit: 'milliliter',
+      isDefault: false,
+    });
+    expect(bottle2l.status).toBe(201);
+    const bottle2lId = (bottle2l.body as { id: string }).id;
+
+    const listedBefore = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/products/${milk.id}/purchase-options`,
+      { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
+    );
+    expect(listedBefore.status).toBe(200);
+    const before = listedBefore.body as Array<{
+      id: string;
+      name: string;
+      isDefault: boolean;
+    }>;
+    expect(before).toHaveLength(3);
+    expect(before.filter((option) => option.isDefault)).toHaveLength(1);
+    expect(before.find((option) => option.id === cartonId)?.isDefault).toBe(
+      true,
+    );
+    expect(before.find((option) => option.id === bottle500Id)?.isDefault).toBe(
+      false,
+    );
+    expect(before.find((option) => option.id === bottle2lId)?.isDefault).toBe(
+      false,
+    );
+
+    const defaultsInDbBefore = await queryTestDb<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM "ProductPurchaseOption"
+       WHERE "productId" = $1 AND "isDefault" = true`,
+      [milk.id],
+    );
+    expect(Number(defaultsInDbBefore[0]?.count)).toBe(1);
+
+    const switchDefault = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/products/${milk.id}/purchase-options/${bottle2lId}`,
+      {
+        method: 'PATCH',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { isDefault: true },
+      },
+    );
+    expect(switchDefault.status).toBe(200);
+    expect((switchDefault.body as { isDefault: boolean }).isDefault).toBe(true);
+
+    const listedAfter = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/products/${milk.id}/purchase-options`,
+      { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
+    );
+    const after = listedAfter.body as Array<{ id: string; isDefault: boolean }>;
+    expect(after.filter((option) => option.isDefault)).toHaveLength(1);
+    expect(after.find((option) => option.id === bottle2lId)?.isDefault).toBe(
+      true,
+    );
+    expect(after.find((option) => option.id === cartonId)?.isDefault).toBe(
+      false,
+    );
+
+    const defaultsInDbAfter = await queryTestDb<{ count: string }>(
+      `SELECT COUNT(*)::text AS count FROM "ProductPurchaseOption"
+       WHERE "productId" = $1 AND "isDefault" = true`,
+      [milk.id],
+    );
+    expect(Number(defaultsInDbAfter[0]?.count)).toBe(1);
+
+    const indexDef = await queryTestDb<{ indexdef: string }>(
+      `SELECT indexdef FROM pg_indexes
+       WHERE tablename = 'ProductPurchaseOption'
+         AND indexname = 'ProductPurchaseOption_productId_default_uidx'`,
+    );
+    expect(indexDef[0]?.indexdef).toMatch(/UNIQUE/i);
+    expect(indexDef[0]?.indexdef).toMatch(/"productId"/);
+    expect(indexDef[0]?.indexdef).toMatch(/WHERE.*"isDefault".*=.*true/i);
+  });
+
+  it('rejects purchase option contentUnit that mismatches product unit', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+    const kitchen = await createKitchen(owner, 'Jednostka wariantu');
+    const milk = await createProduct(owner, kitchen.id, {
+      name: 'Mleko ml',
+      defaultUnit: 'milliliter',
+    });
+
+    const mismatch = await createPurchaseOption(owner, kitchen.id, milk.id, {
+      name: 'Opakowanie sztuk',
+      contentQuantity: '1.000',
+      contentUnit: 'piece',
+      isDefault: true,
+    });
+    expect(mismatch.status).toBe(400);
+
+    const ok = await createPurchaseOption(owner, kitchen.id, milk.id, {
+      name: 'Karton 1 l',
+      contentQuantity: '1000.000',
+      contentUnit: 'milliliter',
+      isDefault: true,
+    });
+    expect(ok.status).toBe(201);
+
+    const updateMismatch = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/products/${milk.id}/purchase-options/${(ok.body as { id: string }).id}`,
+      {
+        method: 'PATCH',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { contentUnit: 'piece' },
+      },
+    );
+    expect(updateMismatch.status).toBe(400);
+  });
+
+  it('returns 409 when gap idempotency key reused with different purchase selection', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+    const kitchen = await createKitchen(owner, 'Idempotencja selekcji');
+    const milk = await createProduct(owner, kitchen.id, {
+      name: 'Mleko sel',
+      defaultUnit: 'milliliter',
+    });
+    const carton = await createPurchaseOption(owner, kitchen.id, milk.id, {
+      name: 'Karton 1 l',
+      contentQuantity: '1000.000',
+      contentUnit: 'milliliter',
+      isDefault: true,
+    });
+    const bottle = await createPurchaseOption(owner, kitchen.id, milk.id, {
+      name: 'Butelka 500 ml',
+      contentQuantity: '500.000',
+      contentUnit: 'milliliter',
+      isDefault: false,
+    });
+    const cartonId = (carton.body as { id: string }).id;
+    const bottleId = (bottle.body as { id: string }).id;
+
+    const recipeRes = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          name: 'Kakao',
+          servings: 1,
+          difficulty: 'easy',
+          ingredients: [
+            {
+              name: 'Mleko',
+              quantity: '100.000',
+              unit: 'milliliter',
+              productId: milk.id,
+              sortOrder: 0,
+            },
+          ],
+          steps: [{ instruction: 'Podgrzej.', sortOrder: 0 }],
+        },
+      },
+    );
+    const recipe = recipeRes.body as {
+      id: string;
+      ingredients: Array<{ id: string }>;
+    };
+    const ingredientId = recipe.ingredients[0]?.id as string;
+    const idempotencyKey = `gap-sel-${crypto.randomUUID()}`;
+
+    const first = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/${recipe.id}/add-gaps-to-shopping-list`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          idempotencyKey,
+          servings: 1,
+          selections: [
+            {
+              ingredientId,
+              purchaseOptionId: cartonId,
+              packageCount: 1,
+            },
+          ],
+        },
+      },
+    );
+    expect(first.status).toBe(201);
+
+    const differentOption = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/${recipe.id}/add-gaps-to-shopping-list`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          idempotencyKey,
+          servings: 1,
+          selections: [
+            {
+              ingredientId,
+              purchaseOptionId: bottleId,
+              packageCount: 1,
+            },
+          ],
+        },
+      },
+    );
+    expect(differentOption.status).toBe(409);
+
+    const differentCount = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/${recipe.id}/add-gaps-to-shopping-list`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          idempotencyKey,
+          servings: 1,
+          selections: [
+            {
+              ingredientId,
+              purchaseOptionId: cartonId,
+              packageCount: 2,
+            },
+          ],
+        },
+      },
+    );
+    expect(differentCount.status).toBe(409);
+
+    const exactKey = `gap-exact-sel-${crypto.randomUUID()}`;
+    const exactFirst = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/${recipe.id}/add-gaps-to-shopping-list`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          idempotencyKey: exactKey,
+          servings: 1,
+          selections: [
+            {
+              ingredientId,
+              exactQuantity: '100.000',
+            },
+          ],
+        },
+      },
+    );
+    expect(exactFirst.status).toBe(201);
+
+    const exactDifferentQty = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/${recipe.id}/add-gaps-to-shopping-list`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          idempotencyKey: exactKey,
+          servings: 1,
+          selections: [
+            {
+              ingredientId,
+              exactQuantity: '150.000',
+            },
+          ],
+        },
+      },
+    );
+    expect(exactDifferentQty.status).toBe(409);
+
+    const exactSame = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/${recipe.id}/add-gaps-to-shopping-list`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          idempotencyKey: exactKey,
+          servings: 1,
+          selections: [
+            {
+              ingredientId,
+              exactQuantity: '100.000',
+            },
+          ],
+        },
+      },
+    );
+    expect(exactSame.status).toBe(201);
+  });
+
+  it('keeps only one default purchase option when creating a second default', async () => {
     const owner = await signUpUser(api.origin, WEB_ORIGIN);
     const kitchen = await createKitchen(owner, 'Jeden default');
     const milk = await createProduct(owner, kitchen.id, {

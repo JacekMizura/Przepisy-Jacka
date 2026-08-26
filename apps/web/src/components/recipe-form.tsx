@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { UNIT_LABELS } from "@/lib/errors";
+import { formatQuantityNumber, toApiQuantityString } from "@/lib/format-quantity";
 import {
   RECIPE_DIFFICULTY_LABELS,
   RECIPE_INGREDIENT_UNIT_LABELS,
@@ -98,7 +99,7 @@ function recipeToDraft(recipe: RecipeDetail): {
             .map((ingredient) =>
               createIngredientDraft({
                 name: ingredient.name,
-                quantity: ingredient.quantity ?? "",
+                quantity: formatQuantityNumber(ingredient.quantity ?? ""),
                 unit: ingredient.unit,
                 note: ingredient.note ?? "",
                 productId: ingredient.productId ?? "",
@@ -198,7 +199,9 @@ export function RecipeForm({
     const normalizedIngredients = ingredients
       .map((ingredient, index) => ({
         name: ingredient.name.trim(),
-        quantity: ingredient.quantity.trim() || undefined,
+        quantity: ingredient.quantity.trim()
+          ? toApiQuantityString(ingredient.quantity)
+          : undefined,
         unit: ingredient.unit,
         note: ingredient.note.trim() ? ingredient.note.trim() : null,
         productId: ingredient.productId || undefined,
@@ -214,9 +217,7 @@ export function RecipeForm({
     for (const ingredient of normalizedIngredients) {
       if (
         ingredient.quantity &&
-        !/^(?:0|[1-9]\d*)(?:\.\d{1,3})?$/.test(
-          ingredient.quantity.replace(",", "."),
-        )
+        !/^(?:0|[1-9]\d*)(?:\.\d{1,3})?$/.test(ingredient.quantity)
       ) {
         setFormError(
           `Nieprawidłowa ilość dla składnika „${ingredient.name}”.`,

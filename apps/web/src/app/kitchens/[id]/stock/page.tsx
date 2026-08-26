@@ -22,7 +22,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createWebApiClient } from "@/lib/api";
 import { LOCATION_LABELS, UNIT_LABELS, readApiError } from "@/lib/errors";
-import { formatQuantityWithUnit } from "@/lib/format-quantity";
+import { formatQuantityWithUnit, formatQuantityNumber } from "@/lib/format-quantity";
 import {
   PRODUCT_CATEGORY_OPTIONS,
   validateOptionalEan,
@@ -1109,7 +1109,9 @@ export default function StockPage() {
                                     variant="outline"
                                     onClick={() => {
                                       setEditingId(item.id);
-                                      setEditQuantity(item.quantity);
+                                      setEditQuantity(
+                                        formatQuantityNumber(item.quantity),
+                                      );
                                     }}
                                   >
                                     Edytuj

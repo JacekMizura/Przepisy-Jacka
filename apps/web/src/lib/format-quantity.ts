@@ -33,6 +33,16 @@ export function formatQuantityNumber(
   }).format(numeric);
 }
 
+/** Convert UI quantity (possibly with comma) to API decimal string `x.xxx`. */
+export function toApiQuantityString(value: string): string {
+  const normalized = value.trim().replace(",", ".");
+  const numeric = Number(normalized);
+  if (!Number.isFinite(numeric)) {
+    return value.trim();
+  }
+  return numeric.toFixed(3);
+}
+
 export function formatQuantityWithUnit(
   quantity: string | number | null | undefined,
   unit: string | null | undefined,

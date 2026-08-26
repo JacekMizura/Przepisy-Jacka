@@ -9,7 +9,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   formatPackagePurchase,
+  formatQuantityNumber,
   formatQuantityWithUnit,
+  toApiQuantityString,
 } from "@/lib/format-quantity";
 import {
   AVAILABILITY_STATUS_LABELS,
@@ -53,7 +55,9 @@ function defaultRowState(ingredient: AvailabilityIngredient): GapRowState {
     skip: ingredient.status === "unknown",
     purchaseOptionId: proposal?.purchaseOptionId ?? null,
     packageCount: proposal?.packageCount ?? 1,
-    exactQuantity: proposal?.totalPurchaseQuantity ?? ingredient.gapQuantity ?? "",
+    exactQuantity: formatQuantityNumber(
+      proposal?.totalPurchaseQuantity ?? ingredient.gapQuantity ?? "",
+    ),
     useExact: !usePackages,
   };
 }
@@ -139,7 +143,9 @@ export function AddRecipeGapsDialog({
       };
       if (!row.skip) {
         if (row.useExact) {
-          selection.exactQuantity = row.exactQuantity.trim() || undefined;
+          selection.exactQuantity = row.exactQuantity.trim()
+            ? toApiQuantityString(row.exactQuantity)
+            : undefined;
         } else if (row.purchaseOptionId) {
           selection.purchaseOptionId = row.purchaseOptionId;
           selection.packageCount = row.packageCount;

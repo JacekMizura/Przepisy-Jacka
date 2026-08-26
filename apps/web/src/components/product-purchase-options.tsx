@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createWebApiClient } from "@/lib/api";
 import { readApiError, UNIT_LABELS } from "@/lib/errors";
-import { formatQuantityWithUnit } from "@/lib/format-quantity";
+import { formatQuantityWithUnit, formatQuantityNumber, toApiQuantityString } from "@/lib/format-quantity";
 import { type BaseUnit } from "@/lib/quantity-input";
 import { cn } from "@/lib/utils";
 
@@ -73,7 +73,7 @@ export function ProductPurchaseOptions({
           params: { path: { kitchenId, productId } },
           body: {
             name: name.trim(),
-            contentQuantity: contentQuantity.trim(),
+            contentQuantity: toApiQuantityString(contentQuantity),
             contentUnit,
             isDefault,
           },
@@ -153,7 +153,7 @@ export function ProductPurchaseOptions({
   function startEdit(option: PurchaseOption) {
     setEditingId(option.id);
     setEditName(option.name);
-    setEditQuantity(option.contentQuantity);
+    setEditQuantity(formatQuantityNumber(option.contentQuantity));
   }
 
   function saveEdit(option: PurchaseOption) {
@@ -161,7 +161,9 @@ export function ProductPurchaseOptions({
       optionId: option.id,
       body: {
         name: editName.trim() || undefined,
-        contentQuantity: editQuantity.trim() || undefined,
+        contentQuantity: editQuantity.trim()
+          ? toApiQuantityString(editQuantity)
+          : undefined,
       },
     });
   }

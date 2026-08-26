@@ -252,12 +252,14 @@ function ShoppingRow({
   onSkip,
   onDelete,
   pending,
+  showUnbuy,
 }: {
   item: ShoppingListItem;
   onToggleBought: () => void;
   onSkip: () => void;
   onDelete: () => void;
   pending?: boolean;
+  showUnbuy?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const name = item.product?.name ?? item.customName ?? "Pozycja bez nazwy";
@@ -266,65 +268,92 @@ function ShoppingRow({
     item.requiredQuantity,
     item.requiredUnit,
   );
+  const isBought = item.status === "bought";
+  const isSkipped = item.status === "skipped";
 
   return (
-    <li className="flex items-start gap-3 border-b border-gray-50 px-1 py-3 last:border-0">
+    <li
+      className={cn(
+        "flex items-center gap-3 border-b border-gray-100 px-3 py-3.5 last:border-0 sm:px-4",
+        isBought && "bg-emerald-50/40",
+        isSkipped && "bg-gray-50/80",
+      )}
+    >
       {item.status === "pending" ? (
         <button
           type="button"
           aria-label={`Oznacz ${name} jako kupione`}
-          className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-gray-300 bg-white hover:border-emerald-500"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 border-gray-300 bg-white hover:border-emerald-500"
           onClick={onToggleBought}
           disabled={pending}
         />
-      ) : item.status === "bought" ? (
-        <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded bg-emerald-500 text-white">
-          <Check size={12} />
-        </span>
+      ) : isBought ? (
+        <button
+          type="button"
+          aria-label={
+            showUnbuy ? `Cofnij kupione: ${name}` : `${name} kupione`
+          }
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-emerald-500 text-white"
+          onClick={showUnbuy ? onToggleBought : undefined}
+          disabled={!showUnbuy || pending}
+        >
+          <Check size={14} strokeWidth={3} />
+        </button>
       ) : (
-        <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded bg-gray-200 text-gray-500">
-          <SkipForward size={10} />
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gray-200 text-gray-500">
+          <SkipForward size={12} />
         </span>
       )}
 
       <div className="min-w-0 flex-1">
         <p
           className={cn(
-            "font-medium text-gray-900",
-            item.status !== "pending" && "text-gray-600",
+            "text-[15px] font-semibold text-gray-900",
+            isBought && "text-gray-500 line-through",
+            isSkipped && "text-gray-500",
           )}
         >
           {name}
         </p>
-        <p className="text-sm text-gray-700">{purchaseLine}</p>
-        {requiredHint ? (
-          <p className="text-xs text-gray-500">
-            brakuje {requiredHint} do przepisu
-          </p>
-        ) : null}
+        <p
+          className={cn(
+            "mt-0.5 text-sm text-gray-700",
+            isBought && "text-gray-400 line-through",
+          )}
+        >
+          {purchaseLine}
+        </p>
         {item.sourceRecipeName ? (
-          <p className="text-xs text-emerald-700">{item.sourceRecipeName}</p>
+          <p className="mt-1 text-xs text-emerald-700">
+            Z przepisu: {item.sourceRecipeName}
+          </p>
+        ) : requiredHint ? (
+          <p className="mt-1 text-xs text-gray-500">brakuje {requiredHint}</p>
         ) : null}
-        {item.note ? (
-          <p className="text-xs text-gray-400">{item.note}</p>
+        {item.note &&
+        !(
+          item.sourceRecipeName &&
+          item.note.trim() === `Przepis: ${item.sourceRecipeName}`
+        ) ? (
+          <p className="mt-0.5 text-xs text-gray-400">{item.note}</p>
         ) : null}
       </div>
 
-      <div className="relative shrink-0">
+      <div className="relative shrink-0 self-start sm:self-center">
         <button
           type="button"
           aria-label="Menu pozycji"
-          className="rounded p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
           onClick={() => setMenuOpen((open) => !open)}
         >
-          <MoreVertical size={16} />
+          <MoreVertical size={18} />
         </button>
         {menuOpen ? (
-          <div className="absolute right-0 z-10 mt-1 w-36 rounded-lg border border-gray-100 bg-white py-1 shadow-lg">
+          <div className="absolute right-0 z-10 mt-1 w-40 rounded-lg border border-gray-100 bg-white py-1 shadow-lg">
             {item.status === "pending" ? (
               <button
                 type="button"
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-gray-50"
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-gray-50"
                 onClick={() => {
                   setMenuOpen(false);
                   onSkip();
@@ -334,9 +363,21 @@ function ShoppingRow({
                 Pomiń
               </button>
             ) : null}
+            {item.status === "skipped" ? (
+              <button
+                type="button"
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-gray-50"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onToggleBought();
+                }}
+              >
+                Przywróć
+              </button>
+            ) : null}
             <button
               type="button"
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"
+              className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-red-700 hover:bg-red-50"
               onClick={() => {
                 setMenuOpen(false);
                 onDelete();
@@ -349,6 +390,71 @@ function ShoppingRow({
         ) : null}
       </div>
     </li>
+  );
+}
+
+function SummaryPanel({
+  totalCount,
+  boughtCount,
+  pendingCount,
+  progress,
+  className,
+  onCheckout,
+}: {
+  totalCount: number;
+  boughtCount: number;
+  pendingCount: number;
+  progress: number;
+  className?: string;
+  onCheckout: () => void;
+}) {
+  return (
+    <aside
+      className={cn(
+        "rounded-2xl border border-gray-200/80 bg-white p-5",
+        className,
+      )}
+    >
+      <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
+        Podsumowanie
+      </h2>
+      <dl className="mt-4 space-y-3 text-sm">
+        <div className="flex items-center justify-between gap-3">
+          <dt className="text-gray-500">Pozycje</dt>
+          <dd className="font-semibold text-gray-900">{totalCount}</dd>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <dt className="text-gray-500">Kupione</dt>
+          <dd className="font-semibold text-emerald-700">{boughtCount}</dd>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <dt className="text-gray-500">Do kupienia</dt>
+          <dd className="font-semibold text-gray-900">{pendingCount}</dd>
+        </div>
+        <div className="flex items-center justify-between gap-3">
+          <dt className="text-gray-500">Postęp</dt>
+          <dd className="font-semibold text-gray-900">{progress}%</dd>
+        </div>
+      </dl>
+      <div className="mt-4 h-2 overflow-hidden rounded-full bg-gray-100">
+        <div
+          className="h-full rounded-full bg-emerald-500 transition-all"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+      <p className="mt-4 text-sm leading-relaxed text-gray-600">
+        {boughtCount > 0
+          ? "Masz kupione pozycje — rozlicz je, żeby dodać zapasy do kuchni."
+          : pendingCount > 0
+            ? "Oznacz produkty jako kupione podczas zakupów."
+            : "Lista jest pusta. Dodaj produkty lub braki z przepisu."}
+      </p>
+      {boughtCount > 0 ? (
+        <Button className="mt-4 hidden w-full lg:inline-flex" onClick={onCheckout}>
+          Rozlicz zakupy ({boughtCount})
+        </Button>
+      ) : null}
+    </aside>
   );
 }
 
@@ -498,33 +604,41 @@ export default function ShoppingListPage() {
     },
   });
 
+  const hasBought = grouped.bought.length > 0;
+
   return (
     <AppShell kitchenId={kitchenId}>
-      <div className="mx-auto max-w-2xl px-4 py-6 sm:px-6 sm:py-8">
-        <header className="mb-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+      <div
+        className={cn(
+          "w-full",
+          hasBought && "pb-24 lg:pb-0",
+        )}
+      >
+        <header className="mb-5 w-full">
+          <div className="flex w-full items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
                 Lista zakupów
               </h1>
-              {totalCount > 0 ? (
-                <p className="mt-1 text-sm text-gray-500">
-                  {doneCount} z {totalCount} pozycji · {progress}%
-                </p>
-              ) : (
-                <p className="mt-1 text-sm text-gray-500">
-                  Wspólna lista dla domowników
-                </p>
-              )}
+              <p className="mt-1 text-sm text-gray-500">
+                {totalCount > 0
+                  ? `${grouped.bought.length} kupione z ${totalCount}`
+                  : "Wspólna lista dla domowników"}
+              </p>
             </div>
-            <Button size="sm" onClick={() => setAddOpen(true)}>
+            <Button
+              size="sm"
+              className="shrink-0"
+              onClick={() => setAddOpen(true)}
+            >
               <Plus size={16} className="mr-1" />
-              Dodaj produkt
+              <span className="sm:hidden">Dodaj</span>
+              <span className="hidden sm:inline">Dodaj produkt</span>
             </Button>
           </div>
 
           {totalCount > 0 ? (
-            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-gray-100">
+            <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-gray-100">
               <div
                 className="h-full rounded-full bg-emerald-500 transition-all"
                 style={{ width: `${progress}%` }}
@@ -543,9 +657,7 @@ export default function ShoppingListPage() {
           </p>
         ) : null}
 
-        {!listQuery.isPending &&
-        !listQuery.isError &&
-        totalCount === 0 ? (
+        {!listQuery.isPending && !listQuery.isError && totalCount === 0 ? (
           <div className="py-12 text-center">
             <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
               <ShoppingCart size={28} />
@@ -565,84 +677,50 @@ export default function ShoppingListPage() {
         ) : null}
 
         {!listQuery.isPending && !listQuery.isError && totalCount > 0 ? (
-          <div className="space-y-6">
-            {grouped.pending.length > 0 ? (
-              <section>
-                <h2 className="mb-2 text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                  Do kupienia ({grouped.pending.length})
-                </h2>
-                <ul>
-                  {grouped.pending.map((item) => (
-                    <ShoppingRow
-                      key={item.id}
-                      item={item}
-                      pending={updateStatus.isPending}
-                      onToggleBought={() =>
-                        updateStatus.mutate({
-                          itemId: item.id,
-                          status: "bought",
-                        })
-                      }
-                      onSkip={() =>
-                        updateStatus.mutate({
-                          itemId: item.id,
-                          status: "skipped",
-                        })
-                      }
-                      onDelete={() => setItemToDelete(item)}
-                    />
-                  ))}
-                </ul>
-              </section>
-            ) : null}
-
-            {grouped.bought.length > 0 ? (
-              <section>
-                <h2 className="mb-2 text-xs font-semibold tracking-wide text-emerald-700 uppercase">
-                  Kupione ({grouped.bought.length})
-                </h2>
-                <ul className="opacity-80">
-                  {grouped.bought.map((item) => (
-                    <ShoppingRow
-                      key={item.id}
-                      item={item}
-                      onToggleBought={() => {}}
-                      onSkip={() => {}}
-                      onDelete={() => setItemToDelete(item)}
-                    />
-                  ))}
-                </ul>
-                <Button
-                  className="mt-4 w-full sm:w-auto"
-                  onClick={() => setCheckoutOpen(true)}
-                >
-                  Rozlicz zakupy ({grouped.bought.length})
-                </Button>
-              </section>
-            ) : null}
-
-            {grouped.skipped.length > 0 ? (
-              <section>
-                <button
-                  type="button"
-                  className="mb-2 flex w-full items-center gap-1 text-xs font-semibold tracking-wide text-gray-500 uppercase"
-                  onClick={() => setSkippedOpen((open) => !open)}
-                >
-                  <ChevronDown
-                    size={14}
-                    className={cn(
-                      "transition-transform",
-                      !skippedOpen && "-rotate-90",
-                    )}
-                  />
-                  Pominięte ({grouped.skipped.length})
-                </button>
-                {skippedOpen ? (
-                  <ul className="opacity-60">
-                    {grouped.skipped.map((item) => (
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start lg:gap-8">
+            <div className="min-w-0 space-y-5">
+              {grouped.pending.length > 0 ? (
+                <section className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white">
+                  <h2 className="border-b border-gray-100 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase sm:px-5">
+                    Do kupienia ({grouped.pending.length})
+                  </h2>
+                  <ul>
+                    {grouped.pending.map((item) => (
                       <ShoppingRow
                         key={item.id}
                         item={item}
+                        pending={updateStatus.isPending}
+                        onToggleBought={() =>
+                          updateStatus.mutate({
+                            itemId: item.id,
+                            status: "bought",
+                          })
+                        }
+                        onSkip={() =>
+                          updateStatus.mutate({
+                            itemId: item.id,
+                            status: "skipped",
+                          })
+                        }
+                        onDelete={() => setItemToDelete(item)}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
+
+              {grouped.bought.length > 0 ? (
+                <section className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white">
+                  <h2 className="border-b border-gray-100 px-4 py-3 text-xs font-semibold tracking-wide text-emerald-700 uppercase sm:px-5">
+                    Kupione ({grouped.bought.length})
+                  </h2>
+                  <ul>
+                    {grouped.bought.map((item) => (
+                      <ShoppingRow
+                        key={item.id}
+                        item={item}
+                        showUnbuy
+                        pending={updateStatus.isPending}
                         onToggleBought={() =>
                           updateStatus.mutate({
                             itemId: item.id,
@@ -654,12 +732,66 @@ export default function ShoppingListPage() {
                       />
                     ))}
                   </ul>
-                ) : null}
-              </section>
-            ) : null}
+                </section>
+              ) : null}
+
+              {grouped.skipped.length > 0 ? (
+                <section className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white">
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 border-b border-gray-100 px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-500 uppercase sm:px-5"
+                    onClick={() => setSkippedOpen((open) => !open)}
+                  >
+                    <ChevronDown
+                      size={14}
+                      className={cn(
+                        "transition-transform",
+                        !skippedOpen && "-rotate-90",
+                      )}
+                    />
+                    Pominięte ({grouped.skipped.length})
+                  </button>
+                  {skippedOpen ? (
+                    <ul>
+                      {grouped.skipped.map((item) => (
+                        <ShoppingRow
+                          key={item.id}
+                          item={item}
+                          onToggleBought={() =>
+                            updateStatus.mutate({
+                              itemId: item.id,
+                              status: "pending",
+                            })
+                          }
+                          onSkip={() => {}}
+                          onDelete={() => setItemToDelete(item)}
+                        />
+                      ))}
+                    </ul>
+                  ) : null}
+                </section>
+              ) : null}
+            </div>
+
+            <SummaryPanel
+              className="lg:sticky lg:top-8"
+              totalCount={totalCount}
+              boughtCount={grouped.bought.length}
+              pendingCount={grouped.pending.length}
+              progress={progress}
+              onCheckout={() => setCheckoutOpen(true)}
+            />
           </div>
         ) : null}
       </div>
+
+      {hasBought ? (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 p-3 backdrop-blur lg:hidden">
+          <Button className="w-full" onClick={() => setCheckoutOpen(true)}>
+            Rozlicz zakupy ({grouped.bought.length})
+          </Button>
+        </div>
+      ) : null}
 
       {addOpen ? (
         <AddProductModal

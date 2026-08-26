@@ -94,6 +94,17 @@ export function AppShell({
     }
   }, [pathname, router, session.data?.user, session.isPending]);
 
+  useEffect(() => {
+    if (!sidebarOpen) {
+      return;
+    }
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, [sidebarOpen]);
+
   function closeSidebar() {
     setSidebarOpen(false);
   }
@@ -159,36 +170,181 @@ export function AppShell({
     },
   ] as const;
 
-  const sidebar = (
-    <aside
-      className={cn(
-        "fixed inset-y-0 left-0 z-50 flex w-72 transform flex-col border-r border-gray-100 bg-white shadow-sm transition-transform duration-300",
-        sidebarOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
-      )}
-    >
+  const showMobileDrawer = sidebarOpen;
+
+  return (
+    <div className="flex min-h-screen overflow-x-hidden bg-[#F9FAFB] font-sans selection:bg-emerald-100 selection:text-emerald-900">
+      {/* Desktop sidebar — always in layout from md */}
+      <aside
+        className="fixed inset-y-0 left-0 z-30 hidden w-72 flex-col border-r border-gray-100 bg-white md:flex"
+        aria-label="Nawigacja"
+      >
+        <SidebarContent
+          user={user}
+          kitchens={kitchensQuery.data ?? []}
+          activeKitchenId={activeKitchenId}
+          activeView={activeView}
+          navItems={navItems}
+          signingOut={signingOut}
+          onSignOut={handleSignOut}
+          onNavigate={closeSidebar}
+          onKitchenChange={(nextId) => {
+            closeSidebar();
+            if (!nextId) {
+              router.push("/kitchens");
+              return;
+            }
+            if (activeView === "czlonkowie") {
+              router.push(`/kitchens/${nextId}`);
+            } else if (activeView === "przepisy") {
+              router.push(`/kitchens/${nextId}/recipes`);
+            } else if (activeView === "lista-zakupow") {
+              router.push(`/kitchens/${nextId}/shopping-list`);
+            } else if (activeView === "historia-zakupow") {
+              router.push(`/kitchens/${nextId}/purchases`);
+            } else {
+              router.push(`/kitchens/${nextId}/stock`);
+            }
+          }}
+          showClose={false}
+          onClose={closeSidebar}
+        />
+      </aside>
+
+      {/* Mobile drawer — mounted only when open so nothing leaks into the page */}
+      {showMobileDrawer ? (
+        <>
+          <button
+            type="button"
+            aria-label="Zamknij menu"
+            className="fixed inset-0 z-40 bg-gray-900/30 backdrop-blur-[2px] md:hidden"
+            onClick={closeSidebar}
+          />
+          <aside
+            className="fixed inset-y-0 left-0 z-50 flex w-[min(18rem,100vw)] max-w-full flex-col border-r border-gray-100 bg-white shadow-xl md:hidden"
+            aria-label="Menu mobilne"
+          >
+            <SidebarContent
+              user={user}
+              kitchens={kitchensQuery.data ?? []}
+              activeKitchenId={activeKitchenId}
+              activeView={activeView}
+              navItems={navItems}
+              signingOut={signingOut}
+              onSignOut={handleSignOut}
+              onNavigate={closeSidebar}
+              onKitchenChange={(nextId) => {
+                closeSidebar();
+                if (!nextId) {
+                  router.push("/kitchens");
+                  return;
+                }
+                if (activeView === "czlonkowie") {
+                  router.push(`/kitchens/${nextId}`);
+                } else if (activeView === "przepisy") {
+                  router.push(`/kitchens/${nextId}/recipes`);
+                } else if (activeView === "lista-zakupow") {
+                  router.push(`/kitchens/${nextId}/shopping-list`);
+                } else if (activeView === "historia-zakupow") {
+                  router.push(`/kitchens/${nextId}/purchases`);
+                } else {
+                  router.push(`/kitchens/${nextId}/stock`);
+                }
+              }}
+              showClose
+              onClose={closeSidebar}
+            />
+          </aside>
+        </>
+      ) : null}
+
+      <main className="min-w-0 flex-1 overflow-x-hidden md:ml-72">
+        <div className="w-full px-4 py-4 md:px-8 md:py-8 lg:px-10 lg:py-10">
+          <header className="mb-6 flex w-full items-center justify-between md:hidden">
+            <div className="flex min-w-0 items-center gap-2 text-emerald-700">
+              <ChefHat size={24} strokeWidth={2.5} className="shrink-0" />
+              <span className="truncate text-xl font-bold tracking-tight">
+                Moja Kuchnia
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSidebarOpen(true)}
+              className="-mr-1 rounded-lg p-2 text-gray-600 hover:bg-gray-100"
+              aria-label="Otwórz menu"
+            >
+              <Menu size={24} />
+            </button>
+          </header>
+          <div className="w-full max-w-[1360px]">{children}</div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+type KitchenOption = { id: string; name: string };
+
+function SidebarContent({
+  user,
+  kitchens,
+  activeKitchenId,
+  activeView,
+  navItems,
+  signingOut,
+  onSignOut,
+  onNavigate,
+  onKitchenChange,
+  showClose,
+  onClose,
+}: {
+  user: { email: string; name?: string | null };
+  kitchens: KitchenOption[];
+  activeKitchenId: string;
+  activeView: string;
+  navItems: ReadonlyArray<{
+    id: string;
+    label: string;
+    icon: typeof Package;
+    href: string;
+    disabled: boolean;
+  }>;
+  signingOut: boolean;
+  onSignOut: (event: FormEvent) => void;
+  onNavigate: () => void;
+  onKitchenChange: (kitchenId: string) => void;
+  showClose: boolean;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+
+  return (
+    <>
       <div className="flex-1 overflow-y-auto">
-        <div className="border-b border-gray-100 p-6">
+        <div className="border-b border-gray-100 p-5 sm:p-6">
           <div className="mb-6 flex items-center justify-between gap-3 text-emerald-700">
             <Link
               href="/kitchens"
-              onClick={closeSidebar}
-              className="flex items-center gap-3"
+              onClick={onNavigate}
+              className="flex min-w-0 items-center gap-3"
             >
-              <div className="rounded-xl bg-emerald-50 p-2">
+              <div className="shrink-0 rounded-xl bg-emerald-50 p-2">
                 <ChefHat size={28} strokeWidth={2.5} />
               </div>
-              <span className="text-2xl font-bold tracking-tight">
+              <span className="truncate text-2xl font-bold tracking-tight">
                 Moja Kuchnia
               </span>
             </Link>
-            <button
-              type="button"
-              className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 md:hidden"
-              onClick={() => setSidebarOpen(false)}
-              aria-label="Zamknij menu"
-            >
-              <X size={20} />
-            </button>
+            {showClose ? (
+              <button
+                type="button"
+                className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
+                onClick={onClose}
+                aria-label="Zamknij menu"
+              >
+                <X size={20} />
+              </button>
+            ) : null}
           </div>
 
           <div className="space-y-1">
@@ -198,7 +354,7 @@ export function AppShell({
               </label>
               <Link
                 href="/kitchens"
-                onClick={closeSidebar}
+                onClick={onNavigate}
                 className="text-xs font-medium text-emerald-600 transition-colors hover:text-emerald-700"
               >
                 Zarządzaj
@@ -208,29 +364,11 @@ export function AppShell({
               <select
                 aria-label="Aktywna kuchnia"
                 value={activeKitchenId}
-                onChange={(event) => {
-                  const nextId = event.target.value;
-                  closeSidebar();
-                  if (!nextId) {
-                    router.push("/kitchens");
-                    return;
-                  }
-                  if (activeView === "czlonkowie") {
-                    router.push(`/kitchens/${nextId}`);
-                  } else if (activeView === "przepisy") {
-                    router.push(`/kitchens/${nextId}/recipes`);
-                  } else if (activeView === "lista-zakupow") {
-                    router.push(`/kitchens/${nextId}/shopping-list`);
-                  } else if (activeView === "historia-zakupow") {
-                    router.push(`/kitchens/${nextId}/purchases`);
-                  } else {
-                    router.push(`/kitchens/${nextId}/stock`);
-                  }
-                }}
+                onChange={(event) => onKitchenChange(event.target.value)}
                 className="block w-full cursor-pointer appearance-none rounded-lg border border-gray-200 bg-gray-50 p-3 pr-8 text-sm text-gray-800 shadow-sm transition-colors focus:border-emerald-500 focus:ring-emerald-500"
               >
                 <option value="">Wybierz kuchnię</option>
-                {(kitchensQuery.data ?? []).map((kitchen) => (
+                {kitchens.map((kitchen) => (
                   <option key={kitchen.id} value={kitchen.id}>
                     {kitchen.name}
                   </option>
@@ -244,7 +382,7 @@ export function AppShell({
         </div>
 
         <nav className="space-y-1 p-4">
-          <div className="mt-4 mb-2 px-3 text-xs font-semibold tracking-wider text-gray-400 uppercase">
+          <div className="mt-2 mb-2 px-3 text-xs font-semibold tracking-wider text-gray-400 uppercase">
             Narzędzia
           </div>
           {navItems.map((item) => {
@@ -255,7 +393,7 @@ export function AppShell({
                 key={item.id}
                 href={item.disabled ? "/kitchens" : item.href}
                 onClick={(event) => {
-                  closeSidebar();
+                  onNavigate();
                   if (item.disabled) {
                     event.preventDefault();
                     router.push("/kitchens");
@@ -281,11 +419,8 @@ export function AppShell({
       </div>
 
       <div className="border-t border-gray-100 bg-gray-50 p-4">
-        <form
-          onSubmit={handleSignOut}
-          className="flex items-center gap-3 px-2"
-        >
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700">
+        <form onSubmit={onSignOut} className="flex items-center gap-3 px-2">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700">
             {initialsFrom(user.email, user.name)}
           </div>
           <div className="min-w-0 flex-1">
@@ -302,43 +437,6 @@ export function AppShell({
           </div>
         </form>
       </div>
-    </aside>
-  );
-
-  return (
-    <div className="flex min-h-screen bg-[#F9FAFB] font-sans selection:bg-emerald-100 selection:text-emerald-900">
-      {sidebar}
-
-      {sidebarOpen ? (
-        <button
-          type="button"
-          aria-label="Zamknij menu"
-          className="fixed inset-0 z-40 bg-gray-900/20 backdrop-blur-sm transition-opacity md:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      ) : null}
-
-      <main className="min-w-0 flex-1 md:ml-72">
-        <div className="p-4 md:p-8 lg:p-10">
-          <header className="mb-8 flex items-center justify-between md:hidden">
-            <div className="flex items-center gap-2 text-emerald-700">
-              <ChefHat size={24} strokeWidth={2.5} />
-              <span className="text-xl font-bold tracking-tight">
-                Moja Kuchnia
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => setSidebarOpen(true)}
-              className="-mr-2 rounded-lg p-2 text-gray-600 hover:bg-gray-100"
-              aria-label="Otwórz menu"
-            >
-              <Menu size={24} />
-            </button>
-          </header>
-          <div className="animate-in">{children}</div>
-        </div>
-      </main>
-    </div>
+    </>
   );
 }

@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
     "@moja-kuchnia/api-client",
     "@moja-kuchnia/design-tokens",
   ],
+  devIndicators: false,
 };
 
 export default nextConfig;

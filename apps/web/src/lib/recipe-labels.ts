@@ -41,7 +41,7 @@ export const AVAILABILITY_STATUS_LABELS: Record<
   IngredientAvailabilityStatus,
   string
 > = {
-  available: "Wystarczy",
+  available: "Masz wszystko",
   partial: "Częściowo",
   missing: "Brak",
   unknown: "Nieznane",

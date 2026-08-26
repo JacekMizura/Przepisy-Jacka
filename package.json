@@ -18,6 +18,7 @@
     "api:generate": "pnpm --filter @moja-kuchnia/api generate:openapi && pnpm --filter @moja-kuchnia/api-client generate"
   },
   "devDependencies": {
+    "playwright": "1.55.0",
     "turbo": "^2.10.11",
     "typescript": "~5.9.3"
   }

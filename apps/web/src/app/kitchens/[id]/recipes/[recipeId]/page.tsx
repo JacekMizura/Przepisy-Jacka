@@ -27,8 +27,10 @@ import { createWebApiClient } from "@/lib/api";
 import { readApiError } from "@/lib/errors";
 import { formatQuantityWithUnit } from "@/lib/format-quantity";
 import {
+  AVAILABILITY_STATUS_LABELS,
   formatRecipeIngredientQuantity,
   formatRecipeTime,
+  formatTotalRecipeTime,
   RECIPE_DIFFICULTY_LABELS,
   RECIPE_VISIBILITY_LABELS,
 } from "@/lib/recipe-labels";
@@ -226,7 +228,7 @@ export default function RecipeDetailPage() {
   ): string {
     const productName = availability?.productName;
     if (productName && productName.toLowerCase() !== ingredient.name.toLowerCase()) {
-      return `${ingredient.name} · ${productName}`;
+      return `${ingredient.name} (${productName})`;
     }
     return ingredient.name;
   }
@@ -251,14 +253,14 @@ export default function RecipeDetailPage() {
       const gap = availability.gapQuantity
         ? formatQuantityWithUnit(availability.gapQuantity, availability.gapUnit)
         : need;
-      return `Masz ${have} / potrzeba ${need} · brakuje ${gap}`;
+      return `Masz ${have} / potrzeba ${need}, brakuje ${gap}`;
     }
     return null;
   }
 
   return (
     <AppShell kitchenId={kitchenId}>
-      <article className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-10">
+      <article className="w-full">
         {recipeQuery.isPending ? (
           <p className="text-center text-sm text-gray-500">Ładowanie przepisu…</p>
         ) : null}
@@ -271,17 +273,12 @@ export default function RecipeDetailPage() {
 
         {recipe ? (
           <>
-            <header className="mb-6 border-b border-gray-100 pb-6">
-              <div className="mb-4 flex items-start justify-between gap-4">
+            <header className="mb-6 border-b border-gray-200/80 pb-6">
+              <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
                     {recipe.name}
                   </h1>
-                  {recipe.description ? (
-                    <p className="mt-2 text-base leading-relaxed text-gray-600">
-                      {recipe.description}
-                    </p>
-                  ) : null}
                 </div>
                 <div className="relative shrink-0" ref={menuRef}>
                   {isAuthor ? (
@@ -296,10 +293,18 @@ export default function RecipeDetailPage() {
                         <MoreVertical size={20} />
                       </button>
                       {menuOpen ? (
-                        <div className="absolute right-0 z-10 mt-1 w-44 rounded-xl border border-gray-100 bg-white py-1 shadow-lg">
+                        <div className="absolute right-0 z-10 mt-1 w-48 rounded-xl border border-gray-100 bg-white py-1 shadow-lg">
+                          <Link
+                            href={`/kitchens/${kitchenId}/recipes/${recipeId}/edit`}
+                            className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 md:hidden"
+                            onClick={() => setMenuOpen(false)}
+                          >
+                            <Pencil size={14} />
+                            Edytuj
+                          </Link>
                           <button
                             type="button"
-                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"
+                            className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-red-700 hover:bg-red-50"
                             onClick={() => {
                               setMenuOpen(false);
                               setDeleteOpen(true);
@@ -315,12 +320,15 @@ export default function RecipeDetailPage() {
                 </div>
               </div>
 
-              <div className="mb-3 flex flex-wrap gap-1.5">
+              {recipe.description ? (
+                <p className="mt-2 max-w-3xl text-base leading-relaxed text-gray-600">
+                  {recipe.description}
+                </p>
+              ) : null}
+
+              <div className="mt-3 flex flex-wrap gap-1.5">
                 <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
                   {RECIPE_VISIBILITY_LABELS[recipe.visibility]}
-                </span>
-                <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
-                  {RECIPE_DIFFICULTY_LABELS[recipe.difficulty]}
                 </span>
                 {recipe.tags.map((tag) => (
                   <span
@@ -332,21 +340,26 @@ export default function RecipeDetailPage() {
                 ))}
               </div>
 
-              <p className="text-sm text-gray-500">
-                {recipe.author.name}
-                {" · "}
+              <p className="mt-3 text-sm text-gray-500">
+                {recipe.author.name},{" "}
                 {new Date(recipe.createdAt).toLocaleDateString("pl-PL")}
               </p>
 
-              <div className="mt-5 flex flex-wrap items-center gap-3">
+              <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                 {hasGaps ? (
-                  <Button onClick={() => setGapsOpen(true)}>
+                  <Button
+                    className="w-full sm:w-auto"
+                    onClick={() => setGapsOpen(true)}
+                  >
                     <ShoppingCart size={16} className="mr-1.5" />
                     Dodaj braki do listy
                   </Button>
                 ) : null}
                 {isAuthor ? (
-                  <Link href={`/kitchens/${kitchenId}/recipes/${recipeId}/edit`}>
+                  <Link
+                    href={`/kitchens/${kitchenId}/recipes/${recipeId}/edit`}
+                    className="hidden sm:inline-flex"
+                  >
                     <Button variant="outline">
                       <Pencil size={16} className="mr-1.5" />
                       Edytuj
@@ -356,74 +369,79 @@ export default function RecipeDetailPage() {
               </div>
             </header>
 
-            <div className="mb-8 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl bg-gray-50 px-4 py-3 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="text-gray-500">Porcje</span>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="h-7 w-7 p-0"
-                  onClick={() => adjustServings(-1)}
-                  disabled={activeServings <= 1}
-                  aria-label="Zmniejsz liczbę porcji"
-                >
-                  <Minus size={14} />
-                </Button>
-                <span className="min-w-6 text-center font-semibold text-gray-900">
-                  {activeServings}
-                </span>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="h-7 w-7 p-0"
-                  onClick={() => adjustServings(1)}
-                  aria-label="Zwiększ liczbę porcji"
-                >
-                  <Plus size={14} />
-                </Button>
+            <div className="mb-8 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-gray-200/80 bg-white px-3 py-2.5 sm:justify-start sm:px-4">
+                <span className="text-xs text-gray-500 sm:text-sm">Porcje</span>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 w-7 p-0"
+                    onClick={() => adjustServings(-1)}
+                    disabled={activeServings <= 1}
+                    aria-label="Zmniejsz liczbę porcji"
+                  >
+                    <Minus size={14} />
+                  </Button>
+                  <span className="min-w-6 text-center text-sm font-semibold text-gray-900">
+                    {activeServings}
+                  </span>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-7 w-7 p-0"
+                    onClick={() => adjustServings(1)}
+                    aria-label="Zwiększ liczbę porcji"
+                  >
+                    <Plus size={14} />
+                  </Button>
+                </div>
               </div>
-              <span className="text-gray-400">·</span>
-              <span>
-                <span className="text-gray-500">Przygotowanie </span>
-                <span className="font-medium text-gray-900">
-                  {formatRecipeTime(recipe.prepTimeMinutes)}
-                </span>
-              </span>
-              <span className="text-gray-400">·</span>
-              <span>
-                <span className="text-gray-500">Gotowanie </span>
-                <span className="font-medium text-gray-900">
-                  {formatRecipeTime(recipe.cookTimeMinutes)}
-                </span>
-              </span>
-              <span className="text-gray-400">·</span>
-              <span>
-                <span className="text-gray-500">Trudność </span>
-                <span className="font-medium text-gray-900">
-                  {RECIPE_DIFFICULTY_LABELS[recipe.difficulty]}
-                </span>
-              </span>
+              <MetaChip
+                label="Przygotowanie"
+                value={formatRecipeTime(recipe.prepTimeMinutes)}
+              />
+              <MetaChip
+                label="Gotowanie"
+                value={formatRecipeTime(recipe.cookTimeMinutes)}
+              />
+              <MetaChip
+                label="Łącznie"
+                value={formatTotalRecipeTime(
+                  recipe.prepTimeMinutes,
+                  recipe.cookTimeMinutes,
+                )}
+              />
+              <MetaChip
+                label="Trudność"
+                value={RECIPE_DIFFICULTY_LABELS[recipe.difficulty]}
+                className="col-span-2 sm:col-span-1"
+              />
             </div>
 
-            <div className="grid gap-8 lg:grid-cols-2 lg:gap-10">
-              <section>
-                <h2 className="mb-4 text-lg font-semibold text-gray-900">
-                  Składniki
-                </h2>
+            <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:gap-8">
+              <section className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white">
+                <div className="border-b border-gray-100 px-4 py-3 sm:px-5">
+                  <h2 className="text-base font-semibold text-gray-900 sm:text-lg">
+                    Składniki
+                  </h2>
+                </div>
 
                 {availabilityQuery.isPending ? (
-                  <p className="text-sm text-gray-500">Sprawdzanie zapasów…</p>
+                  <p className="px-4 py-4 text-sm text-gray-500 sm:px-5">
+                    Sprawdzanie zapasów…
+                  </p>
                 ) : null}
                 {availabilityQuery.isError ? (
-                  <p className="text-sm text-red-600" role="alert">
+                  <p className="px-4 py-4 text-sm text-red-600 sm:px-5" role="alert">
                     {readApiError(availabilityQuery.error)}
                   </p>
                 ) : null}
 
                 {!availabilityQuery.isPending && !availabilityQuery.isError ? (
-                  <ul className="space-y-1">
+                  <ul className="divide-y divide-gray-100">
                     {recipe.ingredients
                       .slice()
                       .sort((left, right) => left.sortOrder - right.sortOrder)
@@ -438,72 +456,76 @@ export default function RecipeDetailPage() {
                         const hint = availability
                           ? availabilityHint(availability)
                           : null;
+                        const checked = checkedIngredients.has(ingredient.id);
 
                         return (
                           <li
                             key={ingredient.id}
                             className={cn(
-                              "group flex gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-gray-50",
-                              checkedIngredients.has(ingredient.id) &&
-                                "opacity-60",
+                              "flex gap-3 px-4 py-3 sm:px-5",
+                              checked && "bg-gray-50/80",
                             )}
                           >
                             <input
                               type="checkbox"
-                              className="mt-1 shrink-0"
-                              checked={checkedIngredients.has(ingredient.id)}
+                              className="mt-1 h-5 w-5 shrink-0 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                              checked={checked}
                               onChange={() => toggleIngredient(ingredient.id)}
                               aria-label={`Oznacz ${ingredient.name} jako przygotowane`}
                             />
                             <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-                                <span
-                                  className={cn(
-                                    "font-medium text-gray-900",
-                                    checkedIngredients.has(ingredient.id) &&
-                                      "line-through",
-                                  )}
-                                >
-                                  {ingredientDisplayName(
-                                    ingredient,
-                                    availability,
-                                  )}
-                                </span>
-                                <span className="text-sm text-gray-600">
-                                  {formatRecipeIngredientQuantity(
-                                    displayQuantity,
-                                    displayUnit,
-                                  )}
-                                </span>
-                              </div>
-                              {ingredient.note ? (
-                                <p className="mt-0.5 text-xs text-gray-500">
-                                  {ingredient.note}
-                                </p>
-                              ) : null}
-                              {hint ? (
-                                <p className="mt-1 text-xs text-gray-500">
-                                  {hint}
-                                  {availability ? (
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0 flex-1">
+                                  <p
+                                    className={cn(
+                                      "text-sm font-medium text-gray-900 sm:text-[15px]",
+                                      checked && "text-gray-500 line-through",
+                                    )}
+                                  >
+                                    {ingredientDisplayName(
+                                      ingredient,
+                                      availability,
+                                    )}{" "}
                                     <span
                                       className={cn(
-                                        "ml-2",
-                                        availabilityBadgeClass(
-                                          availability.status,
-                                        ),
+                                        "font-normal text-gray-600",
+                                        checked && "text-gray-400",
                                       )}
                                     >
-                                      {availability.status === "available"
-                                        ? "OK"
-                                        : availability.status === "partial"
-                                          ? "Częściowo"
-                                          : availability.status === "missing"
-                                            ? "Brak"
-                                            : "?"}
+                                      {formatRecipeIngredientQuantity(
+                                        displayQuantity,
+                                        displayUnit,
+                                      )}
                                     </span>
+                                  </p>
+                                  {ingredient.note ? (
+                                    <p className="mt-0.5 text-xs text-gray-500">
+                                      {ingredient.note}
+                                    </p>
                                   ) : null}
-                                </p>
-                              ) : null}
+                                  {hint ? (
+                                    <p className="mt-1 text-xs leading-snug text-gray-500">
+                                      {hint}
+                                    </p>
+                                  ) : null}
+                                </div>
+                                {availability ? (
+                                  <span
+                                    className={cn(
+                                      "shrink-0 whitespace-nowrap",
+                                      availabilityBadgeClass(
+                                        availability.status,
+                                      ),
+                                    )}
+                                  >
+                                    {
+                                      AVAILABILITY_STATUS_LABELS[
+                                        availability.status
+                                      ]
+                                    }
+                                  </span>
+                                ) : null}
+                              </div>
                             </div>
                           </li>
                         );
@@ -512,62 +534,74 @@ export default function RecipeDetailPage() {
                 ) : null}
               </section>
 
-              <section>
-                <h2 className="mb-4 text-lg font-semibold text-gray-900">
-                  Przygotowanie
-                </h2>
-                <ol className="space-y-4">
+              <section className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white">
+                <div className="border-b border-gray-100 px-4 py-3 sm:px-5">
+                  <h2 className="text-base font-semibold text-gray-900 sm:text-lg">
+                    Przygotowanie
+                  </h2>
+                </div>
+                <ol className="relative px-4 py-2 sm:px-5">
                   {recipe.steps
                     .slice()
                     .sort((left, right) => left.sortOrder - right.sortOrder)
-                    .map((step, index) => (
-                      <li
-                        key={step.id}
-                        className={cn(
-                          "flex gap-3",
-                          doneSteps.has(step.id) && "opacity-60",
-                        )}
-                      >
-                        <div className="flex flex-col items-center gap-1">
-                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-sm font-semibold text-emerald-700">
-                            {index + 1}
-                          </span>
-                          <input
-                            type="checkbox"
-                            checked={doneSteps.has(step.id)}
-                            onChange={() => toggleStep(step.id)}
-                            aria-label={`Krok ${index + 1} wykonany`}
-                            className="mt-1"
-                          />
-                        </div>
-                        <div className="min-w-0 flex-1 pt-0.5">
-                          {step.title ? (
+                    .map((step, index, all) => {
+                      const done = doneSteps.has(step.id);
+                      const isLast = index === all.length - 1;
+                      return (
+                        <li
+                          key={step.id}
+                          className={cn(
+                            "relative flex gap-3 py-4",
+                            !isLast && "border-b border-gray-100",
+                          )}
+                        >
+                          {!isLast ? (
+                            <span
+                              className="absolute top-12 bottom-0 left-[15px] w-px bg-emerald-100"
+                              aria-hidden
+                            />
+                          ) : null}
+                          <div className="relative z-[1] flex shrink-0 flex-col items-center gap-2">
+                            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-50 text-sm font-semibold text-emerald-700 ring-4 ring-white">
+                              {index + 1}
+                            </span>
+                            <input
+                              type="checkbox"
+                              checked={done}
+                              onChange={() => toggleStep(step.id)}
+                              aria-label={`Krok ${index + 1} wykonany`}
+                              className="h-5 w-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
+                            />
+                          </div>
+                          <div className="min-w-0 flex-1 pt-0.5">
+                            {step.title ? (
+                              <p
+                                className={cn(
+                                  "font-semibold text-gray-900",
+                                  done && "text-gray-500 line-through",
+                                )}
+                              >
+                                {step.title}
+                              </p>
+                            ) : null}
                             <p
                               className={cn(
-                                "font-medium text-gray-900",
-                                doneSteps.has(step.id) && "line-through",
+                                "leading-relaxed text-gray-700",
+                                step.title ? "mt-1" : "",
+                                done && "text-gray-500 line-through",
                               )}
                             >
-                              {step.title}
+                              {step.instruction}
                             </p>
-                          ) : null}
-                          <p
-                            className={cn(
-                              "text-gray-800 leading-relaxed",
-                              step.title ? "mt-1" : "",
-                              doneSteps.has(step.id) && "line-through",
-                            )}
-                          >
-                            {step.instruction}
-                          </p>
-                          {step.durationMinutes ? (
-                            <p className="mt-1.5 text-xs text-gray-500">
-                              {formatRecipeTime(step.durationMinutes)}
-                            </p>
-                          ) : null}
-                        </div>
-                      </li>
-                    ))}
+                            {step.durationMinutes ? (
+                              <p className="mt-2 text-xs font-medium text-emerald-700">
+                                {formatRecipeTime(step.durationMinutes)}
+                              </p>
+                            ) : null}
+                          </div>
+                        </li>
+                      );
+                    })}
                 </ol>
               </section>
             </div>
@@ -634,5 +668,29 @@ export default function RecipeDetailPage() {
         />
       ) : null}
     </AppShell>
+  );
+}
+
+function MetaChip({
+  label,
+  value,
+  className,
+}: {
+  label: string;
+  value: string;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "flex flex-col justify-center rounded-xl border border-gray-200/80 bg-white px-3 py-2.5 sm:min-w-[7.5rem] sm:px-4",
+        className,
+      )}
+    >
+      <span className="text-[11px] tracking-wide text-gray-500 uppercase sm:text-xs sm:normal-case sm:tracking-normal">
+        {label}
+      </span>
+      <span className="mt-0.5 text-sm font-semibold text-gray-900">{value}</span>
+    </div>
   );
 }

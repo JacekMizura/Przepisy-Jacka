@@ -1,5 +1,6 @@
 import { Prisma } from '../generated/prisma/client';
 import {
+  ProductPurchaseMode,
   ProductUnit,
   RecipeIngredientUnit,
   ShoppingInputUnit,
@@ -15,7 +16,7 @@ export type PurchaseOptionInput = {
 };
 
 export type PurchaseProposal = {
-  mode: 'packages' | 'exact';
+  mode: 'packages' | 'exact' | 'unconfigured';
   purchaseOptionId: string | null;
   purchaseOptionName: string | null;
   packageCount: number | null;
@@ -91,30 +92,62 @@ export function proposePackageCount(
     .toNumber();
 }
 
+function buildExactProposal(input: {
+  gapInProductBase: Prisma.Decimal;
+  productUnit: ProductUnit;
+  exactQuantity?: Prisma.Decimal | null;
+}): PurchaseProposal {
+  const exact = input.exactQuantity ?? input.gapInProductBase;
+  return {
+    mode: 'exact',
+    purchaseOptionId: null,
+    purchaseOptionName: null,
+    packageCount: null,
+    packageContentQuantity: null,
+    packageContentUnit: null,
+    totalPurchaseQuantity: formatQty(exact),
+    totalPurchaseUnit: productUnitToShoppingInputUnit(input.productUnit),
+    alternatives: [],
+  };
+}
+
+function buildUnconfiguredProposal(input: {
+  gapInProductBase: Prisma.Decimal;
+  productUnit: ProductUnit;
+}): PurchaseProposal {
+  return {
+    mode: 'unconfigured',
+    purchaseOptionId: null,
+    purchaseOptionName: null,
+    packageCount: null,
+    packageContentQuantity: null,
+    packageContentUnit: null,
+    totalPurchaseQuantity: formatQty(input.gapInProductBase),
+    totalPurchaseUnit: productUnitToShoppingInputUnit(input.productUnit),
+    alternatives: [],
+  };
+}
+
 export function buildPurchaseProposal(input: {
   gapInProductBase: Prisma.Decimal;
   productUnit: ProductUnit;
+  purchaseMode: ProductPurchaseMode;
   options: PurchaseOptionInput[];
   preferredOptionId?: string | null;
   overridePackageCount?: number | null;
   exactQuantity?: Prisma.Decimal | null;
 }): PurchaseProposal {
-  const active = input.options.filter((option) => option.isActive);
-  const shoppingUnit = productUnitToShoppingInputUnit(input.productUnit);
+  if (input.purchaseMode === ProductPurchaseMode.unconfigured) {
+    return buildUnconfiguredProposal(input);
+  }
 
+  if (input.purchaseMode === ProductPurchaseMode.exact) {
+    return buildExactProposal(input);
+  }
+
+  const active = input.options.filter((option) => option.isActive);
   if (active.length === 0) {
-    const exact = input.exactQuantity ?? input.gapInProductBase;
-    return {
-      mode: 'exact',
-      purchaseOptionId: null,
-      purchaseOptionName: null,
-      packageCount: null,
-      packageContentQuantity: null,
-      packageContentUnit: null,
-      totalPurchaseQuantity: formatQty(exact),
-      totalPurchaseUnit: shoppingUnit,
-      alternatives: [],
-    };
+    throw new Error('Produkt w trybie packaged nie ma aktywnych opcji zakupu.');
   }
 
   const preferred =

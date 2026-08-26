@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import {
+  ProductPurchaseMode,
   ProductUnit,
   ShoppingInputUnit,
   ShoppingListItemStatus,
@@ -24,6 +25,7 @@ import {
 } from '../common/quantity';
 import { requireKitchenMember } from '../kitchens/kitchen-access';
 import { PrismaService } from '../prisma/prisma.service';
+import { PRODUCT_PURCHASE_CONFIG_REQUIRED_MESSAGE } from '../stock/purchase-mode.messages';
 import {
   CheckoutPurchaseDto,
   CheckoutPurchaseLineDto,
@@ -152,6 +154,8 @@ export class ShoppingService {
 
     let product: Product | null = null;
     let purchaseOption: ProductPurchaseOption | null = null;
+    let plannedQuantityResolved = plannedQuantity;
+    let plannedUnitResolved = dto.plannedUnit;
 
     if (dto.productId) {
       product = await tx.product.findFirst({
@@ -160,6 +164,9 @@ export class ShoppingService {
       if (!product) {
         throw new BadRequestException('Nie znaleziono produktu w tej kuchni.');
       }
+
+      assertProductPurchaseModeForCreate(product, dto);
+
       if (dto.plannedUnit) {
         assertInputUnitCompatibleWithProduct(
           dto.plannedUnit,
@@ -183,6 +190,17 @@ export class ShoppingService {
         if (!purchaseOption) {
           throw new BadRequestException('Nie znaleziono opcji zakupu.');
         }
+        if (
+          product.purchaseMode === ProductPurchaseMode.packaged &&
+          dto.packageCount
+        ) {
+          plannedQuantityResolved = purchaseOption.contentQuantity.mul(
+            dto.packageCount,
+          );
+          plannedUnitResolved = productUnitToShoppingInputUnit(
+            purchaseOption.contentUnit,
+          );
+        }
       }
     }
 
@@ -192,8 +210,15 @@ export class ShoppingService {
       const item = await upsertPendingProductListItem(
         tx,
         shoppingList,
-        dto,
-        plannedQuantity,
+        {
+          ...dto,
+          plannedUnit: plannedUnitResolved,
+          plannedQuantity:
+            plannedQuantityResolved !== null
+              ? formatQuantity(plannedQuantityResolved)
+              : dto.plannedQuantity,
+        },
+        plannedQuantityResolved,
         requiredQuantity,
         purchaseOption,
       );
@@ -225,27 +250,73 @@ export class ShoppingService {
     const existing = await this.findActiveShoppingListItem(kitchenId, itemId);
     assertNotResolved(existing);
 
-    const plannedQuantity =
+    const convertingToPackages =
+      dto.purchaseOptionId !== undefined && dto.packageCount !== undefined;
+
+    if (
+      (dto.purchaseOptionId !== undefined && dto.packageCount === undefined) ||
+      (dto.purchaseOptionId === undefined && dto.packageCount !== undefined)
+    ) {
+      throw new BadRequestException(
+        'purchaseOptionId i packageCount muszą być podane razem.',
+      );
+    }
+
+    let purchaseOption: ProductPurchaseOption | null = null;
+    let plannedQuantity =
       dto.plannedQuantity !== undefined
         ? parseQuantityString(dto.plannedQuantity, 'plannedQuantity')
         : undefined;
+    let plannedUnit = dto.plannedUnit;
 
-    if (
-      (plannedQuantity !== undefined && dto.plannedUnit === undefined) ||
-      (plannedQuantity === undefined && dto.plannedUnit !== undefined)
-    ) {
-      throw new BadRequestException(
-        'plannedQuantity i plannedUnit muszą być podane razem.',
-      );
+    if (convertingToPackages) {
+      if (!existing.productId || !existing.product) {
+        throw new BadRequestException(
+          'Konwersja na opakowania wymaga pozycji powiązanej z produktem.',
+        );
+      }
+      if (existing.product.purchaseMode === ProductPurchaseMode.unconfigured) {
+        throw new BadRequestException(PRODUCT_PURCHASE_CONFIG_REQUIRED_MESSAGE);
+      }
+      if (existing.product.purchaseMode === ProductPurchaseMode.exact) {
+        throw new BadRequestException(
+          'Produkt w trybie dokładnej ilości nie używa opakowań. Zmień purchaseMode na packaged.',
+        );
+      }
+      purchaseOption = await this.prisma.productPurchaseOption.findFirst({
+        where: {
+          id: dto.purchaseOptionId!,
+          productId: existing.productId,
+          isActive: true,
+        },
+      });
+      if (!purchaseOption) {
+        throw new BadRequestException('Nie znaleziono opcji zakupu.');
+      }
+      plannedQuantity = purchaseOption.contentQuantity.mul(dto.packageCount!);
+      plannedUnit = productUnitToShoppingInputUnit(purchaseOption.contentUnit);
+    } else {
+      if (
+        (plannedQuantity !== undefined && plannedUnit === undefined) ||
+        (plannedQuantity === undefined && plannedUnit !== undefined)
+      ) {
+        throw new BadRequestException(
+          'plannedQuantity i plannedUnit muszą być podane razem.',
+        );
+      }
+
+      const resolvedPlannedUnit = plannedUnit ?? existing.plannedUnit;
+      if (resolvedPlannedUnit && existing.product) {
+        assertInputUnitCompatibleWithProduct(
+          resolvedPlannedUnit,
+          existing.product.defaultUnit,
+        );
+      }
     }
 
-    const plannedUnit = dto.plannedUnit ?? existing.plannedUnit;
-    if (plannedUnit && existing.product) {
-      assertInputUnitCompatibleWithProduct(
-        plannedUnit,
-        existing.product.defaultUnit,
-      );
-    }
+    const clearPackagesForExact =
+      !convertingToPackages &&
+      existing.product?.purchaseMode === ProductPurchaseMode.exact;
 
     const item = await this.prisma.shoppingListItem.update({
       where: { id: existing.id },
@@ -253,14 +324,22 @@ export class ShoppingService {
         customName:
           dto.customName !== undefined ? dto.customName.trim() : undefined,
         plannedQuantity,
-        plannedUnit: dto.plannedUnit,
+        plannedUnit,
         requiredQuantity:
           dto.requiredQuantity !== undefined
             ? parseQuantityString(dto.requiredQuantity, 'requiredQuantity')
             : undefined,
         requiredUnit: dto.requiredUnit,
-        purchaseOptionId: dto.purchaseOptionId,
-        packageCount: dto.packageCount,
+        purchaseOptionId: convertingToPackages
+          ? purchaseOption!.id
+          : clearPackagesForExact
+            ? null
+            : dto.purchaseOptionId,
+        packageCount: convertingToPackages
+          ? dto.packageCount
+          : clearPackagesForExact
+            ? null
+            : dto.packageCount,
         note:
           dto.note === undefined ? undefined : normalizeOptionalNote(dto.note),
       },
@@ -385,10 +464,11 @@ export class ShoppingService {
           line,
           listItem,
         );
+        assertProductPurchaseModeForCheckout(product, listItem);
         const stockQuantity = resolveCheckoutStockQuantity(
           line,
           listItem,
-          product.defaultUnit,
+          product,
         );
         assertStockQuantities(stockQuantity, stockQuantity);
 
@@ -890,22 +970,101 @@ function assertCompatibleInputUnits(
   }
 }
 
+function assertProductPurchaseModeForCreate(
+  product: Product,
+  dto: CreateShoppingListItemDto,
+): void {
+  switch (product.purchaseMode) {
+    case ProductPurchaseMode.unconfigured:
+      throw new BadRequestException(PRODUCT_PURCHASE_CONFIG_REQUIRED_MESSAGE);
+    case ProductPurchaseMode.packaged: {
+      if (!dto.purchaseOptionId || !dto.packageCount) {
+        throw new BadRequestException(
+          'Produkt w trybie opakowań wymaga purchaseOptionId i packageCount.',
+        );
+      }
+      return;
+    }
+    case ProductPurchaseMode.exact: {
+      if (dto.purchaseOptionId || dto.packageCount) {
+        throw new BadRequestException(
+          'Produkt w trybie dokładnej ilości nie używa opakowań.',
+        );
+      }
+      if (
+        dto.plannedQuantity === undefined ||
+        dto.plannedUnit === undefined ||
+        parseQuantityString(dto.plannedQuantity, 'plannedQuantity').lte(0)
+      ) {
+        throw new BadRequestException(
+          'Produkt w trybie dokładnej ilości wymaga plannedQuantity i plannedUnit.',
+        );
+      }
+      return;
+    }
+    default: {
+      const exhaustive: never = product.purchaseMode;
+      return exhaustive;
+    }
+  }
+}
+
+function assertProductPurchaseModeForCheckout(
+  product: Product,
+  listItem: ShoppingListItemWithProduct,
+): void {
+  switch (product.purchaseMode) {
+    case ProductPurchaseMode.unconfigured:
+      throw new BadRequestException(PRODUCT_PURCHASE_CONFIG_REQUIRED_MESSAGE);
+    case ProductPurchaseMode.packaged: {
+      if (
+        !listItem.purchaseOptionId ||
+        listItem.packageCount === null ||
+        listItem.packageCount < 1 ||
+        !listItem.purchaseOption
+      ) {
+        throw new BadRequestException(
+          'Checkout opakowań wymaga aktywnej opcji zakupu i packageCount na pozycji listy.',
+        );
+      }
+      return;
+    }
+    case ProductPurchaseMode.exact: {
+      if (listItem.purchaseOptionId || listItem.packageCount) {
+        throw new BadRequestException(
+          'Produkt w trybie dokładnej ilości nie może być rozliczany jako opakowanie.',
+        );
+      }
+      return;
+    }
+    default: {
+      const exhaustive: never = product.purchaseMode;
+      return exhaustive;
+    }
+  }
+}
+
 function resolveCheckoutStockQuantity(
   line: CheckoutPurchaseLineDto,
   listItem: ShoppingListItemWithProduct,
-  productUnit: ProductUnit,
+  product: Product,
 ): Prisma.Decimal {
-  if (
-    listItem.purchaseOption &&
-    listItem.packageCount !== null &&
-    listItem.packageCount > 0
-  ) {
+  if (product.purchaseMode === ProductPurchaseMode.packaged) {
+    if (
+      !listItem.purchaseOption ||
+      listItem.packageCount === null ||
+      listItem.packageCount < 1
+    ) {
+      throw new BadRequestException(
+        'Checkout opakowań wymaga packageCount i opcji zakupu.',
+      );
+    }
     return listItem.purchaseOption.contentQuantity.mul(listItem.packageCount);
   }
   return convertQuantityToProductUnit(
     parseQuantityString(line.quantity, 'quantity'),
     line.inputUnit,
-    productUnit,
+    product.defaultUnit,
   );
 }
 
@@ -950,6 +1109,7 @@ async function resolveCheckoutProduct(
         name,
         normalizedName,
         defaultUnit: line.createProduct.defaultUnit,
+        purchaseMode: ProductPurchaseMode.exact,
       },
     });
   } catch (error) {
@@ -972,6 +1132,7 @@ function toShoppingListItemProductDto(
     id: product.id,
     name: product.name,
     defaultUnit: product.defaultUnit,
+    purchaseMode: product.purchaseMode,
     ean: product.ean,
     imageUrl: product.imageUrl,
     category: product.category,

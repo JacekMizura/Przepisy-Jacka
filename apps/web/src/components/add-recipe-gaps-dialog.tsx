@@ -7,6 +7,8 @@ import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { createWebApiClient } from "@/lib/api";
+import { readApiError, UNIT_LABELS } from "@/lib/errors";
 import {
   formatPackagePurchase,
   formatQuantityNumber,
@@ -17,6 +19,7 @@ import {
   AVAILABILITY_STATUS_LABELS,
   formatRecipeIngredientQuantity,
 } from "@/lib/recipe-labels";
+import { type BaseUnit } from "@/lib/quantity-input";
 import { cn } from "@/lib/utils";
 
 type AvailabilityIngredient =
@@ -29,15 +32,24 @@ type GapRowState = {
   packageCount: number;
   exactQuantity: string;
   useExact: boolean;
+  configPath: null | "packaged" | "exact";
+  optionName: string;
+  optionQuantity: string;
+  optionUnit: BaseUnit;
+  configError: string | null;
+  configPending: boolean;
+  exactAcknowledged: boolean;
 };
 
 type AddRecipeGapsDialogProps = {
+  kitchenId: string;
   recipeName: string;
   servings: number;
   ingredients: AvailabilityIngredient[];
   pending?: boolean;
   onCancel: () => void;
   onConfirm: (selections: RecipeGapSelection[]) => void;
+  onProductConfigured: (productId: string) => void;
 };
 
 function isActionable(ingredient: AvailabilityIngredient): boolean {
@@ -48,9 +60,31 @@ function isActionable(ingredient: AvailabilityIngredient): boolean {
   );
 }
 
+function isUnconfigured(ingredient: AvailabilityIngredient): boolean {
+  return (
+    ingredient.purchaseMode === "unconfigured" ||
+    ingredient.purchaseProposal?.mode === "unconfigured"
+  );
+}
+
+function defaultUnitFor(ingredient: AvailabilityIngredient): BaseUnit {
+  const unit =
+    ingredient.gapUnit ??
+    ingredient.availableUnit ??
+    ingredient.unit;
+  if (unit === "gram" || unit === "kilogram") {
+    return "gram";
+  }
+  if (unit === "milliliter" || unit === "liter") {
+    return "milliliter";
+  }
+  return "piece";
+}
+
 function defaultRowState(ingredient: AvailabilityIngredient): GapRowState {
   const proposal = ingredient.purchaseProposal;
   const usePackages = proposal?.mode === "packages" && proposal.packageCount;
+  const unconfigured = isUnconfigured(ingredient);
   return {
     skip: ingredient.status === "unknown",
     purchaseOptionId: proposal?.purchaseOptionId ?? null,
@@ -58,7 +92,14 @@ function defaultRowState(ingredient: AvailabilityIngredient): GapRowState {
     exactQuantity: formatQuantityNumber(
       proposal?.totalPurchaseQuantity ?? ingredient.gapQuantity ?? "",
     ),
-    useExact: !usePackages,
+    useExact: unconfigured ? false : !usePackages,
+    configPath: null,
+    optionName: "",
+    optionQuantity: "",
+    optionUnit: defaultUnitFor(ingredient),
+    configError: null,
+    configPending: false,
+    exactAcknowledged: !unconfigured && !usePackages,
   };
 }
 
@@ -69,6 +110,9 @@ function formatPurchasePreview(
   if (row.skip) {
     return "—";
   }
+  if (isUnconfigured(ingredient) && !row.exactAcknowledged) {
+    return "Wybierz sposób zakupu";
+  }
   if (row.useExact) {
     const unit =
       ingredient.purchaseProposal?.totalPurchaseUnit ??
@@ -78,42 +122,75 @@ function formatPurchasePreview(
   }
   const proposal = ingredient.purchaseProposal;
   const optionName =
-    proposal?.alternatives.find((alt) => alt.purchaseOptionId === row.purchaseOptionId)
-      ?.purchaseOptionName ??
+    proposal?.alternatives.find(
+      (alt) => alt.purchaseOptionId === row.purchaseOptionId,
+    )?.purchaseOptionName ??
     proposal?.purchaseOptionName ??
     null;
   return formatPackagePurchase(row.packageCount, optionName, null, null);
 }
 
 export function AddRecipeGapsDialog({
+  kitchenId,
   recipeName,
   servings,
   ingredients,
   pending,
   onCancel,
   onConfirm,
+  onProductConfigured,
 }: AddRecipeGapsDialogProps) {
   const actionable = useMemo(
     () => ingredients.filter(isActionable),
     [ingredients],
   );
 
-  const [rows, setRows] = useState<Record<string, GapRowState>>(() => {
+  const baseRows = useMemo(() => {
     const initial: Record<string, GapRowState> = {};
-    for (const ingredient of ingredients.filter(isActionable)) {
+    for (const ingredient of actionable) {
       initial[ingredient.ingredientId] = defaultRowState(ingredient);
     }
     return initial;
-  });
+  }, [actionable]);
+
+  const [overrides, setOverrides] = useState<Record<string, GapRowState>>({});
+
+  const rows = useMemo(() => {
+    const merged: Record<string, GapRowState> = { ...baseRows };
+    for (const ingredient of actionable) {
+      const override = overrides[ingredient.ingredientId];
+      if (!override) {
+        continue;
+      }
+      if (!isUnconfigured(ingredient)) {
+        merged[ingredient.ingredientId] = {
+          ...baseRows[ingredient.ingredientId]!,
+          skip: override.skip,
+        };
+      } else {
+        merged[ingredient.ingredientId] = override;
+      }
+    }
+    return merged;
+  }, [actionable, baseRows, overrides]);
 
   function updateRow(ingredientId: string, patch: Partial<GapRowState>) {
-    setRows((current) => ({
-      ...current,
-      [ingredientId]: {
-        ...current[ingredientId]!,
-        ...patch,
-      },
-    }));
+    setOverrides((current) => {
+      const previous =
+        current[ingredientId] ??
+        rows[ingredientId] ??
+        baseRows[ingredientId] ??
+        defaultRowState(
+          actionable.find((entry) => entry.ingredientId === ingredientId)!,
+        );
+      return {
+        ...current,
+        [ingredientId]: {
+          ...previous,
+          ...patch,
+        },
+      };
+    });
   }
 
   function selectOption(
@@ -130,11 +207,128 @@ export function AddRecipeGapsDialog({
     });
   }
 
+  async function configureExact(ingredient: AvailabilityIngredient) {
+    if (!ingredient.productId) {
+      updateRow(ingredient.ingredientId, {
+        configError: "Brak powiązanego produktu — pomiń lub powiąż składnik.",
+      });
+      return;
+    }
+    updateRow(ingredient.ingredientId, {
+      configPending: true,
+      configError: null,
+      configPath: "exact",
+    });
+    try {
+      const client = createWebApiClient();
+      const { error } = await client.POST(
+        "/api/kitchens/{kitchenId}/products/{productId}/configure-purchase",
+        {
+          params: {
+            path: { kitchenId, productId: ingredient.productId },
+          },
+          body: { mode: "exact" },
+        },
+      );
+      if (error) {
+        throw new Error(
+          readApiError(error, "Nie udało się ustawić dokładnej ilości."),
+        );
+      }
+      updateRow(ingredient.ingredientId, {
+        configPending: false,
+        useExact: true,
+        exactAcknowledged: true,
+        configPath: "exact",
+      });
+      onProductConfigured(ingredient.productId);
+    } catch (error) {
+      updateRow(ingredient.ingredientId, {
+        configPending: false,
+        configError: readApiError(error),
+      });
+    }
+  }
+
+  async function configurePackaged(ingredient: AvailabilityIngredient) {
+    const row =
+      rows[ingredient.ingredientId] ?? defaultRowState(ingredient);
+    if (!ingredient.productId) {
+      updateRow(ingredient.ingredientId, {
+        configError: "Brak powiązanego produktu — pomiń lub powiąż składnik.",
+      });
+      return;
+    }
+    if (!row.optionName.trim()) {
+      updateRow(ingredient.ingredientId, {
+        configError: "Podaj nazwę opakowania.",
+      });
+      return;
+    }
+    if (!row.optionQuantity.trim()) {
+      updateRow(ingredient.ingredientId, {
+        configError: "Podaj zawartość opakowania.",
+      });
+      return;
+    }
+    updateRow(ingredient.ingredientId, {
+      configPending: true,
+      configError: null,
+    });
+    try {
+      const client = createWebApiClient();
+      const { error } = await client.POST(
+        "/api/kitchens/{kitchenId}/products/{productId}/configure-purchase",
+        {
+          params: {
+            path: { kitchenId, productId: ingredient.productId },
+          },
+          body: {
+            mode: "packaged",
+            option: {
+              name: row.optionName.trim(),
+              contentQuantity: toApiQuantityString(row.optionQuantity),
+              contentUnit: row.optionUnit,
+              isDefault: true,
+            },
+          },
+        },
+      );
+      if (error) {
+        throw new Error(
+          readApiError(error, "Nie udało się zapisać opakowania."),
+        );
+      }
+      updateRow(ingredient.ingredientId, {
+        configPending: false,
+        configPath: null,
+        useExact: false,
+      });
+      onProductConfigured(ingredient.productId);
+    } catch (error) {
+      updateRow(ingredient.ingredientId, {
+        configPending: false,
+        configError: readApiError(error),
+      });
+    }
+  }
+
   const includedCount = actionable.filter(
     (ingredient) => !rows[ingredient.ingredientId]?.skip,
   ).length;
 
+  const hasUnresolvedUnconfigured = actionable.some((ingredient) => {
+    const row = rows[ingredient.ingredientId];
+    if (!row || row.skip) {
+      return false;
+    }
+    return isUnconfigured(ingredient);
+  });
+
   function handleConfirm() {
+    if (hasUnresolvedUnconfigured) {
+      return;
+    }
     const selections: RecipeGapSelection[] = actionable.map((ingredient) => {
       const row = rows[ingredient.ingredientId] ?? defaultRowState(ingredient);
       const selection: RecipeGapSelection = {
@@ -204,6 +398,11 @@ export function AddRecipeGapsDialog({
               const hasPackageOptions =
                 (ingredient.purchaseProposal?.alternatives.length ?? 0) > 0;
               const proposal = ingredient.purchaseProposal;
+              const needsConfig = !row.skip && isUnconfigured(ingredient);
+              const exactUnit =
+                proposal?.totalPurchaseUnit ??
+                ingredient.gapUnit ??
+                ingredient.unit;
 
               return (
                 <li
@@ -212,7 +411,9 @@ export function AddRecipeGapsDialog({
                     "rounded-xl border p-4",
                     row.skip
                       ? "border-gray-100 bg-gray-50/50 opacity-75"
-                      : "border-gray-100 bg-white",
+                      : needsConfig
+                        ? "border-amber-200 bg-amber-50/40"
+                        : "border-gray-100 bg-white",
                   )}
                 >
                   <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
@@ -286,7 +487,134 @@ export function AddRecipeGapsDialog({
                     </div>
                   </dl>
 
-                  {!row.skip ? (
+                  {needsConfig ? (
+                    <div className="mt-4 space-y-3 border-t border-amber-100 pt-3">
+                      <p className="text-sm font-semibold text-amber-950">
+                        Jak kupujesz ten produkt?
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={
+                            row.configPath === "packaged"
+                              ? "default"
+                              : "outline"
+                          }
+                          disabled={row.configPending}
+                          onClick={() =>
+                            updateRow(ingredient.ingredientId, {
+                              configPath: "packaged",
+                              configError: null,
+                              optionName: row.optionName || "Karton 1 l",
+                              optionUnit: defaultUnitFor(ingredient),
+                            })
+                          }
+                        >
+                          W opakowaniach
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={
+                            row.configPath === "exact" ? "default" : "outline"
+                          }
+                          disabled={row.configPending}
+                          onClick={() => configureExact(ingredient)}
+                        >
+                          Na dokładną ilość
+                        </Button>
+                      </div>
+
+                      {row.configPath === "packaged" ? (
+                        <div className="space-y-3 rounded-lg border border-amber-100 bg-white p-3">
+                          <div className="grid gap-3 sm:grid-cols-2">
+                            <div className="space-y-1">
+                              <Label className="text-xs">Nazwa opakowania</Label>
+                              <Input
+                                placeholder="np. Karton 1 l"
+                                value={row.optionName}
+                                onChange={(event) =>
+                                  updateRow(ingredient.ingredientId, {
+                                    optionName: event.target.value,
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <Label className="text-xs">Zawartość</Label>
+                              <div className="flex gap-2">
+                                <Input
+                                  inputMode="decimal"
+                                  placeholder="1000"
+                                  value={row.optionQuantity}
+                                  onChange={(event) =>
+                                    updateRow(ingredient.ingredientId, {
+                                      optionQuantity: event.target.value,
+                                    })
+                                  }
+                                  className="flex-1"
+                                />
+                                <select
+                                  className="rounded-lg border border-gray-200 bg-white px-2 text-sm"
+                                  value={row.optionUnit}
+                                  onChange={(event) =>
+                                    updateRow(ingredient.ingredientId, {
+                                      optionUnit: event.target
+                                        .value as BaseUnit,
+                                    })
+                                  }
+                                >
+                                  {(Object.keys(UNIT_LABELS) as BaseUnit[]).map(
+                                    (unit) => (
+                                      <option key={unit} value={unit}>
+                                        {UNIT_LABELS[unit]}
+                                      </option>
+                                    ),
+                                  )}
+                                </select>
+                              </div>
+                            </div>
+                          </div>
+                          <label className="flex items-center gap-2 text-sm text-gray-700">
+                            <input type="checkbox" checked readOnly />
+                            Domyślne opakowanie
+                          </label>
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={row.configPending}
+                            onClick={() => configurePackaged(ingredient)}
+                          >
+                            {row.configPending
+                              ? "Zapisywanie…"
+                              : "Zapisz opakowanie"}
+                          </Button>
+                        </div>
+                      ) : null}
+
+                      {row.configPath === "exact" && row.exactAcknowledged ? (
+                        <p className="rounded-lg border border-amber-100 bg-white px-3 py-2 text-sm text-amber-950">
+                          Na listę trafi dokładna ilość{" "}
+                          <span className="font-semibold">
+                            {formatQuantityWithUnit(
+                              row.exactQuantity,
+                              exactUnit,
+                            )}
+                          </span>
+                          .
+                        </p>
+                      ) : null}
+
+                      {row.configError ? (
+                        <p className="text-sm text-red-600" role="alert">
+                          {row.configError}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+
+                  {!row.skip && !needsConfig ? (
                     <div className="mt-4 space-y-3 border-t border-gray-100 pt-3">
                       {hasPackageOptions ? (
                         <>
@@ -350,6 +678,16 @@ export function AddRecipeGapsDialog({
                             }
                             className="max-w-xs"
                           />
+                          {row.useExact ? (
+                            <p className="text-xs text-gray-500">
+                              Potwierdzasz dodanie{" "}
+                              {formatQuantityWithUnit(
+                                row.exactQuantity,
+                                exactUnit,
+                              )}
+                              .
+                            </p>
+                          ) : null}
                         </div>
                       )}
 
@@ -391,13 +729,22 @@ export function AddRecipeGapsDialog({
           </ul>
         )}
 
+        {hasUnresolvedUnconfigured ? (
+          <p className="mt-4 text-sm text-amber-800" role="status">
+            Ustal sposób zakupu albo odznacz pozycje, zanim dodasz braki do
+            listy.
+          </p>
+        ) : null}
+
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button variant="outline" onClick={onCancel} disabled={pending}>
             Anuluj
           </Button>
           <Button
             onClick={handleConfirm}
-            disabled={pending || includedCount === 0}
+            disabled={
+              pending || includedCount === 0 || hasUnresolvedUnconfigured
+            }
           >
             {pending
               ? "Dodawanie…"

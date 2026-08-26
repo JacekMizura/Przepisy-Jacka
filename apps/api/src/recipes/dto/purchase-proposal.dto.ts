@@ -26,8 +26,8 @@ export class PurchaseProposalAlternativeDto {
 }
 
 export class PurchaseProposalDto {
-  @ApiProperty({ enum: ['packages', 'exact'] })
-  mode!: 'packages' | 'exact';
+  @ApiProperty({ enum: ['packages', 'exact', 'unconfigured'] })
+  mode!: 'packages' | 'exact' | 'unconfigured';
 
   @ApiProperty({ type: String, nullable: true })
   purchaseOptionId!: string | null;

@@ -633,6 +633,7 @@ export default function RecipeDetailPage() {
 
       {gapsOpen && availabilityQuery.data ? (
         <AddRecipeGapsDialog
+          kitchenId={kitchenId}
           recipeName={recipe?.name ?? "Przepis"}
           servings={activeServings}
           ingredients={availabilityQuery.data.ingredients}
@@ -643,6 +644,12 @@ export default function RecipeDetailPage() {
             }
           }}
           onConfirm={(selections) => addGaps.mutate(selections)}
+          onProductConfigured={() => {
+            void queryClient.invalidateQueries({
+              queryKey: ["products", kitchenId],
+            });
+            void availabilityQuery.refetch();
+          }}
         />
       ) : null}
 

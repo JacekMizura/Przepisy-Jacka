@@ -1,5 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsEnum,
   IsOptional,
   IsString,
@@ -7,9 +9,13 @@ import {
   MaxLength,
   MinLength,
   ValidateIf,
+  ValidateNested,
 } from 'class-validator';
 
-import { ProductUnit } from '../../generated/prisma/client';
+import {
+  ProductPurchaseMode,
+  ProductUnit,
+} from '../../generated/prisma/client';
 import { PurchaseOptionDto } from './purchase-option.dto';
 
 /** EAN-8 / UPC-A / EAN-13 / GTIN-14 (same digits). */
@@ -75,6 +81,53 @@ export class CreateProductDto {
   category?: string | null;
 }
 
+export class UpdateProductDto {
+  @ApiPropertyOptional({ enum: ProductPurchaseMode })
+  @IsOptional()
+  @IsEnum(ProductPurchaseMode)
+  purchaseMode?: ProductPurchaseMode;
+}
+
+export class ConfigureProductPurchaseOptionDto {
+  @ApiProperty({ example: 'Karton 1 l' })
+  @IsString()
+  @MinLength(1)
+  name!: string;
+
+  @ApiProperty({ type: String, example: '1000.000' })
+  @IsString()
+  @MinLength(1)
+  contentQuantity!: string;
+
+  @ApiProperty({ enum: ProductUnit })
+  @IsEnum(ProductUnit)
+  contentUnit!: ProductUnit;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  isDefault?: boolean;
+}
+
+export class ConfigureProductPurchaseDto {
+  @ApiProperty({
+    enum: ProductPurchaseMode,
+    description:
+      'packaged wymaga pierwszej opcji; exact nie wymaga opcji; unconfigured czyści tryb bez usuwania opcji.',
+  })
+  @IsEnum(ProductPurchaseMode)
+  mode!: ProductPurchaseMode;
+
+  @ApiPropertyOptional({ type: ConfigureProductPurchaseOptionDto })
+  @ValidateIf(
+    (dto: ConfigureProductPurchaseDto) =>
+      dto.mode === ProductPurchaseMode.packaged,
+  )
+  @ValidateNested()
+  @Type(() => ConfigureProductPurchaseOptionDto)
+  option?: ConfigureProductPurchaseOptionDto;
+}
+
 export class ProductDto {
   @ApiProperty()
   id!: string;
@@ -90,6 +143,9 @@ export class ProductDto {
 
   @ApiProperty({ enum: ProductUnit })
   defaultUnit!: ProductUnit;
+
+  @ApiProperty({ enum: ProductPurchaseMode })
+  purchaseMode!: ProductPurchaseMode;
 
   @ApiProperty({ type: String, nullable: true })
   ean!: string | null;

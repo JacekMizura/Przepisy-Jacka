@@ -1,5 +1,6 @@
 import { Prisma } from '../generated/prisma/client';
 import {
+  ProductPurchaseMode,
   ProductUnit,
   RecipeIngredientUnit,
   type Product,
@@ -22,6 +23,7 @@ export type RecipeIngredientAvailability = {
   name: string;
   productId: string | null;
   productName: string | null;
+  purchaseMode: ProductPurchaseMode | null;
   scaledQuantity: string | null;
   unit: RecipeIngredientUnit;
   note: string | null;
@@ -180,6 +182,7 @@ function evaluateIngredientAvailability(input: {
     name: input.ingredient.name,
     productId: input.ingredient.productId,
     productName: input.ingredient.product?.name ?? null,
+    purchaseMode: input.ingredient.product?.purchaseMode ?? null,
     scaledQuantity:
       scaledQuantity !== null ? formatQuantity(scaledQuantity) : null,
     unit: input.ingredient.unit,
@@ -255,6 +258,7 @@ function evaluateIngredientAvailability(input: {
       ? buildPurchaseProposal({
           gapInProductBase,
           productUnit: input.ingredient.product.defaultUnit,
+          purchaseMode: input.ingredient.product.purchaseMode,
           options: input.purchaseOptions,
         })
       : null;

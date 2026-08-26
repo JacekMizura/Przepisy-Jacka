@@ -400,6 +400,53 @@
       }
     },
     "/api/kitchens/{kitchenId}/products/{productId}": {
+      "patch": {
+        "operationId": "StockController_updateProduct",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProductDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Aktualizacja produktu (m.in. purchaseMode)",
+        "tags": [
+          "stock"
+        ]
+      },
       "delete": {
         "operationId": "StockController_deleteProduct",
         "parameters": [
@@ -434,6 +481,55 @@
           }
         },
         "summary": "Usunięcie produktu (kaskada partii po potwierdzeniu)",
+        "tags": [
+          "stock"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/products/{productId}/configure-purchase": {
+      "post": {
+        "operationId": "StockController_configureProductPurchase",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfigureProductPurchaseDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Konfiguracja sposobu zakupu produktu (opakowania / dokładna ilość)",
         "tags": [
           "stock"
         ]
@@ -1759,6 +1855,14 @@
               "milliliter"
             ]
           },
+          "purchaseMode": {
+            "type": "string",
+            "enum": [
+              "unconfigured",
+              "packaged",
+              "exact"
+            ]
+          },
           "ean": {
             "type": "string",
             "nullable": true
@@ -1792,6 +1896,7 @@
           "name",
           "normalizedName",
           "defaultUnit",
+          "purchaseMode",
           "ean",
           "imageUrl",
           "category",
@@ -1835,6 +1940,69 @@
         "required": [
           "name",
           "defaultUnit"
+        ]
+      },
+      "UpdateProductDto": {
+        "type": "object",
+        "properties": {
+          "purchaseMode": {
+            "type": "string",
+            "enum": [
+              "unconfigured",
+              "packaged",
+              "exact"
+            ]
+          }
+        }
+      },
+      "ConfigureProductPurchaseOptionDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Karton 1 l"
+          },
+          "contentQuantity": {
+            "type": "string",
+            "example": "1000.000"
+          },
+          "contentUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ]
+          },
+          "isDefault": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "required": [
+          "name",
+          "contentQuantity",
+          "contentUnit"
+        ]
+      },
+      "ConfigureProductPurchaseDto": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "unconfigured",
+              "packaged",
+              "exact"
+            ],
+            "description": "packaged wymaga pierwszej opcji; exact nie wymaga opcji; unconfigured czyści tryb bez usuwania opcji."
+          },
+          "option": {
+            "$ref": "#/components/schemas/ConfigureProductPurchaseOptionDto"
+          }
+        },
+        "required": [
+          "mode"
         ]
       },
       "CreatePurchaseOptionDto": {
@@ -2084,6 +2252,14 @@
               "milliliter"
             ]
           },
+          "purchaseMode": {
+            "type": "string",
+            "enum": [
+              "unconfigured",
+              "packaged",
+              "exact"
+            ]
+          },
           "ean": {
             "type": "string",
             "nullable": true
@@ -2101,6 +2277,7 @@
           "id",
           "name",
           "defaultUnit",
+          "purchaseMode",
           "ean",
           "imageUrl",
           "category"
@@ -3161,7 +3338,8 @@
             "type": "string",
             "enum": [
               "packages",
-              "exact"
+              "exact",
+              "unconfigured"
             ]
           },
           "purchaseOptionId": {
@@ -3238,6 +3416,15 @@
           },
           "productName": {
             "type": "string",
+            "nullable": true
+          },
+          "purchaseMode": {
+            "type": "string",
+            "enum": [
+              "unconfigured",
+              "packaged",
+              "exact"
+            ],
             "nullable": true
           },
           "scaledQuantity": {
@@ -3333,6 +3520,7 @@
           "name",
           "productId",
           "productName",
+          "purchaseMode",
           "scaledQuantity",
           "unit",
           "note",

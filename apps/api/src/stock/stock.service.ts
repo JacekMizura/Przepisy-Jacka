@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import {
+  ProductPurchaseMode,
   StorageLocation,
   type Product,
   type ProductPurchaseOption,
@@ -19,7 +20,12 @@ import {
 } from '../common/quantity';
 import { PrismaService } from '../prisma/prisma.service';
 import { requireKitchenMember } from '../kitchens/kitchen-access';
-import { CreateProductDto, ProductDto } from './dto/product.dto';
+import {
+  ConfigureProductPurchaseDto,
+  CreateProductDto,
+  ProductDto,
+  UpdateProductDto,
+} from './dto/product.dto';
 import {
   CreatePurchaseOptionDto,
   PurchaseOptionDto,
@@ -104,10 +110,133 @@ export class StockService {
           category,
         },
       });
-      return toProductDto(product);
+      return toProductDto({ ...product, purchaseOptions: [] });
     } catch (error) {
       throw toProductWriteError(error);
     }
+  }
+
+  async updateProduct(
+    userId: string,
+    kitchenId: string,
+    productId: string,
+    dto: UpdateProductDto,
+  ): Promise<ProductDto> {
+    const product = await this.findKitchenProduct(userId, kitchenId, productId);
+
+    if (dto.purchaseMode === undefined) {
+      const options = await this.prisma.productPurchaseOption.findMany({
+        where: { productId: product.id, isActive: true },
+        orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
+      });
+      return toProductDto({ ...product, purchaseOptions: options });
+    }
+
+    if (dto.purchaseMode === ProductPurchaseMode.packaged) {
+      await assertPackagedProductHasValidActiveOptions(this.prisma, product.id);
+    }
+
+    const updated = await this.prisma.product.update({
+      where: { id: product.id },
+      data: { purchaseMode: dto.purchaseMode },
+      include: {
+        purchaseOptions: {
+          where: { isActive: true },
+          orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
+        },
+      },
+    });
+    return toProductDto(updated);
+  }
+
+  async configureProductPurchase(
+    userId: string,
+    kitchenId: string,
+    productId: string,
+    dto: ConfigureProductPurchaseDto,
+  ): Promise<ProductDto> {
+    const product = await this.findKitchenProduct(userId, kitchenId, productId);
+
+    if (dto.mode === ProductPurchaseMode.packaged) {
+      if (!dto.option) {
+        throw new BadRequestException(
+          'Tryb packaged wymaga opcji zakupu (option).',
+        );
+      }
+      const contentQuantity = parseContentQuantity(dto.option.contentQuantity);
+      assertContentUnitMatchesProduct(
+        dto.option.contentUnit,
+        product.defaultUnit,
+      );
+      const optionName = dto.option.name.trim();
+      if (!optionName) {
+        throw new BadRequestException('Nazwa opcji zakupu jest wymagana.');
+      }
+
+      const updated = await this.prisma.$transaction(async (tx) => {
+        const activeCount = await tx.productPurchaseOption.count({
+          where: { productId: product.id, isActive: true },
+        });
+        const makeDefault = dto.option!.isDefault ?? activeCount === 0;
+
+        if (makeDefault) {
+          await tx.productPurchaseOption.updateMany({
+            where: { productId: product.id, isDefault: true },
+            data: { isDefault: false },
+          });
+        }
+
+        await tx.productPurchaseOption.create({
+          data: {
+            productId: product.id,
+            name: optionName,
+            contentQuantity,
+            contentUnit: dto.option!.contentUnit,
+            isDefault: makeDefault || activeCount === 0,
+          },
+        });
+
+        await ensureExactlyOneDefaultAmongActive(tx, product.id);
+
+        return tx.product.update({
+          where: { id: product.id },
+          data: { purchaseMode: ProductPurchaseMode.packaged },
+          include: {
+            purchaseOptions: {
+              where: { isActive: true },
+              orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
+            },
+          },
+        });
+      });
+      return toProductDto(updated);
+    }
+
+    if (dto.mode === ProductPurchaseMode.exact) {
+      const updated = await this.prisma.product.update({
+        where: { id: product.id },
+        data: { purchaseMode: ProductPurchaseMode.exact },
+        include: {
+          purchaseOptions: {
+            where: { isActive: true },
+            orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
+          },
+        },
+      });
+      return toProductDto(updated);
+    }
+
+    const updated = await this.prisma.product.update({
+      where: { id: product.id },
+      data: { purchaseMode: ProductPurchaseMode.unconfigured },
+      include: {
+        purchaseOptions: {
+          where: { isActive: true },
+          orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
+        },
+      },
+    });
+    return toProductDto(updated);
   }
 
   async deleteProduct(
@@ -281,20 +410,25 @@ export class StockService {
     const contentQuantity = parseContentQuantity(dto.contentQuantity);
     assertContentUnitMatchesProduct(dto.contentUnit, product.defaultUnit);
 
-    const isDefault = dto.isDefault ?? false;
     const name = dto.name.trim();
     if (!name) {
       throw new BadRequestException('Nazwa opcji zakupu jest wymagana.');
     }
 
     const option = await this.prisma.$transaction(async (tx) => {
+      const activeCount = await tx.productPurchaseOption.count({
+        where: { productId: product.id, isActive: true },
+      });
+      const isDefault = dto.isDefault ?? activeCount === 0;
+
       if (isDefault) {
         await tx.productPurchaseOption.updateMany({
           where: { productId: product.id, isDefault: true },
           data: { isDefault: false },
         });
       }
-      return tx.productPurchaseOption.create({
+
+      const created = await tx.productPurchaseOption.create({
         data: {
           productId: product.id,
           name,
@@ -303,6 +437,15 @@ export class StockService {
           isDefault,
         },
       });
+
+      await ensureExactlyOneDefaultAmongActive(tx, product.id);
+
+      await tx.product.update({
+        where: { id: product.id },
+        data: { purchaseMode: ProductPurchaseMode.packaged },
+      });
+
+      return created;
     });
 
     return toPurchaseOptionDto(option);
@@ -327,6 +470,10 @@ export class StockService {
         : existing.contentQuantity;
 
     const option = await this.prisma.$transaction(async (tx) => {
+      if (dto.isActive === false && existing.isActive) {
+        await assertCanDeactivateOrRemoveActiveOption(tx, product, existing.id);
+      }
+
       if (dto.isDefault === true) {
         await tx.productPurchaseOption.updateMany({
           where: {
@@ -338,7 +485,7 @@ export class StockService {
         });
       }
 
-      return tx.productPurchaseOption.update({
+      const updated = await tx.productPurchaseOption.update({
         where: { id: existing.id },
         data: {
           name: dto.name?.trim(),
@@ -348,6 +495,14 @@ export class StockService {
           isActive: dto.isActive,
         },
       });
+
+      if (updated.isActive) {
+        await ensureExactlyOneDefaultAmongActive(tx, product.id);
+      } else if (product.purchaseMode === ProductPurchaseMode.packaged) {
+        await assertPackagedProductHasValidActiveOptions(tx, product.id);
+      }
+
+      return updated;
     });
 
     return toPurchaseOptionDto(option);
@@ -362,20 +517,31 @@ export class StockService {
     const product = await this.findKitchenProduct(userId, kitchenId, productId);
     const existing = await this.findPurchaseOption(product.id, optionId);
 
-    const referencedCount = await this.prisma.shoppingListItem.count({
-      where: { purchaseOptionId: existing.id },
-    });
+    await this.prisma.$transaction(async (tx) => {
+      if (existing.isActive) {
+        await assertCanDeactivateOrRemoveActiveOption(tx, product, existing.id);
+      }
 
-    if (referencedCount > 0) {
-      await this.prisma.productPurchaseOption.update({
-        where: { id: existing.id },
-        data: { isActive: false, isDefault: false },
+      const referencedCount = await tx.shoppingListItem.count({
+        where: { purchaseOptionId: existing.id },
       });
-      return;
-    }
 
-    await this.prisma.productPurchaseOption.delete({
-      where: { id: existing.id },
+      if (referencedCount > 0) {
+        await tx.productPurchaseOption.update({
+          where: { id: existing.id },
+          data: { isActive: false, isDefault: false },
+        });
+      } else {
+        await tx.productPurchaseOption.delete({
+          where: { id: existing.id },
+        });
+      }
+
+      await ensureExactlyOneDefaultAmongActive(tx, product.id);
+
+      if (product.purchaseMode === ProductPurchaseMode.packaged) {
+        await assertPackagedProductHasValidActiveOptions(tx, product.id);
+      }
     });
   }
 
@@ -442,6 +608,81 @@ function assertContentUnitMatchesProduct(
   }
 }
 
+async function assertPackagedProductHasValidActiveOptions(
+  client: Prisma.TransactionClient | PrismaService,
+  productId: string,
+): Promise<void> {
+  const active = await client.productPurchaseOption.findMany({
+    where: { productId, isActive: true },
+  });
+  if (active.length === 0) {
+    throw new BadRequestException(
+      'Tryb packaged wymaga co najmniej jednej aktywnej opcji zakupu.',
+    );
+  }
+  const defaults = active.filter((option) => option.isDefault);
+  if (defaults.length !== 1) {
+    throw new BadRequestException(
+      'Tryb packaged wymaga dokładnie jednej domyślnej aktywnej opcji zakupu.',
+    );
+  }
+}
+
+async function assertCanDeactivateOrRemoveActiveOption(
+  tx: Prisma.TransactionClient,
+  product: Product,
+  optionId: string,
+): Promise<void> {
+  if (product.purchaseMode !== ProductPurchaseMode.packaged) {
+    return;
+  }
+  const remainingActive = await tx.productPurchaseOption.count({
+    where: {
+      productId: product.id,
+      isActive: true,
+      id: { not: optionId },
+    },
+  });
+  if (remainingActive === 0) {
+    throw new BadRequestException(
+      'Nie można usunąć ostatniej aktywnej opcji zakupu w trybie packaged.',
+    );
+  }
+}
+
+async function ensureExactlyOneDefaultAmongActive(
+  tx: Prisma.TransactionClient,
+  productId: string,
+): Promise<void> {
+  const active = await tx.productPurchaseOption.findMany({
+    where: { productId, isActive: true },
+    orderBy: [{ createdAt: 'asc' }],
+  });
+  if (active.length === 0) {
+    return;
+  }
+  const defaults = active.filter((option) => option.isDefault);
+  if (defaults.length === 1) {
+    return;
+  }
+  if (defaults.length > 1) {
+    const keep = defaults[0]!;
+    await tx.productPurchaseOption.updateMany({
+      where: {
+        productId,
+        isDefault: true,
+        id: { not: keep.id },
+      },
+      data: { isDefault: false },
+    });
+    return;
+  }
+  await tx.productPurchaseOption.update({
+    where: { id: active[0]!.id },
+    data: { isDefault: true },
+  });
+}
+
 function toProductWriteError(error: unknown): Error {
   if (
     error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -474,12 +715,13 @@ function toProductDto(product: ProductWithPurchaseOptions): ProductDto {
     name: product.name,
     normalizedName: product.normalizedName,
     defaultUnit: product.defaultUnit,
+    purchaseMode: product.purchaseMode,
     ean: product.ean,
     imageUrl: product.imageUrl,
     category: product.category,
     createdAt: product.createdAt.toISOString(),
     updatedAt: product.updatedAt.toISOString(),
-    purchaseOptions: product.purchaseOptions?.map(toPurchaseOptionDto),
+    purchaseOptions: product.purchaseOptions?.map(toPurchaseOptionDto) ?? [],
   };
 }
 

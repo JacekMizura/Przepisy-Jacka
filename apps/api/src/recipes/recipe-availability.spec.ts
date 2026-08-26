@@ -1,5 +1,9 @@
 import { Prisma } from '../generated/prisma/client';
-import { ProductUnit, RecipeIngredientUnit } from '../generated/prisma/client';
+import {
+  ProductPurchaseMode,
+  ProductUnit,
+  RecipeIngredientUnit,
+} from '../generated/prisma/client';
 
 import {
   computeRecipeAvailability,
@@ -22,6 +26,7 @@ describe('recipe-availability', () => {
       name: 'Mleko',
       normalizedName: 'mleko',
       defaultUnit: ProductUnit.milliliter,
+      purchaseMode: ProductPurchaseMode.unconfigured,
       ean: null,
       imageUrl: null,
       category: null,

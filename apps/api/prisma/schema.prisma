@@ -90,6 +90,12 @@ enum ProductUnit {
   milliliter
 }
 
+enum ProductPurchaseMode {
+  unconfigured
+  packaged
+  exact
+}
+
 enum StorageLocation {
   pantry
   fridge
@@ -180,16 +186,17 @@ model KitchenInvite {
 }
 
 model Product {
-  id             String      @id @default(uuid())
+  id             String              @id @default(uuid())
   kitchenId      String
   name           String
   normalizedName String
   defaultUnit    ProductUnit
-  ean            String?     @db.VarChar(14)
+  purchaseMode   ProductPurchaseMode @default(unconfigured)
+  ean            String?             @db.VarChar(14)
   imageUrl       String?
-  category       String?     @db.VarChar(80)
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  category       String?             @db.VarChar(80)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
   kitchen            Kitchen             @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
   stockItems         StockItem[]
   shoppingListItems  ShoppingListItem[]

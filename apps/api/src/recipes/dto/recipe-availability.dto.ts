@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 import {
+  ProductPurchaseMode,
   ProductUnit,
   RecipeIngredientUnit,
 } from '../../generated/prisma/client';
@@ -21,6 +22,9 @@ export class RecipeIngredientAvailabilityDto {
 
   @ApiProperty({ type: String, nullable: true })
   productName!: string | null;
+
+  @ApiProperty({ enum: ProductPurchaseMode, nullable: true })
+  purchaseMode!: ProductPurchaseMode | null;
 
   @ApiProperty({ type: String, nullable: true, example: '4.000' })
   scaledQuantity!: string | null;

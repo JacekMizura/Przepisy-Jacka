@@ -19,7 +19,12 @@ import { Session } from '@thallesp/nestjs-better-auth';
 import type { UserSession } from '@thallesp/nestjs-better-auth';
 
 import { StorageLocation } from '../generated/prisma/client';
-import { CreateProductDto, ProductDto } from './dto/product.dto';
+import {
+  ConfigureProductPurchaseDto,
+  CreateProductDto,
+  ProductDto,
+  UpdateProductDto,
+} from './dto/product.dto';
 import {
   CreatePurchaseOptionDto,
   PurchaseOptionDto,
@@ -56,6 +61,43 @@ export class StockController {
     @Body() body: CreateProductDto,
   ): Promise<ProductDto> {
     return this.stockService.createProduct(session.user.id, kitchenId, body);
+  }
+
+  @Patch('products/:productId')
+  @ApiOperation({ summary: 'Aktualizacja produktu (m.in. purchaseMode)' })
+  @ApiOkResponse({ type: ProductDto })
+  updateProduct(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Param('productId', ParseUUIDPipe) productId: string,
+    @Body() body: UpdateProductDto,
+  ): Promise<ProductDto> {
+    return this.stockService.updateProduct(
+      session.user.id,
+      kitchenId,
+      productId,
+      body,
+    );
+  }
+
+  @Post('products/:productId/configure-purchase')
+  @ApiOperation({
+    summary:
+      'Konfiguracja sposobu zakupu produktu (opakowania / dokładna ilość)',
+  })
+  @ApiOkResponse({ type: ProductDto })
+  configureProductPurchase(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Param('productId', ParseUUIDPipe) productId: string,
+    @Body() body: ConfigureProductPurchaseDto,
+  ): Promise<ProductDto> {
+    return this.stockService.configureProductPurchase(
+      session.user.id,
+      kitchenId,
+      productId,
+      body,
+    );
   }
 
   @Delete('products/:productId')

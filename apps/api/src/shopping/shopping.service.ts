@@ -9,6 +9,7 @@ import {
   ShoppingInputUnit,
   ShoppingListItemStatus,
   type Product,
+  type ProductPurchaseOption,
   type Purchase,
   type PurchaseLineItem,
   type ShoppingList,
@@ -36,9 +37,12 @@ import {
   ShoppingListItemProductDto,
   UpdateShoppingListItemDto,
 } from './dto/shopping-list-item.dto';
+import { PurchaseOptionSummaryDto } from '../stock/dto/purchase-option.dto';
+import { productUnitToShoppingInputUnit } from './purchase-proposal';
 
 type ShoppingListItemWithProduct = ShoppingListItem & {
   product: Product | null;
+  purchaseOption?: ProductPurchaseOption | null;
 };
 
 type PurchaseLineWithRelations = PurchaseLineItem & {
@@ -81,7 +85,7 @@ export class ShoppingService {
         shoppingList: { kitchenId },
         resolvedAt: null,
       },
-      include: { product: true },
+      include: { product: true, purchaseOption: true },
       orderBy: [{ status: 'asc' }, { id: 'asc' }],
     });
     return items.map(toShoppingListItemDto);
@@ -114,6 +118,11 @@ export class ShoppingService {
         ? parseQuantityString(dto.plannedQuantity, 'plannedQuantity')
         : null;
 
+    const requiredQuantity =
+      dto.requiredQuantity !== undefined
+        ? parseQuantityString(dto.requiredQuantity, 'requiredQuantity')
+        : null;
+
     if (
       (plannedQuantity !== null && dto.plannedUnit === undefined) ||
       (plannedQuantity === null && dto.plannedUnit !== undefined)
@@ -123,8 +132,29 @@ export class ShoppingService {
       );
     }
 
+    if (
+      (requiredQuantity !== null && dto.requiredUnit === undefined) ||
+      (requiredQuantity === null && dto.requiredUnit !== undefined)
+    ) {
+      throw new BadRequestException(
+        'requiredQuantity i requiredUnit muszą być podane razem.',
+      );
+    }
+
+    if (
+      (dto.purchaseOptionId && !dto.packageCount) ||
+      (!dto.purchaseOptionId && dto.packageCount)
+    ) {
+      throw new BadRequestException(
+        'purchaseOptionId i packageCount muszą być podane razem.',
+      );
+    }
+
+    let product: Product | null = null;
+    let purchaseOption: ProductPurchaseOption | null = null;
+
     if (dto.productId) {
-      const product = await tx.product.findFirst({
+      product = await tx.product.findFirst({
         where: { id: dto.productId, kitchenId },
       });
       if (!product) {
@@ -136,6 +166,24 @@ export class ShoppingService {
           product.defaultUnit,
         );
       }
+      if (dto.requiredUnit) {
+        assertInputUnitCompatibleWithProduct(
+          dto.requiredUnit,
+          product.defaultUnit,
+        );
+      }
+      if (dto.purchaseOptionId) {
+        purchaseOption = await tx.productPurchaseOption.findFirst({
+          where: {
+            id: dto.purchaseOptionId,
+            productId: product.id,
+            isActive: true,
+          },
+        });
+        if (!purchaseOption) {
+          throw new BadRequestException('Nie znaleziono opcji zakupu.');
+        }
+      }
     }
 
     const shoppingList = await ensureShoppingList(tx, kitchenId);
@@ -146,20 +194,22 @@ export class ShoppingService {
         shoppingList,
         dto,
         plannedQuantity,
+        requiredQuantity,
+        purchaseOption,
       );
       return toShoppingListItemDto(item);
     }
 
     const created = await tx.shoppingListItem.create({
-      data: {
+      data: buildShoppingListItemCreateData({
         shoppingListId: shoppingList.id,
-        productId: null,
-        customName: dto.customName?.trim() ?? null,
+        dto,
         plannedQuantity,
-        plannedUnit: dto.plannedUnit ?? null,
-        note: normalizeOptionalNote(dto.note),
-      },
-      include: { product: true },
+        requiredQuantity,
+        purchaseOptionId: null,
+        packageCount: null,
+      }),
+      include: { product: true, purchaseOption: true },
     });
     await touchShoppingListUpdatedAt(tx, shoppingList.id);
     return toShoppingListItemDto(created);
@@ -204,10 +254,17 @@ export class ShoppingService {
           dto.customName !== undefined ? dto.customName.trim() : undefined,
         plannedQuantity,
         plannedUnit: dto.plannedUnit,
+        requiredQuantity:
+          dto.requiredQuantity !== undefined
+            ? parseQuantityString(dto.requiredQuantity, 'requiredQuantity')
+            : undefined,
+        requiredUnit: dto.requiredUnit,
+        purchaseOptionId: dto.purchaseOptionId,
+        packageCount: dto.packageCount,
         note:
           dto.note === undefined ? undefined : normalizeOptionalNote(dto.note),
       },
-      include: { product: true },
+      include: { product: true, purchaseOption: true },
     });
     return toShoppingListItemDto(item);
   }
@@ -225,7 +282,7 @@ export class ShoppingService {
     const item = await this.prisma.shoppingListItem.update({
       where: { id: existing.id },
       data: { status },
-      include: { product: true },
+      include: { product: true, purchaseOption: true },
     });
     return toShoppingListItemDto(item);
   }
@@ -285,7 +342,7 @@ export class ShoppingService {
           shoppingListId: shoppingList.id,
           id: { in: dto.lines.map((line) => line.shoppingListItemId) },
         },
-        include: { product: true },
+        include: { product: true, purchaseOption: true },
       });
       const listItemById = new Map(listItems.map((item) => [item.id, item]));
 
@@ -328,9 +385,9 @@ export class ShoppingService {
           line,
           listItem,
         );
-        const stockQuantity = convertQuantityToProductUnit(
-          parseQuantityString(line.quantity, 'quantity'),
-          line.inputUnit,
+        const stockQuantity = resolveCheckoutStockQuantity(
+          line,
+          listItem,
           product.defaultUnit,
         );
         assertStockQuantities(stockQuantity, stockQuantity);
@@ -454,7 +511,7 @@ export class ShoppingService {
         shoppingList: { kitchenId },
         resolvedAt: null,
       },
-      include: { product: true },
+      include: { product: true, purchaseOption: true },
     });
     if (!item) {
       throw new BadRequestException('Nie znaleziono pozycji listy zakupów.');
@@ -529,8 +586,32 @@ async function findPendingProductItemForUpdate(
   }
   return tx.shoppingListItem.findUnique({
     where: { id: row.id },
-    include: { product: true },
+    include: { product: true, purchaseOption: true },
   });
+}
+
+function buildShoppingListItemCreateData(input: {
+  shoppingListId: string;
+  dto: CreateShoppingListItemDto;
+  plannedQuantity: Prisma.Decimal | null;
+  requiredQuantity: Prisma.Decimal | null;
+  purchaseOptionId: string | null;
+  packageCount: number | null;
+}): Prisma.ShoppingListItemUncheckedCreateInput {
+  return {
+    shoppingListId: input.shoppingListId,
+    productId: input.dto.productId ?? null,
+    customName: normalizeOptionalCustomName(input.dto.customName),
+    plannedQuantity: input.plannedQuantity,
+    plannedUnit: input.dto.plannedUnit ?? null,
+    requiredQuantity: input.requiredQuantity,
+    requiredUnit: input.dto.requiredUnit ?? null,
+    sourceRecipeId: input.dto.sourceRecipeId ?? null,
+    sourceRecipeName: input.dto.sourceRecipeName ?? null,
+    purchaseOptionId: input.purchaseOptionId,
+    packageCount: input.packageCount,
+    note: normalizeOptionalNote(input.dto.note),
+  };
 }
 
 async function mergePendingProductItem(
@@ -539,22 +620,68 @@ async function mergePendingProductItem(
   existing: ShoppingListItemWithProduct,
   dto: CreateShoppingListItemDto,
   plannedQuantity: Prisma.Decimal | null,
+  requiredQuantity: Prisma.Decimal | null,
+  purchaseOption: ProductPurchaseOption | null,
 ): Promise<ShoppingListItemWithProduct> {
-  const mergedQuantity = mergePlannedQuantities(
-    existing.plannedQuantity,
-    existing.plannedUnit,
-    plannedQuantity,
-    dto.plannedUnit,
+  const mergedRequired = mergePlannedQuantities(
+    existing.requiredQuantity,
+    existing.requiredUnit,
+    requiredQuantity,
+    dto.requiredUnit,
   );
+
+  const samePackageOption =
+    dto.purchaseOptionId !== undefined &&
+    existing.purchaseOptionId !== null &&
+    dto.purchaseOptionId === existing.purchaseOptionId &&
+    purchaseOption !== null &&
+    dto.packageCount !== undefined;
+
+  let plannedQuantityValue: Prisma.Decimal | null;
+  let plannedUnitValue: ShoppingInputUnit | null;
+  let packageCountValue: number | null | undefined;
+  let purchaseOptionIdValue: string | null | undefined;
+
+  if (samePackageOption) {
+    packageCountValue = (existing.packageCount ?? 0) + dto.packageCount!;
+    plannedQuantityValue =
+      purchaseOption.contentQuantity.mul(packageCountValue);
+    plannedUnitValue = productUnitToShoppingInputUnit(
+      purchaseOption.contentUnit,
+    );
+    purchaseOptionIdValue = purchaseOption.id;
+  } else {
+    const mergedPlanned = mergePlannedQuantities(
+      existing.plannedQuantity,
+      existing.plannedUnit,
+      plannedQuantity,
+      dto.plannedUnit,
+    );
+    plannedQuantityValue = mergedPlanned.quantity;
+    plannedUnitValue = mergedPlanned.unit;
+    if (dto.purchaseOptionId !== undefined) {
+      purchaseOptionIdValue = dto.purchaseOptionId;
+      packageCountValue = dto.packageCount ?? null;
+    }
+  }
+
   const updated = await tx.shoppingListItem.update({
     where: { id: existing.id },
     data: {
-      plannedQuantity: mergedQuantity.quantity,
-      plannedUnit: mergedQuantity.unit,
+      plannedQuantity: plannedQuantityValue,
+      plannedUnit: plannedUnitValue,
+      requiredQuantity: mergedRequired.quantity,
+      requiredUnit: mergedRequired.unit,
+      purchaseOptionId: purchaseOptionIdValue,
+      packageCount: packageCountValue,
+      sourceRecipeId:
+        dto.sourceRecipeId !== undefined ? dto.sourceRecipeId : undefined,
+      sourceRecipeName:
+        dto.sourceRecipeName !== undefined ? dto.sourceRecipeName : undefined,
       note:
         dto.note !== undefined ? normalizeOptionalNote(dto.note) : undefined,
     },
-    include: { product: true },
+    include: { product: true, purchaseOption: true },
   });
   await touchShoppingListUpdatedAt(tx, shoppingList.id);
   return updated;
@@ -565,17 +692,19 @@ async function createProductListItem(
   shoppingList: ShoppingList,
   dto: CreateShoppingListItemDto,
   plannedQuantity: Prisma.Decimal | null,
+  requiredQuantity: Prisma.Decimal | null,
+  purchaseOption: ProductPurchaseOption | null,
 ): Promise<ShoppingListItemWithProduct> {
   const created = await tx.shoppingListItem.create({
-    data: {
+    data: buildShoppingListItemCreateData({
       shoppingListId: shoppingList.id,
-      productId: dto.productId ?? null,
-      customName: normalizeOptionalCustomName(dto.customName),
+      dto,
       plannedQuantity,
-      plannedUnit: dto.plannedUnit ?? null,
-      note: normalizeOptionalNote(dto.note),
-    },
-    include: { product: true },
+      requiredQuantity,
+      purchaseOptionId: purchaseOption?.id ?? dto.purchaseOptionId ?? null,
+      packageCount: dto.packageCount ?? null,
+    }),
+    include: { product: true, purchaseOption: true },
   });
   await touchShoppingListUpdatedAt(tx, shoppingList.id);
   return created;
@@ -586,6 +715,8 @@ async function upsertPendingProductListItem(
   shoppingList: ShoppingList,
   dto: CreateShoppingListItemDto,
   plannedQuantity: Prisma.Decimal | null,
+  requiredQuantity: Prisma.Decimal | null,
+  purchaseOption: ProductPurchaseOption | null,
 ): Promise<ShoppingListItemWithProduct> {
   const productId = dto.productId;
   if (!productId) {
@@ -607,6 +738,8 @@ async function upsertPendingProductListItem(
       locked,
       dto,
       plannedQuantity,
+      requiredQuantity,
+      purchaseOption,
     );
   }
 
@@ -617,6 +750,8 @@ async function upsertPendingProductListItem(
       shoppingList,
       dto,
       plannedQuantity,
+      requiredQuantity,
+      purchaseOption,
     );
     await tx.$executeRaw`RELEASE SAVEPOINT create_pending_product_item`;
     return created;
@@ -642,6 +777,8 @@ async function upsertPendingProductListItem(
       existing,
       dto,
       plannedQuantity,
+      requiredQuantity,
+      purchaseOption,
     );
   }
 }
@@ -753,6 +890,25 @@ function assertCompatibleInputUnits(
   }
 }
 
+function resolveCheckoutStockQuantity(
+  line: CheckoutPurchaseLineDto,
+  listItem: ShoppingListItemWithProduct,
+  productUnit: ProductUnit,
+): Prisma.Decimal {
+  if (
+    listItem.purchaseOption &&
+    listItem.packageCount !== null &&
+    listItem.packageCount > 0
+  ) {
+    return listItem.purchaseOption.contentQuantity.mul(listItem.packageCount);
+  }
+  return convertQuantityToProductUnit(
+    parseQuantityString(line.quantity, 'quantity'),
+    line.inputUnit,
+    productUnit,
+  );
+}
+
 async function resolveCheckoutProduct(
   tx: Prisma.TransactionClient,
   kitchenId: string,
@@ -822,6 +978,17 @@ function toShoppingListItemProductDto(
   };
 }
 
+function toPurchaseOptionSummaryDto(
+  option: ProductPurchaseOption,
+): PurchaseOptionSummaryDto {
+  return {
+    id: option.id,
+    name: option.name,
+    contentQuantity: formatQuantity(option.contentQuantity),
+    contentUnit: option.contentUnit,
+  };
+}
+
 function toShoppingListItemDto(
   item: ShoppingListItemWithProduct,
 ): ShoppingListItemDto {
@@ -835,6 +1002,18 @@ function toShoppingListItemDto(
         ? formatQuantity(item.plannedQuantity)
         : null,
     plannedUnit: item.plannedUnit,
+    requiredQuantity:
+      item.requiredQuantity !== null
+        ? formatQuantity(item.requiredQuantity)
+        : null,
+    requiredUnit: item.requiredUnit,
+    sourceRecipeId: item.sourceRecipeId,
+    sourceRecipeName: item.sourceRecipeName,
+    purchaseOptionId: item.purchaseOptionId,
+    packageCount: item.packageCount,
+    purchaseOption: item.purchaseOption
+      ? toPurchaseOptionSummaryDto(item.purchaseOption)
+      : null,
     note: item.note,
     status: item.status,
     resolvedAt: item.resolvedAt?.toISOString() ?? null,

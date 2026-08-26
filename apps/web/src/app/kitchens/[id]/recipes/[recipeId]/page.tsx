@@ -4,6 +4,7 @@ import type { components } from "@moja-kuchnia/api-client";
 import {
   BookOpen,
   Minus,
+  MoreVertical,
   Pencil,
   Plus,
   ShoppingCart,
@@ -11,7 +12,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -20,14 +21,14 @@ import {
 } from "@/components/add-recipe-gaps-dialog";
 import { AppShell } from "@/components/app-shell";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { Toast } from "@/components/toast";
 import { Button } from "@/components/ui/button";
 import { createWebApiClient } from "@/lib/api";
 import { readApiError } from "@/lib/errors";
+import { formatQuantityWithUnit } from "@/lib/format-quantity";
 import {
-  AVAILABILITY_STATUS_LABELS,
   formatRecipeIngredientQuantity,
   formatRecipeTime,
-  formatTotalRecipeTime,
   RECIPE_DIFFICULTY_LABELS,
   RECIPE_VISIBILITY_LABELS,
 } from "@/lib/recipe-labels";
@@ -39,11 +40,17 @@ export default function RecipeDetailPage() {
   const recipeId = params.recipeId;
   const router = useRouter();
   const queryClient = useQueryClient();
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const [servings, setServings] = useState<number | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [gapsOpen, setGapsOpen] = useState(false);
-  const [gapsFeedback, setGapsFeedback] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [doneSteps, setDoneSteps] = useState<Set<string>>(() => new Set());
 
   const meQuery = useQuery({
     queryKey: ["me"],
@@ -121,7 +128,9 @@ export default function RecipeDetailPage() {
   });
 
   const addGaps = useMutation({
-    mutationFn: async (includeUnknownIngredientIds: string[]) => {
+    mutationFn: async (
+      selections: components["schemas"]["RecipeGapSelectionDto"][],
+    ) => {
       const client = createWebApiClient();
       const { data, error } = await client.POST(
         "/api/kitchens/{kitchenId}/recipes/{recipeId}/add-gaps-to-shopping-list",
@@ -130,7 +139,7 @@ export default function RecipeDetailPage() {
           body: {
             idempotencyKey: crypto.randomUUID(),
             servings: activeServings,
-            includeIngredientIds: includeUnknownIngredientIds,
+            selections,
           },
         },
       );
@@ -145,15 +154,12 @@ export default function RecipeDetailPage() {
       setGapsOpen(false);
       queryClient.invalidateQueries({ queryKey: ["shopping-list", kitchenId] });
       const addedCount = result?.added.length ?? 0;
-      const skippedCount = result?.skipped.length ?? 0;
-      if (addedCount === 0 && skippedCount > 0) {
-        setGapsFeedback("Nie dodano pozycji — sprawdź podsumowanie i spróbuj ponownie.");
-      } else if (addedCount > 0) {
-        setGapsFeedback(
+      if (addedCount > 0) {
+        setToast(
           `Dodano ${addedCount} ${addedCount === 1 ? "pozycję" : "pozycje"} do listy zakupów.`,
         );
       } else {
-        setGapsFeedback("Brak pozycji do dodania.");
+        setToast("Nie dodano pozycji — sprawdź wybór i spróbuj ponownie.");
       }
     },
   });
@@ -187,265 +193,394 @@ export default function RecipeDetailPage() {
 
   function adjustServings(delta: number) {
     const base = recipe?.servings ?? 1;
-    setServings((current) => {
-      const next = (current ?? base) + delta;
-      return Math.max(1, next);
+    setServings((current) => Math.max(1, (current ?? base) + delta));
+  }
+
+  function toggleIngredient(id: string) {
+    setCheckedIngredients((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
     });
+  }
+
+  function toggleStep(id: string) {
+    setDoneSteps((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
+  function ingredientDisplayName(
+    ingredient: components["schemas"]["RecipeIngredientDto"],
+    availability?: components["schemas"]["RecipeIngredientAvailabilityDto"],
+  ): string {
+    const productName = availability?.productName;
+    if (productName && productName.toLowerCase() !== ingredient.name.toLowerCase()) {
+      return `${ingredient.name} · ${productName}`;
+    }
+    return ingredient.name;
+  }
+
+  function availabilityHint(
+    availability: components["schemas"]["RecipeIngredientAvailabilityDto"],
+  ): string | null {
+    const have = availability.availableQuantity
+      ? formatQuantityWithUnit(
+          availability.availableQuantity,
+          availability.availableUnit,
+        )
+      : "0";
+    const need = formatRecipeIngredientQuantity(
+      availability.scaledQuantity,
+      availability.unit,
+    );
+    if (availability.status === "available") {
+      return `Masz ${have} / potrzeba ${need}`;
+    }
+    if (availability.status === "partial" || availability.status === "missing") {
+      const gap = availability.gapQuantity
+        ? formatQuantityWithUnit(availability.gapQuantity, availability.gapUnit)
+        : need;
+      return `Masz ${have} / potrzeba ${need} · brakuje ${gap}`;
+    }
+    return null;
   }
 
   return (
     <AppShell kitchenId={kitchenId}>
-      <div className="mx-auto max-w-5xl space-y-8 px-4 py-8 sm:px-6">
+      <article className="mx-auto max-w-4xl px-4 py-6 sm:px-6 sm:py-10">
         {recipeQuery.isPending ? (
-          <div className="rounded-3xl border border-gray-100 bg-white p-12 text-center text-sm text-gray-500 shadow-sm">
-            Ładowanie przepisu…
-          </div>
+          <p className="text-center text-sm text-gray-500">Ładowanie przepisu…</p>
         ) : null}
 
         {recipeQuery.isError ? (
-          <div
-            className="rounded-3xl border border-red-100 bg-white p-12 text-center text-sm text-red-600 shadow-sm"
-            role="alert"
-          >
+          <p className="text-center text-sm text-red-600" role="alert">
             {readApiError(recipeQuery.error)}
-          </div>
+          </p>
         ) : null}
 
         {recipe ? (
           <>
-            <header className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-              <div className="flex gap-4">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
-                  <BookOpen size={32} />
-                </div>
-                <div>
-                  <h1 className="text-3xl font-bold tracking-tight text-gray-900">
+            <header className="mb-6 border-b border-gray-100 pb-6">
+              <div className="mb-4 flex items-start justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
                     {recipe.name}
                   </h1>
                   {recipe.description ? (
-                    <p className="mt-2 max-w-2xl text-gray-600">
+                    <p className="mt-2 text-base leading-relaxed text-gray-600">
                       {recipe.description}
                     </p>
                   ) : null}
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-800">
-                      {RECIPE_VISIBILITY_LABELS[recipe.visibility]}
-                    </span>
-                    <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700">
-                      {RECIPE_DIFFICULTY_LABELS[recipe.difficulty]}
-                    </span>
-                    {recipe.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600"
+                </div>
+                <div className="relative shrink-0" ref={menuRef}>
+                  {isAuthor ? (
+                    <>
+                      <button
+                        type="button"
+                        aria-label="Więcej akcji"
+                        aria-expanded={menuOpen}
+                        className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
+                        onClick={() => setMenuOpen((open) => !open)}
                       >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
+                        <MoreVertical size={20} />
+                      </button>
+                      {menuOpen ? (
+                        <div className="absolute right-0 z-10 mt-1 w-44 rounded-xl border border-gray-100 bg-white py-1 shadow-lg">
+                          <button
+                            type="button"
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50"
+                            onClick={() => {
+                              setMenuOpen(false);
+                              setDeleteOpen(true);
+                            }}
+                          >
+                            <Trash2 size={14} />
+                            Usuń przepis
+                          </button>
+                        </div>
+                      ) : null}
+                    </>
+                  ) : null}
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-2">
-                {isAuthor ? (
-                  <>
-                    <Link href={`/kitchens/${kitchenId}/recipes/${recipeId}/edit`}>
-                      <Button variant="outline" size="sm">
-                        <Pencil size={14} className="mr-1" />
-                        Edytuj
-                      </Button>
-                    </Link>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => setDeleteOpen(true)}
-                    >
-                      <Trash2 size={14} className="mr-1" />
-                      Usuń
-                    </Button>
-                  </>
-                ) : null}
+              <div className="mb-3 flex flex-wrap gap-1.5">
+                <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
+                  {RECIPE_VISIBILITY_LABELS[recipe.visibility]}
+                </span>
+                <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700">
+                  {RECIPE_DIFFICULTY_LABELS[recipe.difficulty]}
+                </span>
+                {recipe.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-600"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+
+              <p className="text-sm text-gray-500">
+                {recipe.author.name}
+                {" · "}
+                {new Date(recipe.createdAt).toLocaleDateString("pl-PL")}
+              </p>
+
+              <div className="mt-5 flex flex-wrap items-center gap-3">
                 {hasGaps ? (
-                  <Button size="sm" onClick={() => setGapsOpen(true)}>
-                    <ShoppingCart size={14} className="mr-1" />
+                  <Button onClick={() => setGapsOpen(true)}>
+                    <ShoppingCart size={16} className="mr-1.5" />
                     Dodaj braki do listy
                   </Button>
+                ) : null}
+                {isAuthor ? (
+                  <Link href={`/kitchens/${kitchenId}/recipes/${recipeId}/edit`}>
+                    <Button variant="outline">
+                      <Pencil size={16} className="mr-1.5" />
+                      Edytuj
+                    </Button>
+                  </Link>
                 ) : null}
               </div>
             </header>
 
-            <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <InfoCard label="Porcje (bazowo)" value={String(recipe.servings)} />
-              <InfoCard
-                label="Przygotowanie"
-                value={formatRecipeTime(recipe.prepTimeMinutes)}
-              />
-              <InfoCard
-                label="Gotowanie"
-                value={formatRecipeTime(recipe.cookTimeMinutes)}
-              />
-              <InfoCard
-                label="Łącznie"
-                value={formatTotalRecipeTime(
-                  recipe.prepTimeMinutes,
-                  recipe.cookTimeMinutes,
-                )}
-              />
-            </section>
-
-            <p className="text-sm text-gray-500">
-              Autor: {recipe.author.name} · Utworzono{" "}
-              {new Date(recipe.createdAt).toLocaleDateString("pl-PL")}
-            </p>
-
-            <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
-              <div className="flex flex-col gap-4 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h2 className="text-lg font-bold text-gray-900">Składniki</h2>
-                  <p className="text-sm text-gray-500">
-                    Dla {activeServings}{" "}
-                    {activeServings === 1 ? "porcji" : "porcji"}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => adjustServings(-1)}
-                    disabled={activeServings <= 1}
-                    aria-label="Zmniejsz liczbę porcji"
-                  >
-                    <Minus size={14} />
-                  </Button>
-                  <span className="min-w-8 text-center text-sm font-semibold text-gray-900">
-                    {activeServings}
-                  </span>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => adjustServings(1)}
-                    aria-label="Zwiększ liczbę porcji"
-                  >
-                    <Plus size={14} />
-                  </Button>
-                </div>
+            <div className="mb-8 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl bg-gray-50 px-4 py-3 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500">Porcje</span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 w-7 p-0"
+                  onClick={() => adjustServings(-1)}
+                  disabled={activeServings <= 1}
+                  aria-label="Zmniejsz liczbę porcji"
+                >
+                  <Minus size={14} />
+                </Button>
+                <span className="min-w-6 text-center font-semibold text-gray-900">
+                  {activeServings}
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 w-7 p-0"
+                  onClick={() => adjustServings(1)}
+                  aria-label="Zwiększ liczbę porcji"
+                >
+                  <Plus size={14} />
+                </Button>
               </div>
+              <span className="text-gray-400">·</span>
+              <span>
+                <span className="text-gray-500">Przygotowanie </span>
+                <span className="font-medium text-gray-900">
+                  {formatRecipeTime(recipe.prepTimeMinutes)}
+                </span>
+              </span>
+              <span className="text-gray-400">·</span>
+              <span>
+                <span className="text-gray-500">Gotowanie </span>
+                <span className="font-medium text-gray-900">
+                  {formatRecipeTime(recipe.cookTimeMinutes)}
+                </span>
+              </span>
+              <span className="text-gray-400">·</span>
+              <span>
+                <span className="text-gray-500">Trudność </span>
+                <span className="font-medium text-gray-900">
+                  {RECIPE_DIFFICULTY_LABELS[recipe.difficulty]}
+                </span>
+              </span>
+            </div>
 
-              {availabilityQuery.isPending ? (
-                <div className="p-8 text-center text-sm text-gray-500">
-                  Sprawdzanie dostępności…
-                </div>
-              ) : null}
+            <div className="grid gap-8 lg:grid-cols-2 lg:gap-10">
+              <section>
+                <h2 className="mb-4 text-lg font-semibold text-gray-900">
+                  Składniki
+                </h2>
 
-              {availabilityQuery.isError ? (
-                <div className="p-8 text-center text-sm text-red-600" role="alert">
-                  {readApiError(availabilityQuery.error)}
-                </div>
-              ) : null}
+                {availabilityQuery.isPending ? (
+                  <p className="text-sm text-gray-500">Sprawdzanie zapasów…</p>
+                ) : null}
+                {availabilityQuery.isError ? (
+                  <p className="text-sm text-red-600" role="alert">
+                    {readApiError(availabilityQuery.error)}
+                  </p>
+                ) : null}
 
-              {!availabilityQuery.isPending && !availabilityQuery.isError ? (
-                <ul className="divide-y divide-gray-100">
-                  {recipe.ingredients
-                    .slice()
-                    .sort((left, right) => left.sortOrder - right.sortOrder)
-                    .map((ingredient) => {
-                      const availability = availabilityByIngredientId.get(
-                        ingredient.id,
-                      );
-                      const displayQuantity =
-                        availability?.scaledQuantity ?? ingredient.quantity;
-                      const displayUnit = availability?.unit ?? ingredient.unit;
+                {!availabilityQuery.isPending && !availabilityQuery.isError ? (
+                  <ul className="space-y-1">
+                    {recipe.ingredients
+                      .slice()
+                      .sort((left, right) => left.sortOrder - right.sortOrder)
+                      .map((ingredient) => {
+                        const availability = availabilityByIngredientId.get(
+                          ingredient.id,
+                        );
+                        const displayQuantity =
+                          availability?.scaledQuantity ?? ingredient.quantity;
+                        const displayUnit =
+                          availability?.unit ?? ingredient.unit;
+                        const hint = availability
+                          ? availabilityHint(availability)
+                          : null;
 
-                      return (
-                        <li
-                          key={ingredient.id}
-                          className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-start sm:justify-between"
-                        >
-                          <div>
-                            <p className="font-medium text-gray-900">
-                              {ingredient.name}
-                              {availability?.productName ? (
-                                <span className="ml-2 text-sm font-normal text-gray-500">
-                                  ({availability.productName})
+                        return (
+                          <li
+                            key={ingredient.id}
+                            className={cn(
+                              "group flex gap-3 rounded-lg px-2 py-2.5 transition-colors hover:bg-gray-50",
+                              checkedIngredients.has(ingredient.id) &&
+                                "opacity-60",
+                            )}
+                          >
+                            <input
+                              type="checkbox"
+                              className="mt-1 shrink-0"
+                              checked={checkedIngredients.has(ingredient.id)}
+                              onChange={() => toggleIngredient(ingredient.id)}
+                              aria-label={`Oznacz ${ingredient.name} jako przygotowane`}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                                <span
+                                  className={cn(
+                                    "font-medium text-gray-900",
+                                    checkedIngredients.has(ingredient.id) &&
+                                      "line-through",
+                                  )}
+                                >
+                                  {ingredientDisplayName(
+                                    ingredient,
+                                    availability,
+                                  )}
                                 </span>
+                                <span className="text-sm text-gray-600">
+                                  {formatRecipeIngredientQuantity(
+                                    displayQuantity,
+                                    displayUnit,
+                                  )}
+                                </span>
+                              </div>
+                              {ingredient.note ? (
+                                <p className="mt-0.5 text-xs text-gray-500">
+                                  {ingredient.note}
+                                </p>
                               ) : null}
-                            </p>
-                            <p className="text-sm text-gray-600">
-                              {formatRecipeIngredientQuantity(
-                                displayQuantity,
-                                displayUnit,
-                              )}
-                            </p>
-                            {ingredient.note ? (
-                              <p className="mt-1 text-sm text-gray-500">
-                                {ingredient.note}
-                              </p>
-                            ) : null}
-                          </div>
-                          {availability ? (
-                            <div className="flex flex-col items-start gap-1 sm:items-end">
-                              <span
-                                className={availabilityBadgeClass(availability.status)}
-                              >
-                                {AVAILABILITY_STATUS_LABELS[availability.status]}
-                              </span>
-                              {availability.status === "unknown" ? (
-                                <span className="text-xs text-gray-500">
-                                  Nie można automatycznie ocenić
-                                </span>
-                              ) : null}
-                              {availability.availableQuantity ? (
-                                <span className="text-xs text-gray-500">
-                                  W zapasach: {availability.availableQuantity}
-                                </span>
+                              {hint ? (
+                                <p className="mt-1 text-xs text-gray-500">
+                                  {hint}
+                                  {availability ? (
+                                    <span
+                                      className={cn(
+                                        "ml-2",
+                                        availabilityBadgeClass(
+                                          availability.status,
+                                        ),
+                                      )}
+                                    >
+                                      {availability.status === "available"
+                                        ? "OK"
+                                        : availability.status === "partial"
+                                          ? "Częściowo"
+                                          : availability.status === "missing"
+                                            ? "Brak"
+                                            : "?"}
+                                    </span>
+                                  ) : null}
+                                </p>
                               ) : null}
                             </div>
-                          ) : null}
-                        </li>
-                      );
-                    })}
-                </ul>
-              ) : null}
-            </section>
+                          </li>
+                        );
+                      })}
+                  </ul>
+                ) : null}
+              </section>
 
-            <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
-              <div className="border-b border-gray-100 px-5 py-4">
-                <h2 className="text-lg font-bold text-gray-900">
-                  Sposób przygotowania
+              <section>
+                <h2 className="mb-4 text-lg font-semibold text-gray-900">
+                  Przygotowanie
                 </h2>
-              </div>
-              <ol className="divide-y divide-gray-100">
-                {recipe.steps
-                  .slice()
-                  .sort((left, right) => left.sortOrder - right.sortOrder)
-                  .map((step, index) => (
-                    <li key={step.id} className="flex gap-4 px-5 py-4">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-sm font-bold text-emerald-700">
-                        {index + 1}
-                      </span>
-                      <p className="text-gray-800">{step.instruction}</p>
-                    </li>
-                  ))}
-              </ol>
-            </section>
-
-            {gapsFeedback ? (
-              <div
-                className={cn(
-                  "rounded-xl border px-4 py-3 text-sm",
-                  gapsFeedback.includes("Dodano")
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                    : "border-amber-200 bg-amber-50 text-amber-900",
-                )}
-              >
-                {gapsFeedback}
-              </div>
-            ) : null}
+                <ol className="space-y-4">
+                  {recipe.steps
+                    .slice()
+                    .sort((left, right) => left.sortOrder - right.sortOrder)
+                    .map((step, index) => (
+                      <li
+                        key={step.id}
+                        className={cn(
+                          "flex gap-3",
+                          doneSteps.has(step.id) && "opacity-60",
+                        )}
+                      >
+                        <div className="flex flex-col items-center gap-1">
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-sm font-semibold text-emerald-700">
+                            {index + 1}
+                          </span>
+                          <input
+                            type="checkbox"
+                            checked={doneSteps.has(step.id)}
+                            onChange={() => toggleStep(step.id)}
+                            aria-label={`Krok ${index + 1} wykonany`}
+                            className="mt-1"
+                          />
+                        </div>
+                        <div className="min-w-0 flex-1 pt-0.5">
+                          {step.title ? (
+                            <p
+                              className={cn(
+                                "font-medium text-gray-900",
+                                doneSteps.has(step.id) && "line-through",
+                              )}
+                            >
+                              {step.title}
+                            </p>
+                          ) : null}
+                          <p
+                            className={cn(
+                              "text-gray-800 leading-relaxed",
+                              step.title ? "mt-1" : "",
+                              doneSteps.has(step.id) && "line-through",
+                            )}
+                          >
+                            {step.instruction}
+                          </p>
+                          {step.durationMinutes ? (
+                            <p className="mt-1.5 text-xs text-gray-500">
+                              {formatRecipeTime(step.durationMinutes)}
+                            </p>
+                          ) : null}
+                        </div>
+                      </li>
+                    ))}
+                </ol>
+              </section>
+            </div>
           </>
         ) : null}
-      </div>
+
+        {!recipe && !recipeQuery.isPending && !recipeQuery.isError ? (
+          <div className="text-center">
+            <BookOpen size={32} className="mx-auto mb-3 text-gray-300" />
+            <p className="text-sm text-gray-500">Nie znaleziono przepisu.</p>
+          </div>
+        ) : null}
+      </article>
 
       {deleteOpen && recipe ? (
         <ConfirmDialog
@@ -462,12 +597,6 @@ export default function RecipeDetailPage() {
         />
       ) : null}
 
-      {deleteRecipe.isError ? (
-        <div className="fixed bottom-4 left-1/2 z-50 max-w-md -translate-x-1/2 rounded-xl border border-red-200 bg-white px-4 py-3 text-sm text-red-600 shadow-lg">
-          {readApiError(deleteRecipe.error)}
-        </div>
-      ) : null}
-
       {gapsOpen && availabilityQuery.data ? (
         <AddRecipeGapsDialog
           recipeName={recipe?.name ?? "Przepis"}
@@ -479,28 +608,31 @@ export default function RecipeDetailPage() {
               setGapsOpen(false);
             }
           }}
-          onConfirm={(includeUnknownIngredientIds) =>
-            addGaps.mutate(includeUnknownIngredientIds)
-          }
+          onConfirm={(selections) => addGaps.mutate(selections)}
+        />
+      ) : null}
+
+      <Toast
+        message={toast}
+        onDismiss={() => setToast(null)}
+        variant="success"
+      />
+
+      {deleteRecipe.isError ? (
+        <Toast
+          message={readApiError(deleteRecipe.error)}
+          onDismiss={() => deleteRecipe.reset()}
+          variant="error"
         />
       ) : null}
 
       {addGaps.isError ? (
-        <div className="fixed bottom-4 left-1/2 z-50 max-w-md -translate-x-1/2 rounded-xl border border-red-200 bg-white px-4 py-3 text-sm text-red-600 shadow-lg">
-          {readApiError(addGaps.error)}
-        </div>
+        <Toast
+          message={readApiError(addGaps.error)}
+          onDismiss={() => addGaps.reset()}
+          variant="error"
+        />
       ) : null}
     </AppShell>
-  );
-}
-
-function InfoCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">
-      <p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">
-        {label}
-      </p>
-      <p className="mt-1 text-lg font-semibold text-gray-900">{value}</p>
-    </div>
   );
 }

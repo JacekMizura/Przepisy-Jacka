@@ -32,7 +32,9 @@ type IngredientDraft = {
 
 type StepDraft = {
   key: string;
+  title: string;
   instruction: string;
+  durationMinutes: string;
 };
 
 type RecipeFormProps = {
@@ -59,7 +61,9 @@ function createIngredientDraft(
 function createStepDraft(partial?: Partial<StepDraft> & { key?: string }): StepDraft {
   return {
     key: partial?.key ?? crypto.randomUUID(),
+    title: partial?.title ?? "",
     instruction: partial?.instruction ?? "",
+    durationMinutes: partial?.durationMinutes ?? "",
   };
 }
 
@@ -107,7 +111,14 @@ function recipeToDraft(recipe: RecipeDetail): {
             .slice()
             .sort((left, right) => left.sortOrder - right.sortOrder)
             .map((step) =>
-              createStepDraft({ instruction: step.instruction }),
+              createStepDraft({
+                title: step.title ?? "",
+                instruction: step.instruction,
+                durationMinutes:
+                  step.durationMinutes !== null
+                    ? String(step.durationMinutes)
+                    : "",
+              }),
             )
         : [createStepDraft()],
   };
@@ -214,12 +225,31 @@ export function RecipeForm({
       }
     }
 
-    const normalizedSteps = steps
-      .map((step, index) => ({
+    const normalizedSteps: CreateRecipeDto["steps"] = [];
+    for (let index = 0; index < steps.length; index++) {
+      const step = steps[index];
+      if (!step || !step.instruction.trim()) {
+        continue;
+      }
+      const durationTrimmed = step.durationMinutes.trim();
+      let durationMinutes: number | null | undefined = null;
+      if (durationTrimmed) {
+        const parsed = Number(durationTrimmed);
+        if (!Number.isInteger(parsed) || parsed < 1) {
+          setFormError(
+            `Czas kroku ${index + 1} musi być dodatnią liczbą całkowitą (minuty).`,
+          );
+          return;
+        }
+        durationMinutes = parsed;
+      }
+      normalizedSteps.push({
+        title: step.title.trim() || undefined,
         instruction: step.instruction.trim(),
-        sortOrder: index,
-      }))
-      .filter((step) => step.instruction.length > 0);
+        durationMinutes,
+        sortOrder: normalizedSteps.length,
+      } as components["schemas"]["RecipeStepInputDto"]);
+    }
 
     if (normalizedSteps.length === 0) {
       setFormError("Dodaj co najmniej jeden krok przygotowania.");
@@ -602,6 +632,44 @@ export function RecipeForm({
                     <Trash2 size={14} className="mr-1" />
                     Usuń
                   </Button>
+                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Tytuł kroku (opcjonalnie)</Label>
+                  <Input
+                    value={step.title}
+                    onChange={(event) =>
+                      setSteps((current) =>
+                        current.map((entry) =>
+                          entry.key === step.key
+                            ? { ...entry, title: event.target.value }
+                            : entry,
+                        ),
+                      )
+                    }
+                    placeholder="np. Przygotowanie makaronu"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Czas (min, opcjonalnie)</Label>
+                  <Input
+                    inputMode="numeric"
+                    value={step.durationMinutes}
+                    onChange={(event) =>
+                      setSteps((current) =>
+                        current.map((entry) =>
+                          entry.key === step.key
+                            ? {
+                                ...entry,
+                                durationMinutes: event.target.value,
+                              }
+                            : entry,
+                        ),
+                      )
+                    }
+                    placeholder="np. 10"
+                  />
                 </div>
               </div>
               <textarea

@@ -16,11 +16,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ImageField } from "@/components/image-field";
+import { ProductPurchaseOptions } from "@/components/product-purchase-options";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createWebApiClient } from "@/lib/api";
 import { LOCATION_LABELS, UNIT_LABELS, readApiError } from "@/lib/errors";
+import { formatQuantityWithUnit } from "@/lib/format-quantity";
 import {
   PRODUCT_CATEGORY_OPTIONS,
   validateOptionalEan,
@@ -80,6 +82,9 @@ export default function StockPage() {
   const [productFormOpen, setProductFormOpen] = useState(false);
   const [stockFormOpen, setStockFormOpen] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
+  const [expandedProductId, setExpandedProductId] = useState<string | null>(
+    null,
+  );
   const [listFeedback, setListFeedback] = useState<string | null>(null);
   const [duplicateProduct, setDuplicateProduct] = useState<{
     id: string;
@@ -1070,7 +1075,17 @@ export default function StockPage() {
                                     </Button>
                                   </form>
                                 ) : (
-                                  `${item.quantity} / ${item.initialQuantity}`
+                                  <>
+                                    {formatQuantityWithUnit(
+                                      item.quantity,
+                                      product?.defaultUnit,
+                                    )}{" "}
+                                    /{" "}
+                                    {formatQuantityWithUnit(
+                                      item.initialQuantity,
+                                      product?.defaultUnit,
+                                    )}
+                                  </>
                                 )}
                               </td>
                               <td className="px-4 py-3 text-gray-700">
@@ -1192,6 +1207,19 @@ export default function StockPage() {
                             size="sm"
                             variant="outline"
                             onClick={() =>
+                              setExpandedProductId((current) =>
+                                current === product.id ? null : product.id,
+                              )
+                            }
+                          >
+                            {expandedProductId === product.id
+                              ? "Zwiń opcje zakupu"
+                              : "Jak kupuję"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
                               requestAddToList({
                                 id: product.id,
                                 name: product.name,
@@ -1215,6 +1243,14 @@ export default function StockPage() {
                             Usuń produkt
                           </Button>
                         </div>
+                        {expandedProductId === product.id ? (
+                          <ProductPurchaseOptions
+                            kitchenId={kitchenId}
+                            productId={product.id}
+                            productName={product.name}
+                            defaultUnit={product.defaultUnit as BaseUnit}
+                          />
+                        ) : null}
                       </li>
                     );
                   })}

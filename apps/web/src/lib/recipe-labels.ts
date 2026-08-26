@@ -1,5 +1,7 @@
 import type { components } from "@moja-kuchnia/api-client";
 
+import { formatQuantityWithUnit } from "@/lib/format-quantity";
+
 type RecipeDifficulty = components["schemas"]["RecipeSummaryDto"]["difficulty"];
 type RecipeVisibility = components["schemas"]["RecipeSummaryDto"]["visibility"];
 type RecipeIngredientUnit =
@@ -49,13 +51,7 @@ export function formatRecipeIngredientQuantity(
   quantity: string | null | undefined,
   unit: RecipeIngredientUnit,
 ): string {
-  if (unit === "to_taste") {
-    return "do smaku";
-  }
-  if (!quantity) {
-    return RECIPE_INGREDIENT_UNIT_LABELS[unit];
-  }
-  return `${quantity} ${RECIPE_INGREDIENT_UNIT_LABELS[unit]}`;
+  return formatQuantityWithUnit(quantity, unit);
 }
 
 export function formatRecipeTime(minutes: number | null | undefined): string {

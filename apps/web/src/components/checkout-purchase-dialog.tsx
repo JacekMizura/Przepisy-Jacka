@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createWebApiClient } from "@/lib/api";
 import { LOCATION_LABELS, readApiError, UNIT_LABELS } from "@/lib/errors";
+import { formatQuantityNumber } from "@/lib/format-quantity";
 import { INPUT_UNIT_LABELS } from "@/lib/shopping-labels";
 import {
   inputUnitsFor,
@@ -70,7 +71,7 @@ function buildLineDraft(item: ShoppingListItem, products: Product[]): LineDraft 
   return {
     shoppingListItemId: item.id,
     label,
-    quantity: item.plannedQuantity ?? "1.000",
+    quantity: formatQuantityNumber(item.plannedQuantity ?? "1"),
     inputUnit: defaultInputUnit(item, product?.defaultUnit as BaseUnit | undefined),
     location: "pantry",
     priceZloty: "",

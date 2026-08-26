@@ -439,6 +439,190 @@
         ]
       }
     },
+    "/api/kitchens/{kitchenId}/products/{productId}/purchase-options": {
+      "get": {
+        "operationId": "StockController_listPurchaseOptions",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PurchaseOptionDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Opcje zakupu produktu",
+        "tags": [
+          "stock"
+        ]
+      },
+      "post": {
+        "operationId": "StockController_createPurchaseOption",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePurchaseOptionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOptionDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Dodanie opcji zakupu",
+        "tags": [
+          "stock"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/products/{productId}/purchase-options/{optionId}": {
+      "patch": {
+        "operationId": "StockController_updatePurchaseOption",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "optionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePurchaseOptionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PurchaseOptionDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Aktualizacja opcji zakupu",
+        "tags": [
+          "stock"
+        ]
+      },
+      "delete": {
+        "operationId": "StockController_deletePurchaseOption",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "optionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Usunięcie lub dezaktywacja opcji zakupu",
+        "tags": [
+          "stock"
+        ]
+      }
+    },
     "/api/kitchens/{kitchenId}/stock-items": {
       "get": {
         "operationId": "StockController_listStock",
@@ -1501,6 +1685,57 @@
           "inviteUrl"
         ]
       },
+      "PurchaseOptionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "productId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "contentQuantity": {
+            "type": "string",
+            "example": "1000.000"
+          },
+          "contentUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ]
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "productId",
+          "name",
+          "contentQuantity",
+          "contentUnit",
+          "isDefault",
+          "isActive",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
       "ProductDto": {
         "type": "object",
         "properties": {
@@ -1543,6 +1778,12 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "purchaseOptions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PurchaseOptionDto"
+            }
           }
         },
         "required": [
@@ -1595,6 +1836,63 @@
           "name",
           "defaultUnit"
         ]
+      },
+      "CreatePurchaseOptionDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Karton 1 l"
+          },
+          "contentQuantity": {
+            "type": "string",
+            "example": "1000.000"
+          },
+          "contentUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ]
+          },
+          "isDefault": {
+            "type": "boolean",
+            "default": false
+          }
+        },
+        "required": [
+          "name",
+          "contentQuantity",
+          "contentUnit"
+        ]
+      },
+      "UpdatePurchaseOptionDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Karton 1 l"
+          },
+          "contentQuantity": {
+            "type": "string",
+            "example": "1000.000"
+          },
+          "contentUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ]
+          },
+          "isDefault": {
+            "type": "boolean"
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        }
       },
       "StockItemDto": {
         "type": "object",
@@ -1808,6 +2106,35 @@
           "category"
         ]
       },
+      "PurchaseOptionSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "contentQuantity": {
+            "type": "string",
+            "example": "1000.000"
+          },
+          "contentUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "contentQuantity",
+          "contentUnit"
+        ]
+      },
       "ShoppingListItemDto": {
         "type": "object",
         "properties": {
@@ -1866,6 +2193,47 @@
                 "$ref": "#/components/schemas/ShoppingListItemProductDto"
               }
             ]
+          },
+          "requiredQuantity": {
+            "type": "string",
+            "nullable": true,
+            "example": "100.000"
+          },
+          "requiredUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "kilogram",
+              "milliliter",
+              "liter"
+            ],
+            "nullable": true
+          },
+          "sourceRecipeId": {
+            "type": "string",
+            "nullable": true
+          },
+          "sourceRecipeName": {
+            "type": "string",
+            "nullable": true
+          },
+          "purchaseOptionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "packageCount": {
+            "type": "number",
+            "nullable": true
+          },
+          "purchaseOption": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PurchaseOptionSummaryDto"
+              }
+            ]
           }
         },
         "required": [
@@ -1877,7 +2245,13 @@
           "plannedUnit",
           "note",
           "status",
-          "resolvedAt"
+          "resolvedAt",
+          "requiredQuantity",
+          "requiredUnit",
+          "sourceRecipeId",
+          "sourceRecipeName",
+          "purchaseOptionId",
+          "packageCount"
         ]
       },
       "CreateShoppingListItemDto": {
@@ -1911,6 +2285,34 @@
           "mergeQuantity": {
             "type": "boolean",
             "description": "Gdy true, dodaje ilość do istniejącej pozycji pending z tym samym produktem."
+          },
+          "requiredQuantity": {
+            "type": "string",
+            "example": "100.000"
+          },
+          "requiredUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "kilogram",
+              "milliliter",
+              "liter"
+            ]
+          },
+          "sourceRecipeId": {
+            "type": "string"
+          },
+          "sourceRecipeName": {
+            "type": "string",
+            "example": "Omlet"
+          },
+          "purchaseOptionId": {
+            "type": "string"
+          },
+          "packageCount": {
+            "type": "number",
+            "example": 1
           }
         }
       },
@@ -1938,6 +2340,27 @@
           "note": {
             "type": "string",
             "nullable": true
+          },
+          "requiredQuantity": {
+            "type": "string",
+            "example": "100.000"
+          },
+          "requiredUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "kilogram",
+              "milliliter",
+              "liter"
+            ]
+          },
+          "purchaseOptionId": {
+            "type": "string"
+          },
+          "packageCount": {
+            "type": "number",
+            "example": 2
           }
         }
       },
@@ -2346,9 +2769,19 @@
       "RecipeStepInputDto": {
         "type": "object",
         "properties": {
+          "title": {
+            "type": "string",
+            "nullable": true,
+            "example": "Przygotowanie makaronu"
+          },
           "instruction": {
             "type": "string",
             "example": "Ugotuj makaron al dente."
+          },
+          "durationMinutes": {
+            "type": "number",
+            "nullable": true,
+            "example": 10
           },
           "sortOrder": {
             "type": "number",
@@ -2492,8 +2925,16 @@
           "id": {
             "type": "string"
           },
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
           "instruction": {
             "type": "string"
+          },
+          "durationMinutes": {
+            "type": "number",
+            "nullable": true
           },
           "sortOrder": {
             "type": "number"
@@ -2501,7 +2942,9 @@
         },
         "required": [
           "id",
+          "title",
           "instruction",
+          "durationMinutes",
           "sortOrder"
         ]
       },
@@ -2662,6 +3105,124 @@
           }
         }
       },
+      "PurchaseProposalAlternativeDto": {
+        "type": "object",
+        "properties": {
+          "purchaseOptionId": {
+            "type": "string"
+          },
+          "purchaseOptionName": {
+            "type": "string"
+          },
+          "packageCount": {
+            "type": "number"
+          },
+          "packageContentQuantity": {
+            "type": "string",
+            "example": "1000.000"
+          },
+          "packageContentUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ]
+          },
+          "totalPurchaseQuantity": {
+            "type": "string",
+            "example": "1000.000"
+          },
+          "totalPurchaseUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "kilogram",
+              "milliliter",
+              "liter"
+            ]
+          }
+        },
+        "required": [
+          "purchaseOptionId",
+          "purchaseOptionName",
+          "packageCount",
+          "packageContentQuantity",
+          "packageContentUnit",
+          "totalPurchaseQuantity",
+          "totalPurchaseUnit"
+        ]
+      },
+      "PurchaseProposalDto": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "packages",
+              "exact"
+            ]
+          },
+          "purchaseOptionId": {
+            "type": "string",
+            "nullable": true
+          },
+          "purchaseOptionName": {
+            "type": "string",
+            "nullable": true
+          },
+          "packageCount": {
+            "type": "number",
+            "nullable": true
+          },
+          "packageContentQuantity": {
+            "type": "string",
+            "nullable": true,
+            "example": "1000.000"
+          },
+          "packageContentUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ],
+            "nullable": true
+          },
+          "totalPurchaseQuantity": {
+            "type": "string",
+            "example": "1000.000"
+          },
+          "totalPurchaseUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "kilogram",
+              "milliliter",
+              "liter"
+            ]
+          },
+          "alternatives": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PurchaseProposalAlternativeDto"
+            }
+          }
+        },
+        "required": [
+          "mode",
+          "purchaseOptionId",
+          "purchaseOptionName",
+          "packageCount",
+          "packageContentQuantity",
+          "packageContentUnit",
+          "totalPurchaseQuantity",
+          "totalPurchaseUnit",
+          "alternatives"
+        ]
+      },
       "RecipeIngredientAvailabilityDto": {
         "type": "object",
         "properties": {
@@ -2751,6 +3312,20 @@
               "to_taste"
             ],
             "nullable": true
+          },
+          "requiredQuantity": {
+            "type": "string",
+            "nullable": true,
+            "example": "1.000"
+          },
+          "purchaseProposal": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PurchaseProposalDto"
+              }
+            ]
           }
         },
         "required": [
@@ -2766,7 +3341,8 @@
           "availableQuantity",
           "availableUnit",
           "gapQuantity",
-          "gapUnit"
+          "gapUnit",
+          "requiredQuantity"
         ]
       },
       "RecipeAvailabilityDto": {
@@ -2795,6 +3371,31 @@
           "ingredients"
         ]
       },
+      "RecipeGapSelectionDto": {
+        "type": "object",
+        "properties": {
+          "ingredientId": {
+            "type": "string"
+          },
+          "skip": {
+            "type": "boolean"
+          },
+          "purchaseOptionId": {
+            "type": "string"
+          },
+          "packageCount": {
+            "type": "number",
+            "example": 2
+          },
+          "exactQuantity": {
+            "type": "string",
+            "example": "300.000"
+          }
+        },
+        "required": [
+          "ingredientId"
+        ]
+      },
       "AddRecipeGapsDto": {
         "type": "object",
         "properties": {
@@ -2811,6 +3412,13 @@
             "type": "array",
             "items": {
               "type": "string"
+            }
+          },
+          "selections": {
+            "description": "Wybór wariantu zakupu per składnik. Gdy brak — auto-proposal dla partial/missing.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeGapSelectionDto"
             }
           }
         },

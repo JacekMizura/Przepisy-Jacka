@@ -2,9 +2,11 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
   IsEnum,
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
+  Min,
   MinLength,
   ValidateIf,
 } from 'class-validator';
@@ -15,6 +17,7 @@ import {
   ShoppingListItemStatus,
 } from '../../generated/prisma/client';
 import { isPresentOptional } from '../../stock/dto/product.dto';
+import { PurchaseOptionSummaryDto } from '../../stock/dto/purchase-option.dto';
 
 export class CreateShoppingListItemDto {
   @ApiPropertyOptional()
@@ -52,6 +55,39 @@ export class CreateShoppingListItemDto {
   @IsOptional()
   @IsBoolean()
   mergeQuantity?: boolean;
+
+  @ApiPropertyOptional({ type: String, example: '100.000' })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  requiredQuantity?: string;
+
+  @ApiPropertyOptional({ enum: ShoppingInputUnit })
+  @IsOptional()
+  @IsEnum(ShoppingInputUnit)
+  requiredUnit?: ShoppingInputUnit;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  sourceRecipeId?: string;
+
+  @ApiPropertyOptional({ example: 'Omlet' })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  sourceRecipeName?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  purchaseOptionId?: string;
+
+  @ApiPropertyOptional({ example: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  packageCount?: number;
 }
 
 export class UpdateShoppingListItemDto {
@@ -77,6 +113,28 @@ export class UpdateShoppingListItemDto {
   @ValidateIf(isPresentOptional)
   @IsString()
   note?: string | null;
+
+  @ApiPropertyOptional({ type: String, example: '100.000' })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  requiredQuantity?: string;
+
+  @ApiPropertyOptional({ enum: ShoppingInputUnit })
+  @IsOptional()
+  @IsEnum(ShoppingInputUnit)
+  requiredUnit?: ShoppingInputUnit;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  purchaseOptionId?: string;
+
+  @ApiPropertyOptional({ example: 2 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  packageCount?: number;
 }
 
 export class UpdateShoppingListItemStatusDto {
@@ -135,4 +193,25 @@ export class ShoppingListItemDto {
 
   @ApiPropertyOptional({ type: ShoppingListItemProductDto, nullable: true })
   product!: ShoppingListItemProductDto | null;
+
+  @ApiProperty({ type: String, nullable: true, example: '100.000' })
+  requiredQuantity!: string | null;
+
+  @ApiProperty({ enum: ShoppingInputUnit, nullable: true })
+  requiredUnit!: ShoppingInputUnit | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  sourceRecipeId!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  sourceRecipeName!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  purchaseOptionId!: string | null;
+
+  @ApiProperty({ type: Number, nullable: true })
+  packageCount!: number | null;
+
+  @ApiPropertyOptional({ type: PurchaseOptionSummaryDto, nullable: true })
+  purchaseOption!: PurchaseOptionSummaryDto | null;
 }

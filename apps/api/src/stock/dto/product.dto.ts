@@ -10,6 +10,7 @@ import {
 } from 'class-validator';
 
 import { ProductUnit } from '../../generated/prisma/client';
+import { PurchaseOptionDto } from './purchase-option.dto';
 
 /** EAN-8 / UPC-A / EAN-13 / GTIN-14 (same digits). */
 export const EAN_PATTERN = /^\d{8}$|^\d{12}$|^\d{13}$|^\d{14}$/;
@@ -104,4 +105,7 @@ export class ProductDto {
 
   @ApiProperty({ type: String, format: 'date-time' })
   updatedAt!: string;
+
+  @ApiPropertyOptional({ type: [PurchaseOptionDto] })
+  purchaseOptions?: PurchaseOptionDto[];
 }

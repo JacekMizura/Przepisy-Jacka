@@ -10,6 +10,7 @@ import {
   RecipeVisibility,
   ProductPurchaseMode,
   ProductUnit,
+  type MediaAsset,
   type Recipe,
   type RecipeGapAddition,
   type RecipeIngredient,
@@ -19,6 +20,8 @@ import {
 
 import { formatQuantity, parseQuantityString } from '../common/quantity';
 import { requireKitchenMember } from '../kitchens/kitchen-access';
+import { MediaImageDto } from '../media/dto/media.dto';
+import { MediaService } from '../media/media.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { ShoppingService } from '../shopping/shopping.service';
 import { PRODUCT_PURCHASE_CONFIG_REQUIRED_MESSAGE } from '../stock/purchase-mode.messages';
@@ -30,6 +33,7 @@ import {
   SkippedRecipeGapItemDto,
 } from './dto/add-recipe-gaps.dto';
 import { RecipeAvailabilityDto } from './dto/recipe-availability.dto';
+import { RecipeEstimateDto } from './dto/recipe-estimate.dto';
 import {
   CreateRecipeDto,
   RecipeDetailDto,
@@ -44,15 +48,26 @@ import {
   recipeUnitToShoppingInputUnit,
   type RecipeIngredientAvailability,
 } from './recipe-availability';
+import { computeRecipeCost, type ProductPriceInput } from './recipe-cost';
+import {
+  computeRecipeNutrition,
+  type NutritionIngredientInput,
+  type ProductNutritionInput,
+} from './recipe-nutrition';
 import {
   buildPurchaseProposal,
   type PurchaseOptionInput,
 } from '../shopping/purchase-proposal';
 
+type RecipeStepWithMedia = RecipeStep & {
+  imageMedia?: MediaAsset | null;
+};
+
 type RecipeWithRelations = Recipe & {
   author: Pick<User, 'id' | 'name'>;
   ingredients: RecipeIngredient[];
-  steps: RecipeStep[];
+  steps: RecipeStepWithMedia[];
+  coverMedia?: MediaAsset | null;
 };
 
 type StoredGapAdditionResult = AddRecipeGapsResultDto & {
@@ -89,6 +104,7 @@ export class RecipeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly shoppingService: ShoppingService,
+    private readonly mediaService: MediaService,
   ) {}
 
   async listRecipes(
@@ -114,11 +130,19 @@ export class RecipeService {
       },
       include: {
         author: { select: { id: true, name: true } },
+        coverMedia: true,
       },
       orderBy: [{ updatedAt: 'desc' }, { name: 'asc' }],
     });
 
-    return recipes.map(toRecipeSummaryDto);
+    return Promise.all(
+      recipes.map(async (recipe) =>
+        toRecipeSummaryDto(
+          recipe,
+          await this.mediaService.buildImageSummary(recipe.coverMedia),
+        ),
+      ),
+    );
   }
 
   async createRecipe(
@@ -158,7 +182,7 @@ export class RecipeService {
       return created;
     });
 
-    return toRecipeDetailDto(recipe);
+    return this.toRecipeDetailDtoWithMedia(recipe);
   }
 
   async getRecipe(
@@ -167,7 +191,7 @@ export class RecipeService {
     recipeId: string,
   ): Promise<RecipeDetailDto> {
     const recipe = await this.findAccessibleRecipe(userId, kitchenId, recipeId);
-    return toRecipeDetailDto(recipe);
+    return this.toRecipeDetailDtoWithMedia(recipe);
   }
 
   async updateRecipe(
@@ -241,7 +265,16 @@ export class RecipeService {
       });
     });
 
-    return toRecipeDetailDto(recipe);
+    if (dto.steps !== undefined) {
+      // Kroki są odtwarzane od zera, więc ich stare zdjęcia zostają bez właściciela.
+      await this.mediaService.deleteAssetsByIds(
+        existing.steps
+          .map((step) => step.imageMediaId)
+          .filter((id): id is string => id !== null),
+      );
+    }
+
+    return this.toRecipeDetailDtoWithMedia(recipe);
   }
 
   async deleteRecipe(
@@ -255,7 +288,147 @@ export class RecipeService {
       recipeId,
     );
     assertRecipeAuthor(existing, userId);
+
+    const mediaAssetIds = [
+      existing.coverMediaId,
+      ...existing.steps.map((step) => step.imageMediaId),
+    ].filter((id): id is string => id !== null);
+
     await this.prisma.recipe.delete({ where: { id: recipeId } });
+    await this.mediaService.deleteAssetsByIds(mediaAssetIds);
+  }
+
+  async getEstimate(
+    userId: string,
+    kitchenId: string,
+    recipeId: string,
+    servings: number,
+  ): Promise<RecipeEstimateDto> {
+    if (!Number.isInteger(servings) || servings < 1) {
+      throw new BadRequestException('servings musi być liczbą całkowitą >= 1.');
+    }
+
+    const recipe = await this.findAccessibleRecipe(userId, kitchenId, recipeId);
+    const ingredients: NutritionIngredientInput[] = recipe.ingredients.map(
+      (ingredient) => ({
+        id: ingredient.id,
+        name: ingredient.name,
+        quantity: ingredient.quantity,
+        unit: ingredient.unit,
+        productId: ingredient.productId,
+      }),
+    );
+
+    const productIds = [
+      ...new Set(
+        ingredients
+          .map((ingredient) => ingredient.productId)
+          .filter((productId): productId is string => productId !== null),
+      ),
+    ];
+
+    const [nutritionByProductId, pricesByProductId] = await Promise.all([
+      this.loadNutritionByProductId(kitchenId, productIds),
+      this.loadLatestPricesByProductId(kitchenId, productIds),
+    ]);
+
+    return {
+      servings,
+      nutrition: computeRecipeNutrition({
+        baseServings: recipe.servings,
+        servings,
+        ingredients,
+        nutritionByProductId,
+      }),
+      cost: computeRecipeCost({
+        baseServings: recipe.servings,
+        servings,
+        ingredients,
+        pricesByProductId,
+      }),
+    };
+  }
+
+  private async loadNutritionByProductId(
+    kitchenId: string,
+    productIds: string[],
+  ): Promise<Map<string, ProductNutritionInput>> {
+    if (productIds.length === 0) {
+      return new Map();
+    }
+    const rows = await this.prisma.productNutrition.findMany({
+      where: {
+        productId: { in: productIds },
+        product: { kitchenId },
+      },
+    });
+    return new Map(
+      rows.map((row) => [
+        row.productId,
+        {
+          baseQuantity: row.baseQuantity,
+          baseUnit: row.baseUnit,
+          kcal: row.kcal,
+          proteinGrams: row.proteinGrams,
+          carbsGrams: row.carbsGrams,
+          fatGrams: row.fatGrams,
+        },
+      ]),
+    );
+  }
+
+  /** Bierzemy najnowszy zakup produktu w tej kuchni (po dacie zakupu). */
+  private async loadLatestPricesByProductId(
+    kitchenId: string,
+    productIds: string[],
+  ): Promise<Map<string, ProductPriceInput>> {
+    if (productIds.length === 0) {
+      return new Map();
+    }
+    const lineItems = await this.prisma.purchaseLineItem.findMany({
+      where: {
+        productId: { in: productIds },
+        purchase: { kitchenId },
+        quantity: { gt: 0 },
+      },
+      include: {
+        purchase: { select: { purchasedAt: true } },
+        product: { select: { name: true, defaultUnit: true } },
+      },
+      orderBy: [{ purchase: { purchasedAt: 'desc' } }],
+    });
+
+    const prices = new Map<string, ProductPriceInput>();
+    for (const lineItem of lineItems) {
+      if (prices.has(lineItem.productId)) {
+        continue;
+      }
+      prices.set(lineItem.productId, {
+        productId: lineItem.productId,
+        productName: lineItem.product.name,
+        purchasedAt: lineItem.purchase.purchasedAt,
+        quantity: lineItem.quantity,
+        priceMinor: lineItem.priceMinor,
+        baseUnit: lineItem.product.defaultUnit,
+      });
+    }
+    return prices;
+  }
+
+  private async toRecipeDetailDtoWithMedia(
+    recipe: RecipeWithRelations,
+  ): Promise<RecipeDetailDto> {
+    const coverImage = await this.mediaService.buildImageSummary(
+      recipe.coverMedia,
+    );
+    const stepImages = new Map<string, MediaImageDto | null>();
+    for (const step of recipe.steps) {
+      stepImages.set(
+        step.id,
+        await this.mediaService.buildImageSummary(step.imageMedia),
+      );
+    }
+    return toRecipeDetailDto(recipe, coverImage, stepImages);
   }
 
   async getAvailability(
@@ -555,7 +728,11 @@ export class RecipeService {
 const recipeInclude = {
   author: { select: { id: true, name: true } },
   ingredients: { orderBy: { sortOrder: 'asc' as const } },
-  steps: { orderBy: { sortOrder: 'asc' as const } },
+  steps: {
+    orderBy: { sortOrder: 'asc' as const },
+    include: { imageMedia: true },
+  },
+  coverMedia: true,
 };
 
 function buildVisibilityFilter(
@@ -1017,8 +1194,10 @@ function toStepInputFromEntity(step: RecipeStep): RecipeStepInputDto {
 
 function toRecipeSummaryDto(
   recipe: Recipe & { author: Pick<User, 'id' | 'name'> },
+  coverImage: MediaImageDto | null,
 ): RecipeSummaryDto {
   return {
+    coverImage,
     id: recipe.id,
     kitchenId: recipe.kitchenId,
     name: recipe.name,
@@ -1038,9 +1217,13 @@ function toRecipeSummaryDto(
   };
 }
 
-function toRecipeDetailDto(recipe: RecipeWithRelations): RecipeDetailDto {
+function toRecipeDetailDto(
+  recipe: RecipeWithRelations,
+  coverImage: MediaImageDto | null,
+  stepImages: Map<string, MediaImageDto | null>,
+): RecipeDetailDto {
   return {
-    ...toRecipeSummaryDto(recipe),
+    ...toRecipeSummaryDto(recipe, coverImage),
     sourceUrl: recipe.sourceUrl,
     ingredients: recipe.ingredients.map((ingredient) => ({
       id: ingredient.id,
@@ -1060,6 +1243,7 @@ function toRecipeDetailDto(recipe: RecipeWithRelations): RecipeDetailDto {
       instruction: step.instruction,
       durationMinutes: step.durationMinutes,
       sortOrder: step.sortOrder,
+      image: stepImages.get(step.id) ?? null,
     })),
   };
 }

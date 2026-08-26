@@ -75,7 +75,7 @@ export async function apiFetch(
   origin: string,
   path: string,
   options: {
-    method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
+    method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
     cookies?: Map<string, string>;
     body?: unknown;
     webOrigin: string;

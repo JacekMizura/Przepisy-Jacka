@@ -40,6 +40,22 @@ CLI `prisma` jest w `dependencies` pakietu `@moja-kuchnia/api`.
 | `AUTH_TRUSTED_ORIGINS` | `https://przepisy-jacka-web.vercel.app` |
 | `BETTER_AUTH_SECRET` | nowy trwały sekret (≥ 32 znaki), **nie** kopiuj z CI ani `.env.example` |
 | `ALLOW_DEMO_SEED` | `false` albo brak zmiennej |
+| `MEDIA_STORAGE_DRIVER` | `s3` (lub puste — wtedy S3 gdy pełna konfiguracja) |
+| `MEDIA_S3_ENDPOINT` | endpoint Railway Bucket (S3-compatible), np. `https://….railway.app` |
+| `MEDIA_S3_REGION` | region bucketa (np. `auto` albo wartość z panelu) |
+| `MEDIA_S3_BUCKET` | nazwa bucketa |
+| `MEDIA_S3_ACCESS_KEY_ID` | access key z Railway Bucket |
+| `MEDIA_S3_SECRET_ACCESS_KEY` | secret key z Railway Bucket |
+| `MEDIA_MAX_UPLOAD_BYTES` | opcjonalnie, domyślnie `10485760` (10 MB) |
+
+### Railway Storage Bucket (zdjęcia) — przed merge funkcji mediów
+
+1. W projekcie Railway utwórz **Storage Bucket** (prywatny, S3-compatible).
+2. Skopiuj endpoint, region, nazwę bucketa oraz Access Key / Secret Key.
+3. Ustaw powyższe zmienne `MEDIA_*` w usłudze API (production). **Nie** commituj sekretów.
+4. Bucket musi pozostać **prywatny** — klienci nigdy nie dostają stałych publicznych URL-i; API wydaje tylko krótko ważne presigned GET/PUT.
+5. Bez tych zmiennych API nadal startuje, ale upload zdjęć zwraca kontrolowany błąd „Magazyn zdjęć nie jest skonfigurowany.”
+6. Po deployu sprawdź w logach migrację `…_media_nutrition_recipe_costs` oraz smoke: begin upload → PUT → complete.
 
 Seed demo **nie** może być częścią startu ani pre-deploy.
 

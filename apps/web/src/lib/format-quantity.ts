@@ -62,6 +62,38 @@ export function formatQuantityWithUnit(
   return `${amount}\u00A0${label}`;
 }
 
+/** Wartości odżywcze: bez zbędnych zer, kcal domyślnie bez części dziesiętnej. */
+export function formatNutritionNumber(
+  value: string | number | null | undefined,
+  maximumFractionDigits = 1,
+): string {
+  if (value === null || value === undefined || value === "") {
+    return "";
+  }
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numeric)) {
+    return String(value);
+  }
+  return new Intl.NumberFormat("pl-PL", {
+    maximumFractionDigits,
+    minimumFractionDigits: 0,
+  }).format(numeric);
+}
+
+/** Grosze → `12,34 zł`. Brak wartości daje kreskę. */
+export function formatMoneyMinor(
+  minor: number | null | undefined,
+  fallback = "—",
+): string {
+  if (minor === null || minor === undefined || !Number.isFinite(minor)) {
+    return fallback;
+  }
+  return `${new Intl.NumberFormat("pl-PL", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(minor / 100)}\u00A0zł`;
+}
+
 export function unitLabel(unit: string | null | undefined): string {
   if (!unit) {
     return "";

@@ -326,6 +326,413 @@
         ]
       }
     },
+    "/api/kitchens/{kitchenId}/media/uploads": {
+      "post": {
+        "operationId": "MediaController_beginUpload",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BeginMediaUploadDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BeginMediaUploadResultDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Rozpoczęcie wysyłki zdjęcia",
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/media/{mediaAssetId}/memory-upload": {
+      "post": {
+        "operationId": "MediaController_memoryUpload",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mediaAssetId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemoryUploadDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Wysyłka zawartości do magazynu w pamięci (tylko MEDIA_STORAGE_DRIVER=memory)",
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/media/{mediaAssetId}/complete": {
+      "post": {
+        "operationId": "MediaController_completeUpload",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mediaAssetId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MediaAssetDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Zakończenie wysyłki i przetworzenie zdjęcia",
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/media/{mediaAssetId}": {
+      "delete": {
+        "operationId": "MediaController_deleteAsset",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "mediaAssetId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Usunięcie zdjęcia wraz z plikami",
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/products/{productId}/image": {
+      "post": {
+        "operationId": "MediaAttachmentController_attachProductImage",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachMediaDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttachedMediaDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Przypisanie zdjęcia do produktu",
+        "tags": [
+          "media"
+        ]
+      },
+      "delete": {
+        "operationId": "MediaAttachmentController_detachProductImage",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Odpięcie zdjęcia produktu",
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/recipes/{recipeId}/cover": {
+      "post": {
+        "operationId": "MediaAttachmentController_attachRecipeCover",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "recipeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachMediaDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttachedMediaDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Przypisanie okładki przepisu (autor)",
+        "tags": [
+          "media"
+        ]
+      },
+      "delete": {
+        "operationId": "MediaAttachmentController_detachRecipeCover",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "recipeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Odpięcie okładki przepisu (autor)",
+        "tags": [
+          "media"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/recipes/{recipeId}/steps/{stepId}/image": {
+      "post": {
+        "operationId": "MediaAttachmentController_attachRecipeStepImage",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "recipeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "stepId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachMediaDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttachedMediaDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Przypisanie zdjęcia do kroku przepisu (autor)",
+        "tags": [
+          "media"
+        ]
+      },
+      "delete": {
+        "operationId": "MediaAttachmentController_detachRecipeStepImage",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "recipeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "stepId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Odpięcie zdjęcia kroku przepisu (autor)",
+        "tags": [
+          "media"
+        ]
+      }
+    },
     "/api/kitchens/{kitchenId}/products": {
       "get": {
         "operationId": "StockController_listProducts",
@@ -530,6 +937,92 @@
           }
         },
         "summary": "Konfiguracja sposobu zakupu produktu (opakowania / dokładna ilość)",
+        "tags": [
+          "stock"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/products/{productId}/nutrition": {
+      "get": {
+        "operationId": "StockController_getProductNutrition",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductNutritionDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Wartości odżywcze produktu",
+        "tags": [
+          "stock"
+        ]
+      },
+      "put": {
+        "operationId": "StockController_upsertProductNutrition",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertProductNutritionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductNutritionDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Zapis wartości odżywczych produktu",
         "tags": [
           "stock"
         ]
@@ -1465,6 +1958,53 @@
         ]
       }
     },
+    "/api/kitchens/{kitchenId}/recipes/{recipeId}/estimate": {
+      "get": {
+        "operationId": "RecipeController_estimate",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "recipeId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "servings",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeEstimateDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Szacunkowe kalorie, makroskładniki i koszt przepisu",
+        "tags": [
+          "recipes"
+        ]
+      }
+    },
     "/api/kitchens/{kitchenId}/recipes/{recipeId}/add-gaps-to-shopping-list": {
       "post": {
         "operationId": "RecipeController_addGapsToShoppingList",
@@ -1781,6 +2321,295 @@
           "inviteUrl"
         ]
       },
+      "MediaUploadTargetDto": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "recipeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "recipeStepId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        }
+      },
+      "BeginMediaUploadDto": {
+        "type": "object",
+        "properties": {
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "product",
+              "recipe_cover",
+              "recipe_step"
+            ]
+          },
+          "declaredMimeType": {
+            "type": "string",
+            "enum": [
+              "image/jpeg",
+              "image/png",
+              "image/webp"
+            ],
+            "example": "image/jpeg",
+            "description": "Deklarowany typ pliku. Zawartość jest weryfikowana po bajtach."
+          },
+          "declaredByteSize": {
+            "type": "number",
+            "example": 512000
+          },
+          "target": {
+            "$ref": "#/components/schemas/MediaUploadTargetDto"
+          }
+        },
+        "required": [
+          "purpose",
+          "declaredMimeType",
+          "declaredByteSize"
+        ]
+      },
+      "BeginMediaUploadHeadersDto": {
+        "type": "object",
+        "properties": {
+          "Content-Type": {
+            "type": "string",
+            "example": "image/jpeg"
+          }
+        },
+        "required": [
+          "Content-Type"
+        ]
+      },
+      "BeginMediaUploadResultDto": {
+        "type": "object",
+        "properties": {
+          "mediaAssetId": {
+            "type": "string"
+          },
+          "uploadUrl": {
+            "type": "string",
+            "description": "Adres do wysłania pliku metodą PUT. Dla sterownika memory jest to endpoint API."
+          },
+          "objectKey": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "headers": {
+            "$ref": "#/components/schemas/BeginMediaUploadHeadersDto"
+          }
+        },
+        "required": [
+          "mediaAssetId",
+          "uploadUrl",
+          "objectKey",
+          "expiresAt",
+          "headers"
+        ]
+      },
+      "MemoryUploadDto": {
+        "type": "object",
+        "properties": {
+          "contentBase64": {
+            "type": "string",
+            "description": "Zawartość pliku zakodowana w base64."
+          }
+        },
+        "required": [
+          "contentBase64"
+        ]
+      },
+      "MediaImageDto": {
+        "type": "object",
+        "properties": {
+          "mediaAssetId": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "description": "Krótko żyjący podpisany URL. Nie zapisuj go."
+          },
+          "thumbnailUrl": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "mediaAssetId",
+          "url",
+          "thumbnailUrl"
+        ]
+      },
+      "MediaAssetDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kitchenId": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string",
+            "enum": [
+              "product",
+              "recipe_cover",
+              "recipe_step"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "processing",
+              "ready",
+              "failed"
+            ]
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "byteSize": {
+            "type": "number"
+          },
+          "width": {
+            "type": "number",
+            "nullable": true
+          },
+          "height": {
+            "type": "number",
+            "nullable": true
+          },
+          "image": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaImageDto"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "kitchenId",
+          "purpose",
+          "status",
+          "mimeType",
+          "byteSize",
+          "width",
+          "height",
+          "image",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "AttachMediaDto": {
+        "type": "object",
+        "properties": {
+          "mediaAssetId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "mediaAssetId"
+        ]
+      },
+      "AttachedMediaDto": {
+        "type": "object",
+        "properties": {
+          "targetId": {
+            "type": "string",
+            "description": "Id produktu, przepisu albo kroku przepisu."
+          },
+          "image": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaImageDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "targetId",
+          "image"
+        ]
+      },
+      "ProductNutritionDto": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "baseQuantity": {
+            "type": "string",
+            "example": "100.000"
+          },
+          "baseUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ]
+          },
+          "kcal": {
+            "type": "string",
+            "example": "64.000"
+          },
+          "proteinGrams": {
+            "type": "string"
+          },
+          "carbsGrams": {
+            "type": "string"
+          },
+          "fatGrams": {
+            "type": "string"
+          },
+          "fiberGrams": {
+            "type": "string",
+            "nullable": true
+          },
+          "saltGrams": {
+            "type": "string",
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "productId",
+          "baseQuantity",
+          "baseUnit",
+          "kcal",
+          "proteinGrams",
+          "carbsGrams",
+          "fatGrams",
+          "fiberGrams",
+          "saltGrams",
+          "updatedAt"
+        ]
+      },
       "PurchaseOptionDto": {
         "type": "object",
         "properties": {
@@ -1869,7 +2698,27 @@
           },
           "imageUrl": {
             "type": "string",
-            "nullable": true
+            "nullable": true,
+            "description": "Starsze źródło zdjęcia (http lub data URL)."
+          },
+          "image": {
+            "nullable": true,
+            "description": "Zdjęcie z magazynu mediów; podpisane URL-e wygasają.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaImageDto"
+              }
+            ]
+          },
+          "nutrition": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProductNutritionDto"
+              }
+            ]
           },
           "category": {
             "type": "string",
@@ -1899,6 +2748,8 @@
           "purchaseMode",
           "ean",
           "imageUrl",
+          "image",
+          "nutrition",
           "category",
           "createdAt",
           "updatedAt"
@@ -2003,6 +2854,59 @@
         },
         "required": [
           "mode"
+        ]
+      },
+      "UpsertProductNutritionDto": {
+        "type": "object",
+        "properties": {
+          "baseQuantity": {
+            "type": "string",
+            "example": "100.000",
+            "description": "Ilość odniesienia w jednostce bazowej produktu."
+          },
+          "baseUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ],
+            "example": "milliliter"
+          },
+          "kcal": {
+            "type": "string",
+            "example": "64.000"
+          },
+          "proteinGrams": {
+            "type": "string",
+            "example": "3.200"
+          },
+          "carbsGrams": {
+            "type": "string",
+            "example": "4.700"
+          },
+          "fatGrams": {
+            "type": "string",
+            "example": "3.600"
+          },
+          "fiberGrams": {
+            "type": "string",
+            "nullable": true,
+            "example": "0.000"
+          },
+          "saltGrams": {
+            "type": "string",
+            "nullable": true,
+            "example": "0.100"
+          }
+        },
+        "required": [
+          "baseQuantity",
+          "baseUnit",
+          "kcal",
+          "proteinGrams",
+          "carbsGrams",
+          "fatGrams"
         ]
       },
       "CreatePurchaseOptionDto": {
@@ -2870,6 +3774,16 @@
           "author": {
             "$ref": "#/components/schemas/RecipeAuthorDto"
           },
+          "coverImage": {
+            "nullable": true,
+            "description": "Okładka przepisu; podpisane URL-e wygasają.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaImageDto"
+              }
+            ]
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -2891,6 +3805,7 @@
           "tags",
           "visibility",
           "author",
+          "coverImage",
           "createdAt",
           "updatedAt"
         ]
@@ -3115,6 +4030,15 @@
           },
           "sortOrder": {
             "type": "number"
+          },
+          "image": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaImageDto"
+              }
+            ]
           }
         },
         "required": [
@@ -3122,7 +4046,8 @@
           "title",
           "instruction",
           "durationMinutes",
-          "sortOrder"
+          "sortOrder",
+          "image"
         ]
       },
       "RecipeDetailDto": {
@@ -3176,6 +4101,16 @@
           "author": {
             "$ref": "#/components/schemas/RecipeAuthorDto"
           },
+          "coverImage": {
+            "nullable": true,
+            "description": "Okładka przepisu; podpisane URL-e wygasają.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaImageDto"
+              }
+            ]
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -3213,6 +4148,7 @@
           "tags",
           "visibility",
           "author",
+          "coverImage",
           "createdAt",
           "updatedAt",
           "sourceUrl",
@@ -3557,6 +4493,183 @@
           "servings",
           "baseServings",
           "ingredients"
+        ]
+      },
+      "NutritionTotalsDto": {
+        "type": "object",
+        "properties": {
+          "kcal": {
+            "type": "string",
+            "example": "384.00"
+          },
+          "proteinGrams": {
+            "type": "string",
+            "example": "19.20"
+          },
+          "carbsGrams": {
+            "type": "string",
+            "example": "28.20"
+          },
+          "fatGrams": {
+            "type": "string",
+            "example": "21.60"
+          }
+        },
+        "required": [
+          "kcal",
+          "proteinGrams",
+          "carbsGrams",
+          "fatGrams"
+        ]
+      },
+      "RecipeNutritionEstimateDto": {
+        "type": "object",
+        "properties": {
+          "isComplete": {
+            "type": "boolean"
+          },
+          "countedIngredients": {
+            "type": "number"
+          },
+          "totalIngredients": {
+            "type": "number"
+          },
+          "missingIngredientNames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "recipe": {
+            "nullable": true,
+            "description": "null, gdy żaden składnik nie ma danych.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NutritionTotalsDto"
+              }
+            ]
+          },
+          "perServing": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NutritionTotalsDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "isComplete",
+          "countedIngredients",
+          "totalIngredients",
+          "missingIngredientNames",
+          "recipe",
+          "perServing"
+        ]
+      },
+      "RecipeCostPriceSourceDto": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "productName": {
+            "type": "string"
+          },
+          "purchasedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "unitPriceMinorPerBase": {
+            "type": "string",
+            "example": "0.3200"
+          },
+          "baseUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ]
+          }
+        },
+        "required": [
+          "productId",
+          "productName",
+          "purchasedAt",
+          "unitPriceMinorPerBase",
+          "baseUnit"
+        ]
+      },
+      "RecipeCostEstimateDto": {
+        "type": "object",
+        "properties": {
+          "isComplete": {
+            "type": "boolean"
+          },
+          "countedIngredients": {
+            "type": "number"
+          },
+          "totalIngredients": {
+            "type": "number"
+          },
+          "missingIngredientNames": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "recipeTotalMinor": {
+            "type": "number",
+            "nullable": true,
+            "example": 192
+          },
+          "perServingMinor": {
+            "type": "number",
+            "nullable": true,
+            "example": 96
+          },
+          "priceSources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeCostPriceSourceDto"
+            }
+          },
+          "note": {
+            "type": "string",
+            "example": "Szacunkowo na podstawie ostatnich zakupów"
+          }
+        },
+        "required": [
+          "isComplete",
+          "countedIngredients",
+          "totalIngredients",
+          "missingIngredientNames",
+          "recipeTotalMinor",
+          "perServingMinor",
+          "priceSources",
+          "note"
+        ]
+      },
+      "RecipeEstimateDto": {
+        "type": "object",
+        "properties": {
+          "servings": {
+            "type": "number"
+          },
+          "nutrition": {
+            "$ref": "#/components/schemas/RecipeNutritionEstimateDto"
+          },
+          "cost": {
+            "$ref": "#/components/schemas/RecipeCostEstimateDto"
+          }
+        },
+        "required": [
+          "servings",
+          "nutrition",
+          "cost"
         ]
       },
       "RecipeGapSelectionDto": {

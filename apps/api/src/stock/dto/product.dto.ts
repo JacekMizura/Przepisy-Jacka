@@ -16,6 +16,8 @@ import {
   ProductPurchaseMode,
   ProductUnit,
 } from '../../generated/prisma/client';
+import { MediaImageDto } from '../../media/dto/media.dto';
+import { ProductNutritionDto } from './product-nutrition.dto';
 import { PurchaseOptionDto } from './purchase-option.dto';
 
 /** EAN-8 / UPC-A / EAN-13 / GTIN-14 (same digits). */
@@ -150,8 +152,22 @@ export class ProductDto {
   @ApiProperty({ type: String, nullable: true })
   ean!: string | null;
 
-  @ApiProperty({ type: String, nullable: true })
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Starsze źródło zdjęcia (http lub data URL).',
+  })
   imageUrl!: string | null;
+
+  @ApiProperty({
+    type: MediaImageDto,
+    nullable: true,
+    description: 'Zdjęcie z magazynu mediów; podpisane URL-e wygasają.',
+  })
+  image!: MediaImageDto | null;
+
+  @ApiProperty({ type: ProductNutritionDto, nullable: true })
+  nutrition!: ProductNutritionDto | null;
 
   @ApiProperty({ type: String, nullable: true })
   category!: string | null;

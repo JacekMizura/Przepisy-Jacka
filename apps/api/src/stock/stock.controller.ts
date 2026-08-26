@@ -7,6 +7,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import {
@@ -19,6 +20,10 @@ import { Session } from '@thallesp/nestjs-better-auth';
 import type { UserSession } from '@thallesp/nestjs-better-auth';
 
 import { StorageLocation } from '../generated/prisma/client';
+import {
+  ProductNutritionDto,
+  UpsertProductNutritionDto,
+} from './dto/product-nutrition.dto';
 import {
   ConfigureProductPurchaseDto,
   CreateProductDto,
@@ -118,6 +123,38 @@ export class StockController {
       confirmCascade === 'true',
     );
     return { ok: true };
+  }
+
+  @Get('products/:productId/nutrition')
+  @ApiOperation({ summary: 'Wartości odżywcze produktu' })
+  @ApiOkResponse({ type: ProductNutritionDto })
+  getProductNutrition(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Param('productId', ParseUUIDPipe) productId: string,
+  ): Promise<ProductNutritionDto | null> {
+    return this.stockService.getProductNutrition(
+      session.user.id,
+      kitchenId,
+      productId,
+    );
+  }
+
+  @Put('products/:productId/nutrition')
+  @ApiOperation({ summary: 'Zapis wartości odżywczych produktu' })
+  @ApiOkResponse({ type: ProductNutritionDto })
+  upsertProductNutrition(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Param('productId', ParseUUIDPipe) productId: string,
+    @Body() body: UpsertProductNutritionDto,
+  ): Promise<ProductNutritionDto> {
+    return this.stockService.upsertProductNutrition(
+      session.user.id,
+      kitchenId,
+      productId,
+      body,
+    );
   }
 
   @Get('products/:productId/purchase-options')

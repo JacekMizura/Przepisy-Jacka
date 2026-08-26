@@ -54,6 +54,19 @@ export function formatRecipeIngredientQuantity(
   return formatQuantityWithUnit(quantity, unit);
 }
 
+/** Polska odmiana: 1 porcja, 2 porcje, 5 porcji. */
+export function formatServings(count: number): string {
+  const rest10 = count % 10;
+  const rest100 = count % 100;
+  if (count === 1) {
+    return "1 porcja";
+  }
+  if (rest10 >= 2 && rest10 <= 4 && (rest100 < 12 || rest100 > 14)) {
+    return `${count} porcje`;
+  }
+  return `${count} porcji`;
+}
+
 export function formatRecipeTime(minutes: number | null | undefined): string {
   if (!minutes || minutes <= 0) {
     return "—";

@@ -611,7 +611,8 @@ export default function ShoppingListPage() {
       <div
         className={cn(
           "w-full",
-          hasBought && "pb-24 lg:pb-0",
+          hasBought &&
+            "pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] lg:pb-0",
         )}
       >
         <header className="mb-5 w-full">
@@ -786,7 +787,7 @@ export default function ShoppingListPage() {
       </div>
 
       {hasBought ? (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 p-3 backdrop-blur lg:hidden">
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] backdrop-blur lg:hidden">
           <Button className="w-full" onClick={() => setCheckoutOpen(true)}>
             Rozlicz zakupy ({grouped.bought.length})
           </Button>

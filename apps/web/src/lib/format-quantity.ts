@@ -58,7 +58,8 @@ export function formatQuantityWithUnit(
   if (!amount) {
     return label;
   }
-  return `${amount} ${label}`;
+  // Non-breaking space keeps amount + unit on one line (e.g. "100 ml", "4 szt.").
+  return `${amount}\u00A0${label}`;
 }
 
 export function unitLabel(unit: string | null | undefined): string {
@@ -75,7 +76,7 @@ export function formatPackagePurchase(
   fallbackUnit: string | null | undefined,
 ): string {
   if (packageCount && optionName) {
-    return `${formatQuantityNumber(packageCount)} × ${optionName}`;
+    return `${formatQuantityNumber(packageCount)}\u00A0×\u00A0${optionName}`;
   }
   return formatQuantityWithUnit(fallbackQuantity, fallbackUnit);
 }

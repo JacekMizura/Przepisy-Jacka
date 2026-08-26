@@ -8,6 +8,7 @@ import {
 import { Prisma } from '../generated/prisma/client';
 import {
   RecipeVisibility,
+  ProductUnit,
   type Recipe,
   type RecipeGapAddition,
   type RecipeIngredient,
@@ -23,6 +24,7 @@ import {
   AddedRecipeGapItemDto,
   AddRecipeGapsDto,
   AddRecipeGapsResultDto,
+  RecipeGapSelectionDto,
   SkippedRecipeGapItemDto,
 } from './dto/add-recipe-gaps.dto';
 import { RecipeAvailabilityDto } from './dto/recipe-availability.dto';
@@ -36,8 +38,14 @@ import {
 } from './dto/recipe.dto';
 import {
   computeRecipeAvailability,
+  convertRecipeQuantityToProductBase,
   recipeUnitToShoppingInputUnit,
+  type RecipeIngredientAvailability,
 } from './recipe-availability';
+import {
+  buildPurchaseProposal,
+  type PurchaseOptionInput,
+} from '../shopping/purchase-proposal';
 
 type RecipeWithRelations = Recipe & {
   author: Pick<User, 'id' | 'name'>;
@@ -48,7 +56,28 @@ type RecipeWithRelations = Recipe & {
 type StoredGapAdditionResult = AddRecipeGapsResultDto & {
   kitchenId: string;
   includeIngredientIds: string[];
+  selections: NormalizedGapSelection[];
   pending?: boolean;
+};
+
+type NormalizedGapSelection = {
+  ingredientId: string;
+  skip: boolean;
+  purchaseOptionId: string | null;
+  packageCount: number | null;
+  exactQuantity: string | null;
+};
+
+type GapShoppingCandidate = {
+  ingredientId: string;
+  ingredientName: string;
+  productId: string;
+  requiredQuantity: string;
+  requiredUnit: 'piece' | 'gram' | 'kilogram' | 'milliliter' | 'liter';
+  plannedQuantity: string;
+  plannedUnit: 'piece' | 'gram' | 'kilogram' | 'milliliter' | 'liter';
+  purchaseOptionId: string | null;
+  packageCount: number | null;
 };
 
 export type RecipeListFilter = 'all' | 'mine' | 'kitchen';
@@ -252,6 +281,7 @@ export class RecipeService {
     const includeIngredientIds = normalizeIncludeIngredientIds(
       dto.includeIngredientIds,
     );
+    const normalizedSelections = normalizeGapSelections(dto.selections);
 
     const existingAddition = await this.prisma.recipeGapAddition.findUnique({
       where: { idempotencyKey: dto.idempotencyKey },
@@ -264,6 +294,7 @@ export class RecipeService {
         recipeId,
         dto.servings,
         includeIngredientIds,
+        normalizedSelections,
       );
     }
 
@@ -274,84 +305,15 @@ export class RecipeService {
       dto.servings,
     );
 
-    const includeSet = new Set(includeIngredientIds);
-    const candidates: Array<{
-      ingredientId: string;
-      ingredientName: string;
-      productId: string;
-      quantity: string;
-      shoppingUnit: 'piece' | 'gram' | 'kilogram' | 'milliliter' | 'liter';
-    }> = [];
-    const skipped: SkippedRecipeGapItemDto[] = [];
+    const purchaseOptionsByProductId =
+      await this.loadPurchaseOptionsByProductId(kitchenId, availability);
 
-    for (const ingredient of availability.ingredients) {
-      if (ingredient.status === 'available') {
-        skipped.push({
-          ingredientId: ingredient.ingredientId,
-          ingredientName: ingredient.name,
-          reason: 'available',
-        });
-        continue;
-      }
-
-      if (ingredient.status === 'unknown') {
-        if (!includeSet.has(ingredient.ingredientId)) {
-          skipped.push({
-            ingredientId: ingredient.ingredientId,
-            ingredientName: ingredient.name,
-            reason: 'unknown',
-          });
-          continue;
-        }
-        if (!ingredient.productId || !ingredient.scaledQuantity) {
-          skipped.push({
-            ingredientId: ingredient.ingredientId,
-            ingredientName: ingredient.name,
-            reason: 'unknown_not_linkable',
-          });
-          continue;
-        }
-      }
-
-      if (
-        (ingredient.status === 'partial' || ingredient.status === 'missing') &&
-        (!ingredient.gapQuantity ||
-          !ingredient.gapUnit ||
-          !ingredient.productId)
-      ) {
-        skipped.push({
-          ingredientId: ingredient.ingredientId,
-          ingredientName: ingredient.name,
-          reason: 'not_addable',
-        });
-        continue;
-      }
-
-      const unitForShopping =
-        ingredient.status === 'unknown' ? ingredient.unit : ingredient.gapUnit!;
-      const shoppingUnit = recipeUnitToShoppingInputUnit(unitForShopping);
-      if (!shoppingUnit) {
-        skipped.push({
-          ingredientId: ingredient.ingredientId,
-          ingredientName: ingredient.name,
-          reason: 'unsupported_unit',
-        });
-        continue;
-      }
-
-      const quantity =
-        ingredient.status === 'unknown'
-          ? ingredient.scaledQuantity!
-          : ingredient.gapQuantity!;
-
-      candidates.push({
-        ingredientId: ingredient.ingredientId,
-        ingredientName: ingredient.name,
-        productId: ingredient.productId!,
-        quantity,
-        shoppingUnit,
-      });
-    }
+    const { candidates, skipped } = buildGapShoppingCandidates({
+      availability: availability.ingredients,
+      includeIngredientIds,
+      selections: dto.selections,
+      purchaseOptionsByProductId,
+    });
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -366,6 +328,7 @@ export class RecipeService {
             recipeId,
             dto.servings,
             includeIngredientIds,
+            normalizedSelections,
           );
         }
 
@@ -379,6 +342,7 @@ export class RecipeService {
               pending: true,
               kitchenId,
               includeIngredientIds,
+              selections: normalizedSelections,
             },
           },
         });
@@ -391,8 +355,14 @@ export class RecipeService {
               kitchenId,
               {
                 productId: candidate.productId,
-                plannedQuantity: candidate.quantity,
-                plannedUnit: candidate.shoppingUnit,
+                plannedQuantity: candidate.plannedQuantity,
+                plannedUnit: candidate.plannedUnit,
+                requiredQuantity: candidate.requiredQuantity,
+                requiredUnit: candidate.requiredUnit,
+                sourceRecipeId: recipe.id,
+                sourceRecipeName: recipe.name,
+                purchaseOptionId: candidate.purchaseOptionId ?? undefined,
+                packageCount: candidate.packageCount ?? undefined,
                 note: `Przepis: ${recipe.name}`,
                 mergeQuantity: true,
               },
@@ -402,8 +372,8 @@ export class RecipeService {
             ingredientId: candidate.ingredientId,
             ingredientName: candidate.ingredientName,
             productId: candidate.productId,
-            quantity: candidate.quantity,
-            unit: candidate.shoppingUnit,
+            quantity: candidate.plannedQuantity,
+            unit: candidate.plannedUnit,
             shoppingListItemId: shoppingItem.id,
           });
         }
@@ -417,6 +387,7 @@ export class RecipeService {
           createdAt: new Date().toISOString(),
           kitchenId,
           includeIngredientIds,
+          selections: normalizedSelections,
         };
 
         await tx.recipeGapAddition.update({
@@ -442,6 +413,7 @@ export class RecipeService {
             recipeId,
             dto.servings,
             includeIngredientIds,
+            normalizedSelections,
           );
         }
       }
@@ -458,7 +430,7 @@ export class RecipeService {
       .map((ingredient) => ingredient.productId)
       .filter((productId): productId is string => productId !== null);
 
-    const [stockItems, products] = await Promise.all([
+    const [stockItems, products, purchaseOptions] = await Promise.all([
       productIds.length === 0
         ? Promise.resolve([])
         : this.prisma.stockItem.findMany({
@@ -477,11 +449,29 @@ export class RecipeService {
         : this.prisma.product.findMany({
             where: { kitchenId, id: { in: productIds } },
           }),
+      productIds.length === 0
+        ? Promise.resolve([])
+        : this.prisma.productPurchaseOption.findMany({
+            where: { productId: { in: productIds }, isActive: true },
+          }),
     ]);
 
     const productById = new Map(
       products.map((product) => [product.id, product]),
     );
+    const purchaseOptionsByProductId = new Map<string, PurchaseOptionInput[]>();
+    for (const option of purchaseOptions) {
+      const list = purchaseOptionsByProductId.get(option.productId) ?? [];
+      list.push({
+        id: option.id,
+        name: option.name,
+        contentQuantity: option.contentQuantity,
+        contentUnit: option.contentUnit,
+        isDefault: option.isDefault,
+        isActive: option.isActive,
+      });
+      purchaseOptionsByProductId.set(option.productId, list);
+    }
 
     return computeRecipeAvailability({
       recipeId: recipe.id,
@@ -494,7 +484,46 @@ export class RecipeService {
           : null,
       })),
       stockItems,
+      purchaseOptionsByProductId,
     });
+  }
+
+  private async loadPurchaseOptionsByProductId(
+    kitchenId: string,
+    availability: RecipeAvailabilityDto,
+  ): Promise<Map<string, PurchaseOptionInput[]>> {
+    const productIds = [
+      ...new Set(
+        availability.ingredients
+          .map((ingredient) => ingredient.productId)
+          .filter((productId): productId is string => productId !== null),
+      ),
+    ];
+    if (productIds.length === 0) {
+      return new Map();
+    }
+
+    const options = await this.prisma.productPurchaseOption.findMany({
+      where: {
+        productId: { in: productIds },
+        isActive: true,
+        product: { kitchenId },
+      },
+    });
+    const byProductId = new Map<string, PurchaseOptionInput[]>();
+    for (const option of options) {
+      const list = byProductId.get(option.productId) ?? [];
+      list.push({
+        id: option.id,
+        name: option.name,
+        contentQuantity: option.contentQuantity,
+        contentUnit: option.contentUnit,
+        isDefault: option.isDefault,
+        isActive: option.isActive,
+      });
+      byProductId.set(option.productId, list);
+    }
+    return byProductId;
   }
 
   private async findAccessibleRecipe(
@@ -612,11 +641,210 @@ function normalizeIncludeIngredientIds(ids?: string[]): string[] {
   return [...(ids ?? [])].sort();
 }
 
+function normalizeGapSelections(
+  selections?: RecipeGapSelectionDto[],
+): NormalizedGapSelection[] {
+  if (!selections) {
+    return [];
+  }
+  return [...selections]
+    .map((selection) => ({
+      ingredientId: selection.ingredientId,
+      skip: selection.skip ?? false,
+      purchaseOptionId: selection.purchaseOptionId ?? null,
+      packageCount: selection.packageCount ?? null,
+      exactQuantity: selection.exactQuantity ?? null,
+    }))
+    .sort((left, right) => left.ingredientId.localeCompare(right.ingredientId));
+}
+
 function sameIncludeIngredientIds(left: string[], right: string[]): boolean {
   if (left.length !== right.length) {
     return false;
   }
   return left.every((id, index) => id === right[index]);
+}
+
+function sameGapSelections(
+  left: NormalizedGapSelection[],
+  right: NormalizedGapSelection[],
+): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((item, index) => {
+    const other = right[index];
+    return (
+      item.ingredientId === other?.ingredientId &&
+      item.skip === other.skip &&
+      item.purchaseOptionId === other.purchaseOptionId &&
+      item.packageCount === other.packageCount &&
+      item.exactQuantity === other.exactQuantity
+    );
+  });
+}
+
+function buildGapShoppingCandidates(input: {
+  availability: RecipeIngredientAvailability[];
+  includeIngredientIds: string[];
+  selections?: RecipeGapSelectionDto[];
+  purchaseOptionsByProductId: Map<string, PurchaseOptionInput[]>;
+}): {
+  candidates: GapShoppingCandidate[];
+  skipped: SkippedRecipeGapItemDto[];
+} {
+  const includeSet = new Set(input.includeIngredientIds);
+  const selectionByIngredientId = new Map(
+    (input.selections ?? []).map((selection) => [
+      selection.ingredientId,
+      selection,
+    ]),
+  );
+  const useSelections = input.selections !== undefined;
+
+  const candidates: GapShoppingCandidate[] = [];
+  const skipped: SkippedRecipeGapItemDto[] = [];
+
+  for (const ingredient of input.availability) {
+    const selection = selectionByIngredientId.get(ingredient.ingredientId);
+
+    if (useSelections) {
+      if (!selection) {
+        continue;
+      }
+      if (selection.skip) {
+        skipped.push({
+          ingredientId: ingredient.ingredientId,
+          ingredientName: ingredient.name,
+          reason: 'skipped',
+        });
+        continue;
+      }
+    } else if (ingredient.status === 'available') {
+      skipped.push({
+        ingredientId: ingredient.ingredientId,
+        ingredientName: ingredient.name,
+        reason: 'available',
+      });
+      continue;
+    } else if (ingredient.status === 'unknown') {
+      if (!includeSet.has(ingredient.ingredientId)) {
+        skipped.push({
+          ingredientId: ingredient.ingredientId,
+          ingredientName: ingredient.name,
+          reason: 'unknown',
+        });
+        continue;
+      }
+      if (!ingredient.productId || !ingredient.scaledQuantity) {
+        skipped.push({
+          ingredientId: ingredient.ingredientId,
+          ingredientName: ingredient.name,
+          reason: 'unknown_not_linkable',
+        });
+        continue;
+      }
+    }
+
+    if (
+      (ingredient.status === 'partial' || ingredient.status === 'missing') &&
+      (!ingredient.gapQuantity || !ingredient.gapUnit || !ingredient.productId)
+    ) {
+      skipped.push({
+        ingredientId: ingredient.ingredientId,
+        ingredientName: ingredient.name,
+        reason: 'not_addable',
+      });
+      continue;
+    }
+
+    if (!ingredient.productId || !ingredient.availableUnit) {
+      skipped.push({
+        ingredientId: ingredient.ingredientId,
+        ingredientName: ingredient.name,
+        reason: 'not_addable',
+      });
+      continue;
+    }
+
+    const requiredUnitSource =
+      ingredient.status === 'unknown' ? ingredient.unit : ingredient.gapUnit!;
+    const requiredUnit = recipeUnitToShoppingInputUnit(requiredUnitSource);
+    if (!requiredUnit) {
+      skipped.push({
+        ingredientId: ingredient.ingredientId,
+        ingredientName: ingredient.name,
+        reason: 'unsupported_unit',
+      });
+      continue;
+    }
+
+    const requiredQuantity =
+      ingredient.status === 'unknown'
+        ? ingredient.scaledQuantity!
+        : ingredient.gapQuantity!;
+
+    const gapInProductBase = gapInProductBaseFromIngredient(
+      ingredient,
+      ingredient.availableUnit,
+    );
+    if (gapInProductBase === null) {
+      skipped.push({
+        ingredientId: ingredient.ingredientId,
+        ingredientName: ingredient.name,
+        reason: 'not_addable',
+      });
+      continue;
+    }
+
+    const options =
+      input.purchaseOptionsByProductId.get(ingredient.productId) ?? [];
+    const proposal = buildPurchaseProposal({
+      gapInProductBase,
+      productUnit: ingredient.availableUnit,
+      options,
+      preferredOptionId: selection?.purchaseOptionId,
+      overridePackageCount: selection?.packageCount,
+      exactQuantity: selection?.exactQuantity
+        ? parseQuantityString(selection.exactQuantity, 'exactQuantity')
+        : null,
+    });
+
+    candidates.push({
+      ingredientId: ingredient.ingredientId,
+      ingredientName: ingredient.name,
+      productId: ingredient.productId,
+      requiredQuantity,
+      requiredUnit,
+      plannedQuantity: proposal.totalPurchaseQuantity,
+      plannedUnit: proposal.totalPurchaseUnit,
+      purchaseOptionId: proposal.purchaseOptionId,
+      packageCount: proposal.packageCount,
+    });
+  }
+
+  return { candidates, skipped };
+}
+
+function gapInProductBaseFromIngredient(
+  ingredient: RecipeIngredientAvailability,
+  productUnit: ProductUnit,
+): Prisma.Decimal | null {
+  if (ingredient.gapQuantity && ingredient.gapUnit) {
+    return convertRecipeQuantityToProductBase(
+      parseQuantityString(ingredient.gapQuantity, 'gapQuantity'),
+      ingredient.gapUnit,
+      productUnit,
+    );
+  }
+  if (ingredient.status === 'unknown' && ingredient.scaledQuantity) {
+    return convertRecipeQuantityToProductBase(
+      parseQuantityString(ingredient.scaledQuantity, 'scaledQuantity'),
+      ingredient.unit,
+      productUnit,
+    );
+  }
+  return null;
 }
 
 function toPublicGapResult(
@@ -639,6 +867,7 @@ async function resolveExistingGapAddition(
   recipeId: string,
   servings: number,
   includeIngredientIds: string[],
+  selections: NormalizedGapSelection[],
 ): Promise<AddRecipeGapsResultDto> {
   if (existing.recipeId !== recipeId || existing.servings !== servings) {
     throw new ConflictException('Klucz idempotencji jest już użyty.');
@@ -665,6 +894,14 @@ async function resolveExistingGapAddition(
   if (!sameIncludeIngredientIds(storedIncludes, includeIngredientIds)) {
     throw new ConflictException('Klucz idempotencji jest już użyty.');
   }
+  const storedSelections: NormalizedGapSelection[] = Array.isArray(
+    stored.selections,
+  )
+    ? stored.selections
+    : [];
+  if (!sameGapSelections(storedSelections, selections)) {
+    throw new ConflictException('Klucz idempotencji jest już użyty.');
+  }
 
   return toPublicGapResult(stored);
 }
@@ -685,7 +922,9 @@ function toIngredientCreateData(ingredient: RecipeIngredientInputDto) {
 
 function toStepCreateData(step: RecipeStepInputDto) {
   return {
+    title: normalizeOptionalText(step.title),
     instruction: step.instruction.trim(),
+    durationMinutes: step.durationMinutes ?? null,
     sortOrder: step.sortOrder,
   };
 }
@@ -726,7 +965,9 @@ function toIngredientInputFromEntity(
 
 function toStepInputFromEntity(step: RecipeStep): RecipeStepInputDto {
   return {
+    title: step.title,
     instruction: step.instruction,
+    durationMinutes: step.durationMinutes,
     sortOrder: step.sortOrder,
   };
 }
@@ -772,7 +1013,9 @@ function toRecipeDetailDto(recipe: RecipeWithRelations): RecipeDetailDto {
     })),
     steps: recipe.steps.map((step) => ({
       id: step.id,
+      title: step.title,
       instruction: step.instruction,
+      durationMinutes: step.durationMinutes,
       sortOrder: step.sortOrder,
     })),
   };

@@ -6,8 +6,9 @@ import {
 import { Prisma } from '../generated/prisma/client';
 import {
   StorageLocation,
-  type StockItem,
   type Product,
+  type ProductPurchaseOption,
+  type StockItem,
 } from '../generated/prisma/client';
 
 import { normalizeProductName } from '../common/normalize';
@@ -19,6 +20,11 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { requireKitchenMember } from '../kitchens/kitchen-access';
 import { CreateProductDto, ProductDto } from './dto/product.dto';
+import {
+  CreatePurchaseOptionDto,
+  PurchaseOptionDto,
+  UpdatePurchaseOptionDto,
+} from './dto/purchase-option.dto';
 import {
   CreateStockItemDto,
   StockItemDto,
@@ -61,6 +67,12 @@ export class StockService {
     await requireKitchenMember(this.prisma, kitchenId, userId);
     const products = await this.prisma.product.findMany({
       where: { kitchenId },
+      include: {
+        purchaseOptions: {
+          where: { isActive: true },
+          orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
+        },
+      },
       orderBy: [{ category: 'asc' }, { name: 'asc' }],
     });
     return products.map(toProductDto);
@@ -246,6 +258,127 @@ export class StockService {
     return toStockItemDto(item);
   }
 
+  async listPurchaseOptions(
+    userId: string,
+    kitchenId: string,
+    productId: string,
+  ): Promise<PurchaseOptionDto[]> {
+    const product = await this.findKitchenProduct(userId, kitchenId, productId);
+    const options = await this.prisma.productPurchaseOption.findMany({
+      where: { productId: product.id, isActive: true },
+      orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
+    });
+    return options.map(toPurchaseOptionDto);
+  }
+
+  async createPurchaseOption(
+    userId: string,
+    kitchenId: string,
+    productId: string,
+    dto: CreatePurchaseOptionDto,
+  ): Promise<PurchaseOptionDto> {
+    const product = await this.findKitchenProduct(userId, kitchenId, productId);
+    const contentQuantity = parseContentQuantity(dto.contentQuantity);
+    assertContentUnitMatchesProduct(dto.contentUnit, product.defaultUnit);
+
+    const isDefault = dto.isDefault ?? false;
+    const name = dto.name.trim();
+    if (!name) {
+      throw new BadRequestException('Nazwa opcji zakupu jest wymagana.');
+    }
+
+    const option = await this.prisma.$transaction(async (tx) => {
+      if (isDefault) {
+        await tx.productPurchaseOption.updateMany({
+          where: { productId: product.id, isDefault: true },
+          data: { isDefault: false },
+        });
+      }
+      return tx.productPurchaseOption.create({
+        data: {
+          productId: product.id,
+          name,
+          contentQuantity,
+          contentUnit: dto.contentUnit,
+          isDefault,
+        },
+      });
+    });
+
+    return toPurchaseOptionDto(option);
+  }
+
+  async updatePurchaseOption(
+    userId: string,
+    kitchenId: string,
+    productId: string,
+    optionId: string,
+    dto: UpdatePurchaseOptionDto,
+  ): Promise<PurchaseOptionDto> {
+    const product = await this.findKitchenProduct(userId, kitchenId, productId);
+    const existing = await this.findPurchaseOption(product.id, optionId);
+
+    const contentUnit = dto.contentUnit ?? existing.contentUnit;
+    assertContentUnitMatchesProduct(contentUnit, product.defaultUnit);
+
+    const contentQuantity =
+      dto.contentQuantity !== undefined
+        ? parseContentQuantity(dto.contentQuantity)
+        : existing.contentQuantity;
+
+    const option = await this.prisma.$transaction(async (tx) => {
+      if (dto.isDefault === true) {
+        await tx.productPurchaseOption.updateMany({
+          where: {
+            productId: product.id,
+            isDefault: true,
+            id: { not: existing.id },
+          },
+          data: { isDefault: false },
+        });
+      }
+
+      return tx.productPurchaseOption.update({
+        where: { id: existing.id },
+        data: {
+          name: dto.name?.trim(),
+          contentQuantity,
+          contentUnit,
+          isDefault: dto.isDefault,
+          isActive: dto.isActive,
+        },
+      });
+    });
+
+    return toPurchaseOptionDto(option);
+  }
+
+  async deletePurchaseOption(
+    userId: string,
+    kitchenId: string,
+    productId: string,
+    optionId: string,
+  ): Promise<void> {
+    const product = await this.findKitchenProduct(userId, kitchenId, productId);
+    const existing = await this.findPurchaseOption(product.id, optionId);
+
+    const referencedCount = await this.prisma.shoppingListItem.count({
+      where: { purchaseOptionId: existing.id },
+    });
+
+    if (referencedCount > 0) {
+      await this.prisma.productPurchaseOption.update({
+        where: { id: existing.id },
+        data: { isActive: false, isDefault: false },
+      });
+      return;
+    }
+
+    await this.prisma.productPurchaseOption.delete({
+      where: { id: existing.id },
+    });
+  }
+
   async deleteStockItem(
     userId: string,
     kitchenId: string,
@@ -259,6 +392,53 @@ export class StockService {
       throw new BadRequestException('Nie znaleziono partii.');
     }
     await this.prisma.stockItem.delete({ where: { id: existing.id } });
+  }
+
+  private async findKitchenProduct(
+    userId: string,
+    kitchenId: string,
+    productId: string,
+  ): Promise<Product> {
+    await requireKitchenMember(this.prisma, kitchenId, userId);
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, kitchenId },
+    });
+    if (!product) {
+      throw new BadRequestException('Nie znaleziono produktu w tej kuchni.');
+    }
+    return product;
+  }
+
+  private async findPurchaseOption(
+    productId: string,
+    optionId: string,
+  ): Promise<ProductPurchaseOption> {
+    const option = await this.prisma.productPurchaseOption.findFirst({
+      where: { id: optionId, productId },
+    });
+    if (!option) {
+      throw new BadRequestException('Nie znaleziono opcji zakupu.');
+    }
+    return option;
+  }
+}
+
+function parseContentQuantity(value: string): Prisma.Decimal {
+  const quantity = parseQuantityString(value, 'contentQuantity');
+  if (quantity.lte(0)) {
+    throw new BadRequestException('contentQuantity musi być większe od zera.');
+  }
+  return quantity;
+}
+
+function assertContentUnitMatchesProduct(
+  contentUnit: Product['defaultUnit'],
+  productUnit: Product['defaultUnit'],
+): void {
+  if (contentUnit !== productUnit) {
+    throw new BadRequestException(
+      'contentUnit musi być zgodne z defaultUnit produktu.',
+    );
   }
 }
 
@@ -283,7 +463,11 @@ function toProductWriteError(error: unknown): Error {
   return error instanceof Error ? error : new Error('Nieznany błąd zapisu.');
 }
 
-function toProductDto(product: Product): ProductDto {
+type ProductWithPurchaseOptions = Product & {
+  purchaseOptions?: ProductPurchaseOption[];
+};
+
+function toProductDto(product: ProductWithPurchaseOptions): ProductDto {
   return {
     id: product.id,
     kitchenId: product.kitchenId,
@@ -295,6 +479,21 @@ function toProductDto(product: Product): ProductDto {
     category: product.category,
     createdAt: product.createdAt.toISOString(),
     updatedAt: product.updatedAt.toISOString(),
+    purchaseOptions: product.purchaseOptions?.map(toPurchaseOptionDto),
+  };
+}
+
+function toPurchaseOptionDto(option: ProductPurchaseOption): PurchaseOptionDto {
+  return {
+    id: option.id,
+    productId: option.productId,
+    name: option.name,
+    contentQuantity: formatQuantity(option.contentQuantity),
+    contentUnit: option.contentUnit,
+    isDefault: option.isDefault,
+    isActive: option.isActive,
+    createdAt: option.createdAt.toISOString(),
+    updatedAt: option.updatedAt.toISOString(),
   };
 }
 

@@ -5,15 +5,31 @@ import { ShoppingCart } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  formatPackagePurchase,
+  formatQuantityNumber,
+  formatQuantityWithUnit,
+  toApiQuantityString,
+} from "@/lib/format-quantity";
 import {
   AVAILABILITY_STATUS_LABELS,
   formatRecipeIngredientQuantity,
-  RECIPE_INGREDIENT_UNIT_LABELS,
 } from "@/lib/recipe-labels";
 import { cn } from "@/lib/utils";
 
 type AvailabilityIngredient =
   components["schemas"]["RecipeIngredientAvailabilityDto"];
+type RecipeGapSelection = components["schemas"]["RecipeGapSelectionDto"];
+
+type GapRowState = {
+  skip: boolean;
+  purchaseOptionId: string | null;
+  packageCount: number;
+  exactQuantity: string;
+  useExact: boolean;
+};
 
 type AddRecipeGapsDialogProps = {
   recipeName: string;
@@ -21,8 +37,53 @@ type AddRecipeGapsDialogProps = {
   ingredients: AvailabilityIngredient[];
   pending?: boolean;
   onCancel: () => void;
-  onConfirm: (includeUnknownIngredientIds: string[]) => void;
+  onConfirm: (selections: RecipeGapSelection[]) => void;
 };
+
+function isActionable(ingredient: AvailabilityIngredient): boolean {
+  return (
+    ingredient.status === "partial" ||
+    ingredient.status === "missing" ||
+    ingredient.status === "unknown"
+  );
+}
+
+function defaultRowState(ingredient: AvailabilityIngredient): GapRowState {
+  const proposal = ingredient.purchaseProposal;
+  const usePackages = proposal?.mode === "packages" && proposal.packageCount;
+  return {
+    skip: ingredient.status === "unknown",
+    purchaseOptionId: proposal?.purchaseOptionId ?? null,
+    packageCount: proposal?.packageCount ?? 1,
+    exactQuantity: formatQuantityNumber(
+      proposal?.totalPurchaseQuantity ?? ingredient.gapQuantity ?? "",
+    ),
+    useExact: !usePackages,
+  };
+}
+
+function formatPurchasePreview(
+  ingredient: AvailabilityIngredient,
+  row: GapRowState,
+): string {
+  if (row.skip) {
+    return "—";
+  }
+  if (row.useExact) {
+    const unit =
+      ingredient.purchaseProposal?.totalPurchaseUnit ??
+      ingredient.gapUnit ??
+      ingredient.unit;
+    return formatQuantityWithUnit(row.exactQuantity, unit);
+  }
+  const proposal = ingredient.purchaseProposal;
+  const optionName =
+    proposal?.alternatives.find((alt) => alt.purchaseOptionId === row.purchaseOptionId)
+      ?.purchaseOptionName ??
+    proposal?.purchaseOptionName ??
+    null;
+  return formatPackagePurchase(row.packageCount, optionName, null, null);
+}
 
 export function AddRecipeGapsDialog({
   recipeName,
@@ -33,47 +94,69 @@ export function AddRecipeGapsDialog({
   onConfirm,
 }: AddRecipeGapsDialogProps) {
   const actionable = useMemo(
-    () =>
-      ingredients.filter(
-        (ingredient) =>
-          ingredient.status === "partial" ||
-          ingredient.status === "missing" ||
-          ingredient.status === "unknown",
-      ),
+    () => ingredients.filter(isActionable),
     [ingredients],
   );
 
-  const autoAdd = useMemo(
-    () =>
-      actionable.filter(
-        (ingredient) =>
-          ingredient.status === "partial" || ingredient.status === "missing",
-      ),
-    [actionable],
-  );
+  const [rows, setRows] = useState<Record<string, GapRowState>>(() => {
+    const initial: Record<string, GapRowState> = {};
+    for (const ingredient of ingredients.filter(isActionable)) {
+      initial[ingredient.ingredientId] = defaultRowState(ingredient);
+    }
+    return initial;
+  });
 
-  const unknown = useMemo(
-    () => actionable.filter((ingredient) => ingredient.status === "unknown"),
-    [actionable],
-  );
+  function updateRow(ingredientId: string, patch: Partial<GapRowState>) {
+    setRows((current) => ({
+      ...current,
+      [ingredientId]: {
+        ...current[ingredientId]!,
+        ...patch,
+      },
+    }));
+  }
 
-  const [selectedUnknown, setSelectedUnknown] = useState<Set<string>>(
-    () => new Set(),
-  );
-
-  function toggleUnknown(id: string) {
-    setSelectedUnknown((current) => {
-      const next = new Set(current);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
+  function selectOption(
+    ingredient: AvailabilityIngredient,
+    optionId: string,
+  ) {
+    const alternative = ingredient.purchaseProposal?.alternatives.find(
+      (alt) => alt.purchaseOptionId === optionId,
+    );
+    updateRow(ingredient.ingredientId, {
+      purchaseOptionId: optionId,
+      packageCount: alternative?.packageCount ?? 1,
+      useExact: false,
     });
   }
 
-  const canConfirm = autoAdd.length > 0 || selectedUnknown.size > 0;
+  const includedCount = actionable.filter(
+    (ingredient) => !rows[ingredient.ingredientId]?.skip,
+  ).length;
+
+  function handleConfirm() {
+    const selections: RecipeGapSelection[] = actionable.map((ingredient) => {
+      const row = rows[ingredient.ingredientId] ?? defaultRowState(ingredient);
+      const selection: RecipeGapSelection = {
+        ingredientId: ingredient.ingredientId,
+        skip: row.skip,
+      };
+      if (!row.skip) {
+        if (row.useExact) {
+          selection.exactQuantity = row.exactQuantity.trim()
+            ? toApiQuantityString(row.exactQuantity)
+            : undefined;
+        } else if (row.purchaseOptionId) {
+          selection.purchaseOptionId = row.purchaseOptionId;
+          selection.packageCount = row.packageCount;
+        } else if (row.packageCount > 0) {
+          selection.packageCount = row.packageCount;
+        }
+      }
+      return selection;
+    });
+    onConfirm(selections);
+  }
 
   return (
     <div
@@ -89,10 +172,10 @@ export function AddRecipeGapsDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-gaps-title"
-        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-gray-100 bg-white p-6 shadow-lg"
+        className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-gray-100 bg-white p-6 shadow-lg"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="mb-4 flex items-start gap-3">
+        <div className="mb-5 flex items-start gap-3">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
             <ShoppingCart size={22} />
           </div>
@@ -101,97 +184,211 @@ export function AddRecipeGapsDialog({
               Dodaj brakujące do listy zakupów
             </h2>
             <p className="mt-1 text-sm text-gray-500">
-              Przepis „{recipeName}” dla {servings}{" "}
-              {servings === 1 ? "porcji" : "porcji"}.
+              Przepis „{recipeName}” · {servings}{" "}
+              {servings === 1 ? "porcja" : "porcji"}
             </p>
           </div>
         </div>
 
         {actionable.length === 0 ? (
           <p className="text-sm text-gray-600">
-            Brak składników do dodania — wszystkie powiązane produkty są dostępne
-            albo nie można ich automatycznie ocenić.
+            Brak składników do dodania — wszystkie powiązane produkty są dostępne.
           </p>
         ) : (
-          <div className="space-y-6">
-            {autoAdd.length > 0 ? (
-              <div>
-                <h3 className="mb-2 text-sm font-semibold text-gray-800">
-                  Zostaną dodane automatycznie
-                </h3>
-                <ul className="divide-y divide-gray-100 rounded-xl border border-gray-100">
-                  {autoAdd.map((ingredient) => (
-                    <li
-                      key={ingredient.ingredientId}
-                      className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <div>
-                        <p className="font-medium text-gray-900">
-                          {ingredient.productName ?? ingredient.name}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          Wymagane:{" "}
-                          {formatRecipeIngredientQuantity(
-                            ingredient.scaledQuantity,
-                            ingredient.unit,
-                          )}
-                        </p>
-                      </div>
-                      <div className="text-sm text-gray-700">
-                        Do dodania:{" "}
-                        {ingredient.gapQuantity
-                          ? `${ingredient.gapQuantity} ${
-                              ingredient.gapUnit
-                                ? RECIPE_INGREDIENT_UNIT_LABELS[ingredient.gapUnit]
-                                : ""
-                            }`
-                          : "pełna ilość"}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
+          <ul className="space-y-4">
+            {actionable.map((ingredient) => {
+              const row =
+                rows[ingredient.ingredientId] ?? defaultRowState(ingredient);
+              const displayName =
+                ingredient.productName ?? ingredient.name;
+              const hasPackageOptions =
+                (ingredient.purchaseProposal?.alternatives.length ?? 0) > 0;
+              const proposal = ingredient.purchaseProposal;
 
-            {unknown.length > 0 ? (
-              <div>
-                <h3 className="mb-2 text-sm font-semibold text-gray-800">
-                  Wymagają ręcznej decyzji
-                </h3>
-                <p className="mb-3 text-sm text-gray-500">
-                  Te składniki nie mają powiązania z produktem albo używają
-                  jednostek, których nie da się bezpiecznie porównać ze
-                  zapasami. Zaznacz te, które chcesz dodać mimo to.
-                </p>
-                <ul className="divide-y divide-gray-100 rounded-xl border border-gray-100">
-                  {unknown.map((ingredient) => (
-                    <li key={ingredient.ingredientId} className="px-4 py-3">
-                      <label className="flex cursor-pointer items-start gap-3">
-                        <input
-                          type="checkbox"
-                          className="mt-1"
-                          checked={selectedUnknown.has(ingredient.ingredientId)}
-                          onChange={() => toggleUnknown(ingredient.ingredientId)}
-                        />
-                        <span>
-                          <span className="font-medium text-gray-900">
-                            {ingredient.name}
-                          </span>
-                          <span className="mt-1 block text-sm text-gray-500">
-                            {formatRecipeIngredientQuantity(
-                              ingredient.scaledQuantity,
-                              ingredient.unit,
-                            )}{" "}
-                            — {AVAILABILITY_STATUS_LABELS.unknown}
-                          </span>
-                        </span>
-                      </label>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-          </div>
+              return (
+                <li
+                  key={ingredient.ingredientId}
+                  className={cn(
+                    "rounded-xl border p-4",
+                    row.skip
+                      ? "border-gray-100 bg-gray-50/50 opacity-75"
+                      : "border-gray-100 bg-white",
+                  )}
+                >
+                  <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="font-medium text-gray-900">{displayName}</p>
+                      <span
+                        className={cn(
+                          "mt-1 inline-block rounded-full px-2 py-0.5 text-xs font-medium",
+                          availabilityBadgeClass(ingredient.status),
+                        )}
+                      >
+                        {AVAILABILITY_STATUS_LABELS[ingredient.status]}
+                      </span>
+                    </div>
+                    <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={!row.skip}
+                        onChange={(event) =>
+                          updateRow(ingredient.ingredientId, {
+                            skip: !event.target.checked,
+                          })
+                        }
+                      />
+                      Dodaj do listy
+                    </label>
+                  </div>
+
+                  <dl className="grid gap-2 text-sm sm:grid-cols-2">
+                    <div>
+                      <dt className="text-gray-500">Potrzebujesz</dt>
+                      <dd className="font-medium text-gray-900">
+                        {formatRecipeIngredientQuantity(
+                          ingredient.scaledQuantity,
+                          ingredient.unit,
+                        )}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-gray-500">Masz</dt>
+                      <dd className="font-medium text-gray-900">
+                        {ingredient.availableQuantity
+                          ? formatQuantityWithUnit(
+                              ingredient.availableQuantity,
+                              ingredient.availableUnit,
+                            )
+                          : "0"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-gray-500">Brakuje</dt>
+                      <dd className="font-medium text-amber-800">
+                        {ingredient.gapQuantity
+                          ? formatQuantityWithUnit(
+                              ingredient.gapQuantity,
+                              ingredient.gapUnit,
+                            )
+                          : ingredient.status === "unknown"
+                            ? formatRecipeIngredientQuantity(
+                                ingredient.scaledQuantity,
+                                ingredient.unit,
+                              )
+                            : "—"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-gray-500">Kup</dt>
+                      <dd className="font-medium text-emerald-800">
+                        {formatPurchasePreview(ingredient, row)}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  {!row.skip ? (
+                    <div className="mt-4 space-y-3 border-t border-gray-100 pt-3">
+                      {hasPackageOptions ? (
+                        <>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Opakowanie</Label>
+                            <select
+                              className="block w-full rounded-lg border border-gray-200 bg-white p-2.5 text-sm"
+                              value={row.purchaseOptionId ?? ""}
+                              onChange={(event) =>
+                                selectOption(ingredient, event.target.value)
+                              }
+                            >
+                              {(proposal?.alternatives ?? []).map((alt) => (
+                                <option
+                                  key={alt.purchaseOptionId}
+                                  value={alt.purchaseOptionId}
+                                >
+                                  {alt.purchaseOptionName} (
+                                  {formatQuantityWithUnit(
+                                    alt.packageContentQuantity,
+                                    alt.packageContentUnit,
+                                  )}
+                                  )
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs">Liczba opakowań</Label>
+                            <Input
+                              inputMode="numeric"
+                              min={1}
+                              value={String(row.packageCount)}
+                              onChange={(event) => {
+                                const parsed = Number.parseInt(
+                                  event.target.value,
+                                  10,
+                                );
+                                updateRow(ingredient.ingredientId, {
+                                  packageCount: Number.isFinite(parsed)
+                                    ? Math.max(1, parsed)
+                                    : 1,
+                                  useExact: false,
+                                });
+                              }}
+                              className="w-28"
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        <div className="space-y-1">
+                          <Label className="text-xs">Ilość do kupienia</Label>
+                          <Input
+                            inputMode="decimal"
+                            value={row.exactQuantity}
+                            onChange={(event) =>
+                              updateRow(ingredient.ingredientId, {
+                                exactQuantity: event.target.value,
+                                useExact: true,
+                              })
+                            }
+                            className="max-w-xs"
+                          />
+                        </div>
+                      )}
+
+                      {hasPackageOptions ? (
+                        <label className="flex items-center gap-2 text-xs text-gray-500">
+                          <input
+                            type="checkbox"
+                            checked={row.useExact}
+                            onChange={(event) =>
+                              updateRow(ingredient.ingredientId, {
+                                useExact: event.target.checked,
+                              })
+                            }
+                          />
+                          Podaj dokładną ilość zamiast opakowań
+                        </label>
+                      ) : null}
+
+                      {row.useExact && hasPackageOptions ? (
+                        <div className="space-y-1">
+                          <Label className="text-xs">Dokładna ilość</Label>
+                          <Input
+                            inputMode="decimal"
+                            value={row.exactQuantity}
+                            onChange={(event) =>
+                              updateRow(ingredient.ingredientId, {
+                                exactQuantity: event.target.value,
+                              })
+                            }
+                            className="max-w-xs"
+                          />
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
         )}
 
         <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
@@ -199,10 +396,12 @@ export function AddRecipeGapsDialog({
             Anuluj
           </Button>
           <Button
-            onClick={() => onConfirm(Array.from(selectedUnknown))}
-            disabled={pending || !canConfirm}
+            onClick={handleConfirm}
+            disabled={pending || includedCount === 0}
           >
-            {pending ? "Dodawanie…" : "Dodaj do listy zakupów"}
+            {pending
+              ? "Dodawanie…"
+              : `Dodaj ${includedCount} ${includedCount === 1 ? "pozycję" : "pozycje"}`}
           </Button>
         </div>
       </div>
@@ -210,7 +409,9 @@ export function AddRecipeGapsDialog({
   );
 }
 
-export function availabilityBadgeClass(status: AvailabilityIngredient["status"]) {
+export function availabilityBadgeClass(
+  status: AvailabilityIngredient["status"],
+) {
   return cn(
     "rounded-full px-2 py-0.5 text-xs font-medium",
     status === "available" && "bg-emerald-50 text-emerald-800",

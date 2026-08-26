@@ -1,9 +1,10 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 import {
   ProductUnit,
   RecipeIngredientUnit,
 } from '../../generated/prisma/client';
+import { PurchaseProposalDto } from './purchase-proposal.dto';
 
 export type IngredientAvailabilityStatusDto =
   'available' | 'partial' | 'missing' | 'unknown';
@@ -49,6 +50,12 @@ export class RecipeIngredientAvailabilityDto {
 
   @ApiProperty({ enum: RecipeIngredientUnit, nullable: true })
   gapUnit!: RecipeIngredientUnit | null;
+
+  @ApiProperty({ type: String, nullable: true, example: '1.000' })
+  requiredQuantity!: string | null;
+
+  @ApiPropertyOptional({ type: PurchaseProposalDto, nullable: true })
+  purchaseProposal!: PurchaseProposalDto | null;
 }
 
 export class RecipeAvailabilityDto {

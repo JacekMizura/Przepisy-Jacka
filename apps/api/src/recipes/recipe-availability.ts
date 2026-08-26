@@ -8,6 +8,11 @@ import {
 } from '../generated/prisma/client';
 
 import { formatQuantity } from '../common/quantity';
+import {
+  buildPurchaseProposal,
+  type PurchaseOptionInput,
+  type PurchaseProposal,
+} from '../shopping/purchase-proposal';
 
 export type IngredientAvailabilityStatus =
   'available' | 'partial' | 'missing' | 'unknown';
@@ -26,6 +31,8 @@ export type RecipeIngredientAvailability = {
   availableUnit: ProductUnit | null;
   gapQuantity: string | null;
   gapUnit: RecipeIngredientUnit | null;
+  requiredQuantity: string | null;
+  purchaseProposal: PurchaseProposal | null;
 };
 
 export type RecipeAvailabilityResult = {
@@ -38,6 +45,8 @@ export type RecipeAvailabilityResult = {
 type IngredientWithProduct = RecipeIngredient & {
   product: Product | null;
 };
+
+type PurchaseOptionRow = PurchaseOptionInput;
 
 type StockItemRow = Pick<StockItem, 'productId' | 'quantity' | 'expiresAt'>;
 
@@ -123,9 +132,12 @@ export function computeRecipeAvailability(input: {
   servings: number;
   ingredients: IngredientWithProduct[];
   stockItems: StockItemRow[];
+  purchaseOptionsByProductId?: Map<string, PurchaseOptionRow[]>;
   now?: Date;
 }): RecipeAvailabilityResult {
   const now = input.now ?? new Date();
+  const purchaseOptionsByProductId: Map<string, PurchaseOptionRow[]> =
+    input.purchaseOptionsByProductId ?? new Map<string, PurchaseOptionRow[]>();
   const ingredients = [...input.ingredients]
     .sort((left, right) => left.sortOrder - right.sortOrder)
     .map((ingredient) =>
@@ -134,6 +146,9 @@ export function computeRecipeAvailability(input: {
         baseServings: input.baseServings,
         servings: input.servings,
         stockItems: input.stockItems,
+        purchaseOptions: ingredient.productId
+          ? (purchaseOptionsByProductId.get(ingredient.productId) ?? [])
+          : [],
         now,
       }),
     );
@@ -151,6 +166,7 @@ function evaluateIngredientAvailability(input: {
   baseServings: number;
   servings: number;
   stockItems: StockItemRow[];
+  purchaseOptions: PurchaseOptionRow[];
   now: Date;
 }): RecipeIngredientAvailability {
   const scaledQuantity = scaleIngredientQuantity(
@@ -174,6 +190,8 @@ function evaluateIngredientAvailability(input: {
     availableUnit: null,
     gapQuantity: null,
     gapUnit: null,
+    requiredQuantity: null,
+    purchaseProposal: null,
   };
 
   if (
@@ -225,18 +243,31 @@ function evaluateIngredientAvailability(input: {
     status = 'partial';
   }
 
+  const gapQuantityFormatted =
+    gapInRecipeUnit !== null && gapInRecipeUnit.gt(0)
+      ? formatQuantity(gapInRecipeUnit)
+      : status === 'missing' && scaledQuantity !== null
+        ? formatQuantity(scaledQuantity)
+        : null;
+
+  const purchaseProposal =
+    gapInProductBase.gt(0) && input.ingredient.product
+      ? buildPurchaseProposal({
+          gapInProductBase,
+          productUnit: input.ingredient.product.defaultUnit,
+          options: input.purchaseOptions,
+        })
+      : null;
+
   return {
     ...base,
     status,
     availableQuantity: formatQuantity(availableInRecipeUnit),
     availableUnit: input.ingredient.product.defaultUnit,
-    gapQuantity:
-      gapInRecipeUnit !== null && gapInRecipeUnit.gt(0)
-        ? formatQuantity(gapInRecipeUnit)
-        : status === 'missing' && scaledQuantity !== null
-          ? formatQuantity(scaledQuantity)
-          : null,
+    gapQuantity: gapQuantityFormatted,
     gapUnit: input.ingredient.unit,
+    requiredQuantity: formatQuantity(scaledQuantity),
+    purchaseProposal,
   };
 }
 

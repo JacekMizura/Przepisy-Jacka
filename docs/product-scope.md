@@ -57,6 +57,8 @@ Cena nie zmienia znaczenia po częściowym zużyciu. Ilości w JSON są decimal 
 
 Nazwy produktów są unikalne w kuchni po normalizacji (trim, lowercase, zbiciu spacji). Wyświetlana pozostaje oryginalna `name`.
 
+Produkt może mieć konfigurowalne **warianty zakupu** (`ProductPurchaseOption`): np. „Karton 1 l” = 1000 ml. Jeden wariant może być domyślny (unikalnie w bazie). Brak wariantu oznacza zakup dokładnej ilości.
+
 Produkt może mieć opcjonalnie:
 
 - `ean` — kod EAN/GTIN (8, 12, 13 lub 14 cyfr), unikalny w kuchni,
@@ -71,9 +73,9 @@ Usunięcie produktu, który ma partie, wymaga jawnego potwierdzenia. Potwierdzen
 
 Każda kuchnia ma jedną aktywną, wspólną listę zakupów widoczną dla wszystkich członków.
 
-Pozycja listy może być powiązana z produktem z katalogu albo być własną pozycją tekstową (bez produktu). Statusy: `pending` (do kupienia), `bought` (kupione), `skipped` (pominięte). Oznaczenie „kupione” nie dodaje od razu partii do zapasów.
+Pozycja listy może być powiązana z produktem z katalogu albo być własną pozycją tekstową (bez produktu). Statusy: `pending` (do kupienia), `bought` (kupione), `skipped` (pominięte). Oznaczenie „kupione” nie dodaje od razu partii do zapasów. Pozycja rozróżnia wymaganie (np. brak 100 ml z przepisu) od formy zakupu (np. 1 × karton 1 l) i planowanej ilości trafiającej do zapasu.
 
-Rozliczenie zakupu (`checkout`) obejmuje pozycje ze statusem `bought`. Użytkownik podaje faktyczną ilość, jednostkę wejściową, miejsce przechowywania, łączną cenę pozycji w groszach oraz opcjonalną datę ważności. Dla całego zakupu: opcjonalna nazwa sklepu, data (domyślnie bieżąca), waluta `PLN`.
+Rozliczenie zakupu (`checkout`) obejmuje pozycje ze statusem `bought`. Użytkownik podaje faktyczną ilość, jednostkę wejściową, miejsce przechowywania, łączną cenę pozycji w groszach oraz opcjonalną datę ważności. Dla całego zakupu: opcjonalna nazwa sklepu, data (domyślnie bieżąca), waluta `PLN`. Przy zakupie opakowań do `StockItem` trafia zawartość pełnych opakowań, nie sama różnica braku.
 
 Pozycja tekstowa bez produktu wymaga przy rozliczeniu wyboru istniejącego produktu albo potwierdzenia utworzenia nowego w katalogu.
 
@@ -94,7 +96,7 @@ Domyślnie nowy przepis jest prywatny. Tylko autor może edytować, usuwać i zm
 
 Przepis zawiera składniki (z opcjonalnym powiązaniem z `Product`) i kroki w ustalonej kolejności. Jednostki przepisu (`RecipeIngredientUnit`) są oddzielne od jednostek produktu i listy zakupów.
 
-API zwraca dostępność składników względem zapasów (`available`, `partial`, `missing`, `unknown`) z bezpiecznym skalowaniem porcji oraz przeliczeniami g/kg i ml/l. Braki można dodać do istniejącej listy zakupów z idempotencją.
+API zwraca dostępność składników względem zapasów (`available`, `partial`, `missing`, `unknown`) z bezpiecznym skalowaniem porcji oraz przeliczeniami g/kg i ml/l. Dla braków proponuje pełne opakowania (`ceil(brak / zawartość)`). Braki można dodać do istniejącej listy zakupów z wyborem wariantu i idempotencją. Etapy przepisu mogą mieć opcjonalny tytuł i czas trwania.
 
 Publiczne linki, import ze stron, zdjęcia, kalorie i planowanie posiłków — poza tym etapem.
 

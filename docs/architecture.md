@@ -97,11 +97,11 @@ Cookies sesji:
 
 - Better Auth: `User`, `Session`, `Account` (w tym `issuer` wymagane od 1.7), `Verification`,
 - `Kitchen`, `KitchenMember`, `KitchenInvite` (w bazie tylko `tokenHash`),
-- `Product` (`normalizedName`, unikalność `(kitchenId, normalizedName)`, `defaultUnit`, opcjonalne `ean` / `imageUrl` / `category`),
+- `Product` (`normalizedName`, unikalność `(kitchenId, normalizedName)`, `defaultUnit`, opcjonalne `ean` / `imageUrl` / `category`, `ProductPurchaseOption` — warianty zakupu z jednym domyślnym),
 - `StockItem` (`initialQuantity`, `quantity`, `purchasePriceMinor`, `currency`, miejsce, daty, opcjonalne `ean` / `imageUrl`). Ilości: `DECIMAL(12,3)`.
-- `ShoppingList` (jedna na kuchnię), `ShoppingListItem` (status `pending` / `bought` / `skipped`, opcjonalny `productId`, `customName`, planowana ilość/jednostka, `resolvedAt` po rozliczeniu),
-- `Purchase` (`storeName`, `purchasedAt`, `currency`, `totalPriceMinor`, unikalny `idempotencyKey`), `PurchaseLineItem` (powiązanie z produktem, opcjonalnie `stockItemId` i `shoppingListItemId`).
-- `Recipe`, `RecipeIngredient`, `RecipeStep`, `RecipeGapAddition` (idempotencja dodawania braków do listy).
+- `ShoppingList` (jedna na kuchnię), `ShoppingListItem` (status `pending` / `bought` / `skipped`, planowana ilość/opakowania, wymagana ilość z przepisu, źródło przepisu, `resolvedAt` po rozliczeniu),
+- `Purchase` (`storeName`, `purchasedAt`, `currency`, `totalPriceMinor`, unikalny `idempotencyKey`), `PurchaseLineItem` (powiązanie z produktem, opcjonalnie `stockItemId` i `shoppingListItemId`; do zapasu trafia zawartość opakowań).
+- `Recipe`, `RecipeIngredient`, `RecipeStep` (opcjonalny tytuł i czas etapu), `RecipeGapAddition` (idempotencja dodawania braków do listy).
 
 Endpointy listy, zakupów i przepisów pod `kitchens/:kitchenId`. Każda operacja wymaga członkostwa w kuchni; prywatne przepisy tylko dla autora.
 

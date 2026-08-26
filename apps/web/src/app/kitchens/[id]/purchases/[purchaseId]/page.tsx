@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { createWebApiClient } from "@/lib/api";
 import { LOCATION_LABELS, readApiError } from "@/lib/errors";
+import { formatQuantityNumber } from "@/lib/format-quantity";
 import { formatPriceMinor } from "@/lib/shopping-labels";
 
 export default function PurchaseDetailPage() {
@@ -114,7 +115,7 @@ export default function PurchaseDetailPage() {
                           {line.displayName ?? line.productName}
                         </td>
                         <td className="px-4 py-3 text-gray-700">
-                          {line.quantity}
+                          {formatQuantityNumber(line.quantity)}
                         </td>
                         <td className="px-4 py-3 text-gray-700">
                           {LOCATION_LABELS[line.location]}

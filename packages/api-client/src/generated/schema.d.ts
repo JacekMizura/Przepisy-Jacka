@@ -162,6 +162,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/kitchens/{kitchenId}/products/{productId}/purchase-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Opcje zakupu produktu */
+        get: operations["StockController_listPurchaseOptions"];
+        put?: never;
+        /** Dodanie opcji zakupu */
+        post: operations["StockController_createPurchaseOption"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/products/{productId}/purchase-options/{optionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Usunięcie lub dezaktywacja opcji zakupu */
+        delete: operations["StockController_deletePurchaseOption"];
+        options?: never;
+        head?: never;
+        /** Aktualizacja opcji zakupu */
+        patch: operations["StockController_updatePurchaseOption"];
+        trace?: never;
+    };
     "/api/kitchens/{kitchenId}/stock-items": {
         parameters: {
             query?: never;
@@ -454,6 +490,21 @@ export interface components {
             /** @description Jednorazowy link z surowym tokenem. Token nie jest ponownie zwracany. */
             inviteUrl: string;
         };
+        PurchaseOptionDto: {
+            id: string;
+            productId: string;
+            name: string;
+            /** @example 1000.000 */
+            contentQuantity: string;
+            /** @enum {string} */
+            contentUnit: "piece" | "gram" | "milliliter";
+            isDefault: boolean;
+            isActive: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
         ProductDto: {
             id: string;
             kitchenId: string;
@@ -468,6 +519,7 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            purchaseOptions?: components["schemas"]["PurchaseOptionDto"][];
         };
         CreateProductDto: {
             /** @example Mleko */
@@ -486,6 +538,26 @@ export interface components {
             imageUrl?: string | null;
             /** @example Nabiał */
             category?: string | null;
+        };
+        CreatePurchaseOptionDto: {
+            /** @example Karton 1 l */
+            name: string;
+            /** @example 1000.000 */
+            contentQuantity: string;
+            /** @enum {string} */
+            contentUnit: "piece" | "gram" | "milliliter";
+            /** @default false */
+            isDefault: boolean;
+        };
+        UpdatePurchaseOptionDto: {
+            /** @example Karton 1 l */
+            name?: string;
+            /** @example 1000.000 */
+            contentQuantity?: string;
+            /** @enum {string} */
+            contentUnit?: "piece" | "gram" | "milliliter";
+            isDefault?: boolean;
+            isActive?: boolean;
         };
         StockItemDto: {
             id: string;
@@ -562,6 +634,14 @@ export interface components {
             imageUrl: string | null;
             category: string | null;
         };
+        PurchaseOptionSummaryDto: {
+            id: string;
+            name: string;
+            /** @example 1000.000 */
+            contentQuantity: string;
+            /** @enum {string} */
+            contentUnit: "piece" | "gram" | "milliliter";
+        };
         ShoppingListItemDto: {
             id: string;
             shoppingListId: string;
@@ -577,6 +657,15 @@ export interface components {
             /** Format: date-time */
             resolvedAt: string | null;
             product?: components["schemas"]["ShoppingListItemProductDto"] | null;
+            /** @example 100.000 */
+            requiredQuantity: string | null;
+            /** @enum {string|null} */
+            requiredUnit: "piece" | "gram" | "kilogram" | "milliliter" | "liter" | null;
+            sourceRecipeId: string | null;
+            sourceRecipeName: string | null;
+            purchaseOptionId: string | null;
+            packageCount: number | null;
+            purchaseOption?: components["schemas"]["PurchaseOptionSummaryDto"] | null;
         };
         CreateShoppingListItemDto: {
             productId?: string;
@@ -589,6 +678,16 @@ export interface components {
             note?: string | null;
             /** @description Gdy true, dodaje ilość do istniejącej pozycji pending z tym samym produktem. */
             mergeQuantity?: boolean;
+            /** @example 100.000 */
+            requiredQuantity?: string;
+            /** @enum {string} */
+            requiredUnit?: "piece" | "gram" | "kilogram" | "milliliter" | "liter";
+            sourceRecipeId?: string;
+            /** @example Omlet */
+            sourceRecipeName?: string;
+            purchaseOptionId?: string;
+            /** @example 1 */
+            packageCount?: number;
         };
         UpdateShoppingListItemDto: {
             /** @example Papryka czerwona */
@@ -598,6 +697,13 @@ export interface components {
             /** @enum {string} */
             plannedUnit?: "piece" | "gram" | "kilogram" | "milliliter" | "liter";
             note?: string | null;
+            /** @example 100.000 */
+            requiredQuantity?: string;
+            /** @enum {string} */
+            requiredUnit?: "piece" | "gram" | "kilogram" | "milliliter" | "liter";
+            purchaseOptionId?: string;
+            /** @example 2 */
+            packageCount?: number;
         };
         UpdateShoppingListItemStatusDto: {
             /** @enum {string} */
@@ -713,8 +819,12 @@ export interface components {
             sortOrder: number;
         };
         RecipeStepInputDto: {
+            /** @example Przygotowanie makaronu */
+            title?: string | null;
             /** @example Ugotuj makaron al dente. */
             instruction: string;
+            /** @example 10 */
+            durationMinutes?: number | null;
             /** @example 0 */
             sortOrder: number;
         };
@@ -757,7 +867,9 @@ export interface components {
         };
         RecipeStepDto: {
             id: string;
+            title: string | null;
             instruction: string;
+            durationMinutes: number | null;
             sortOrder: number;
         };
         RecipeDetailDto: {
@@ -799,6 +911,35 @@ export interface components {
             ingredients?: components["schemas"]["RecipeIngredientInputDto"][];
             steps?: components["schemas"]["RecipeStepInputDto"][];
         };
+        PurchaseProposalAlternativeDto: {
+            purchaseOptionId: string;
+            purchaseOptionName: string;
+            packageCount: number;
+            /** @example 1000.000 */
+            packageContentQuantity: string;
+            /** @enum {string} */
+            packageContentUnit: "piece" | "gram" | "milliliter";
+            /** @example 1000.000 */
+            totalPurchaseQuantity: string;
+            /** @enum {string} */
+            totalPurchaseUnit: "piece" | "gram" | "kilogram" | "milliliter" | "liter";
+        };
+        PurchaseProposalDto: {
+            /** @enum {string} */
+            mode: "packages" | "exact";
+            purchaseOptionId: string | null;
+            purchaseOptionName: string | null;
+            packageCount: number | null;
+            /** @example 1000.000 */
+            packageContentQuantity: string | null;
+            /** @enum {string|null} */
+            packageContentUnit: "piece" | "gram" | "milliliter" | null;
+            /** @example 1000.000 */
+            totalPurchaseQuantity: string;
+            /** @enum {string} */
+            totalPurchaseUnit: "piece" | "gram" | "kilogram" | "milliliter" | "liter";
+            alternatives: components["schemas"]["PurchaseProposalAlternativeDto"][];
+        };
         RecipeIngredientAvailabilityDto: {
             ingredientId: string;
             name: string;
@@ -820,12 +961,24 @@ export interface components {
             gapQuantity: string | null;
             /** @enum {string|null} */
             gapUnit: "piece" | "gram" | "kilogram" | "milliliter" | "liter" | "teaspoon" | "tablespoon" | "cup" | "pinch" | "package" | "to_taste" | null;
+            /** @example 1.000 */
+            requiredQuantity: string | null;
+            purchaseProposal?: components["schemas"]["PurchaseProposalDto"] | null;
         };
         RecipeAvailabilityDto: {
             recipeId: string;
             servings: number;
             baseServings: number;
             ingredients: components["schemas"]["RecipeIngredientAvailabilityDto"][];
+        };
+        RecipeGapSelectionDto: {
+            ingredientId: string;
+            skip?: boolean;
+            purchaseOptionId?: string;
+            /** @example 2 */
+            packageCount?: number;
+            /** @example 300.000 */
+            exactQuantity?: string;
         };
         AddRecipeGapsDto: {
             /** @example gap-add-2026-08-25-abc123 */
@@ -834,6 +987,8 @@ export interface components {
             servings: number;
             /** @description Identyfikatory składników ze statusem unknown, które użytkownik chce dodać ręcznie. */
             includeIngredientIds?: string[];
+            /** @description Wybór wariantu zakupu per składnik. Gdy brak — auto-proposal dla partial/missing. */
+            selections?: components["schemas"]["RecipeGapSelectionDto"][];
         };
         AddedRecipeGapItemDto: {
             ingredientId: string;
@@ -1164,6 +1319,102 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    StockController_listPurchaseOptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOptionDto"][];
+                };
+            };
+        };
+    };
+    StockController_createPurchaseOption: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePurchaseOptionDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOptionDto"];
+                };
+            };
+        };
+    };
+    StockController_deletePurchaseOption: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                productId: string;
+                optionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    StockController_updatePurchaseOption: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                productId: string;
+                optionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePurchaseOptionDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PurchaseOptionDto"];
+                };
             };
         };
     };

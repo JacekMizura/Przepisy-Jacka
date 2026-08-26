@@ -62,11 +62,29 @@ export class RecipeIngredientInputDto {
 }
 
 export class RecipeStepInputDto {
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: 'Przygotowanie makaronu',
+  })
+  @IsOptional()
+  @ValidateIf(isPresentOptional)
+  @IsString()
+  @MaxLength(120)
+  title?: string | null;
+
   @ApiProperty({ example: 'Ugotuj makaron al dente.' })
   @IsString()
   @MinLength(1)
   @MaxLength(2000)
   instruction!: string;
+
+  @ApiPropertyOptional({ type: Number, nullable: true, example: 10 })
+  @IsOptional()
+  @ValidateIf(isPresentOptional)
+  @IsInt()
+  @Min(1)
+  durationMinutes?: number | null;
 
   @ApiProperty({ example: 0 })
   @IsInt()
@@ -261,8 +279,14 @@ export class RecipeStepDto {
   @ApiProperty()
   id!: string;
 
+  @ApiProperty({ type: String, nullable: true })
+  title!: string | null;
+
   @ApiProperty()
   instruction!: string;
+
+  @ApiProperty({ type: Number, nullable: true })
+  durationMinutes!: number | null;
 
   @ApiProperty()
   sortOrder!: number;

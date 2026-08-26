@@ -2,7 +2,7 @@
 
 ## Aktualnie ukończony etap
 
-Etap: uwierzytelnianie Better Auth, wspólne kuchnie, zaproszenia, katalog produktów, zapasy, lista zakupów z rozliczaniem zakupów oraz moduł przepisów (CRUD, dostępność składników, braki do listy) na webie. Fundament repozytorium z Etapu 1 pozostaje w mocy. **Etap 4 (jakość / CI / PostgreSQL 18) jest domknięty lokalnie**; pierwszy przebieg GitHub Actions wymaga pusha feature brancha.
+Etap: uwierzytelnianie Better Auth, wspólne kuchnie, zaproszenia, katalog produktów z wariantami zakupu (opakowania), zapasy, lista zakupów z rozliczaniem zakupów oraz moduł przepisów (CRUD, dostępność składników, propozycje pełnych opakowań, braki do listy) na webie. Fundament repozytorium z Etapu 1 pozostaje w mocy.
 
 `docs/faza-0-architektura.md` pochodzi z wcześniejszego, niezwiązanego projektu. Plik pozostaje na dysku jako materiał historyczny i nie jest źródłem prawdy.
 

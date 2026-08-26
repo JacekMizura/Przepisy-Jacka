@@ -21,6 +21,11 @@ import type { UserSession } from '@thallesp/nestjs-better-auth';
 import { StorageLocation } from '../generated/prisma/client';
 import { CreateProductDto, ProductDto } from './dto/product.dto';
 import {
+  CreatePurchaseOptionDto,
+  PurchaseOptionDto,
+  UpdatePurchaseOptionDto,
+} from './dto/purchase-option.dto';
+import {
   CreateStockItemDto,
   StockItemDto,
   UpdateStockItemDto,
@@ -69,6 +74,74 @@ export class StockController {
       kitchenId,
       productId,
       confirmCascade === 'true',
+    );
+    return { ok: true };
+  }
+
+  @Get('products/:productId/purchase-options')
+  @ApiOperation({ summary: 'Opcje zakupu produktu' })
+  @ApiOkResponse({ type: [PurchaseOptionDto] })
+  listPurchaseOptions(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Param('productId', ParseUUIDPipe) productId: string,
+  ): Promise<PurchaseOptionDto[]> {
+    return this.stockService.listPurchaseOptions(
+      session.user.id,
+      kitchenId,
+      productId,
+    );
+  }
+
+  @Post('products/:productId/purchase-options')
+  @ApiOperation({ summary: 'Dodanie opcji zakupu' })
+  @ApiOkResponse({ type: PurchaseOptionDto })
+  createPurchaseOption(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Param('productId', ParseUUIDPipe) productId: string,
+    @Body() body: CreatePurchaseOptionDto,
+  ): Promise<PurchaseOptionDto> {
+    return this.stockService.createPurchaseOption(
+      session.user.id,
+      kitchenId,
+      productId,
+      body,
+    );
+  }
+
+  @Patch('products/:productId/purchase-options/:optionId')
+  @ApiOperation({ summary: 'Aktualizacja opcji zakupu' })
+  @ApiOkResponse({ type: PurchaseOptionDto })
+  updatePurchaseOption(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Param('productId', ParseUUIDPipe) productId: string,
+    @Param('optionId', ParseUUIDPipe) optionId: string,
+    @Body() body: UpdatePurchaseOptionDto,
+  ): Promise<PurchaseOptionDto> {
+    return this.stockService.updatePurchaseOption(
+      session.user.id,
+      kitchenId,
+      productId,
+      optionId,
+      body,
+    );
+  }
+
+  @Delete('products/:productId/purchase-options/:optionId')
+  @ApiOperation({ summary: 'Usunięcie lub dezaktywacja opcji zakupu' })
+  async deletePurchaseOption(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Param('productId', ParseUUIDPipe) productId: string,
+    @Param('optionId', ParseUUIDPipe) optionId: string,
+  ): Promise<{ ok: true }> {
+    await this.stockService.deletePurchaseOption(
+      session.user.id,
+      kitchenId,
+      productId,
+      optionId,
     );
     return { ok: true };
   }

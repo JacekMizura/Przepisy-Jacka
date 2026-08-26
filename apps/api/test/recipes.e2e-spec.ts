@@ -5,7 +5,7 @@ import {
   type RunningApi,
   type TestUser,
 } from './create-api-app';
-import { closeTestPool } from './pg-client';
+import { closeTestPool, executeTestDb, queryTestDb } from './pg-client';
 
 jest.setTimeout(120_000);
 
@@ -530,6 +530,372 @@ describe('Recipes (e2e)', () => {
       (listAfterRetry.body as Array<{ plannedQuantity: string }>)[0]
         ?.plannedQuantity,
     ).toBe('3.000');
+  });
+
+  it('scopes idempotency to key and allows intentional re-add with a new key', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+    const kitchenA = await createKitchen(owner, 'Idempotencja A');
+    const kitchenB = await createKitchen(owner, 'Idempotencja B');
+
+    const eggsA = await createProduct(owner, kitchenA.id, {
+      name: 'Jajka A',
+      defaultUnit: 'piece',
+    });
+    const eggsB = await createProduct(owner, kitchenB.id, {
+      name: 'Jajka B',
+      defaultUnit: 'piece',
+    });
+
+    const recipeA = await createRecipe(
+      owner,
+      kitchenA.id,
+      sampleRecipeBody({
+        name: 'Omlet A',
+        servings: 2,
+        ingredients: [
+          {
+            name: 'Jajka',
+            quantity: '4.000',
+            unit: 'piece',
+            productId: eggsA.id,
+            sortOrder: 0,
+          },
+        ],
+        steps: [{ instruction: 'Usmaż.', sortOrder: 0 }],
+      }),
+    );
+    const recipeB = await createRecipe(
+      owner,
+      kitchenB.id,
+      sampleRecipeBody({
+        name: 'Omlet B',
+        servings: 2,
+        ingredients: [
+          {
+            name: 'Jajka',
+            quantity: '4.000',
+            unit: 'piece',
+            productId: eggsB.id,
+            sortOrder: 0,
+          },
+        ],
+        steps: [{ instruction: 'Usmaż.', sortOrder: 0 }],
+      }),
+    );
+
+    const sharedKey = `recipe-gap-scope-${crypto.randomUUID()}`;
+    const first = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchenA.id}/recipes/${recipeA.id}/add-gaps-to-shopping-list`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { idempotencyKey: sharedKey, servings: 2 },
+      },
+    );
+    expect(first.status).toBe(201);
+
+    const wrongRecipe = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchenA.id}/recipes/${recipeB.id}/add-gaps-to-shopping-list`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { idempotencyKey: sharedKey, servings: 2 },
+      },
+    );
+    expect(wrongRecipe.status).toBe(409);
+
+    const wrongKitchen = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchenB.id}/recipes/${recipeB.id}/add-gaps-to-shopping-list`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { idempotencyKey: sharedKey, servings: 2 },
+      },
+    );
+    expect(wrongKitchen.status).toBe(409);
+
+    const wrongServings = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchenA.id}/recipes/${recipeA.id}/add-gaps-to-shopping-list`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { idempotencyKey: sharedKey, servings: 4 },
+      },
+    );
+    expect(wrongServings.status).toBe(409);
+
+    const parallelKey = `recipe-gap-parallel-${crypto.randomUUID()}`;
+    const [parallelA, parallelB] = await Promise.all([
+      apiFetch(
+        api.origin,
+        `/api/kitchens/${kitchenA.id}/recipes/${recipeA.id}/add-gaps-to-shopping-list`,
+        {
+          method: 'POST',
+          webOrigin: WEB_ORIGIN,
+          cookies: owner.cookies,
+          body: { idempotencyKey: parallelKey, servings: 2 },
+        },
+      ),
+      apiFetch(
+        api.origin,
+        `/api/kitchens/${kitchenA.id}/recipes/${recipeA.id}/add-gaps-to-shopping-list`,
+        {
+          method: 'POST',
+          webOrigin: WEB_ORIGIN,
+          cookies: owner.cookies,
+          body: { idempotencyKey: parallelKey, servings: 2 },
+        },
+      ),
+    ]);
+    expect([parallelA.status, parallelB.status].sort()).toEqual([201, 201]);
+    expect(
+      (parallelA.body as { added: Array<{ shoppingListItemId: string }> })
+        .added[0]?.shoppingListItemId,
+    ).toBe(
+      (parallelB.body as { added: Array<{ shoppingListItemId: string }> })
+        .added[0]?.shoppingListItemId,
+    );
+
+    const listAfterParallel = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchenA.id}/shopping-list/items`,
+      { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
+    );
+    expect(listAfterParallel.status).toBe(200);
+    const eggsItem = (
+      listAfterParallel.body as Array<{
+        productId: string;
+        plannedQuantity: string;
+      }>
+    ).find((item) => item.productId === eggsA.id);
+    // first key (4) + parallel key once (4) => 8, not 12
+    expect(eggsItem?.plannedQuantity).toBe('8.000');
+
+    const freshKey = `recipe-gap-fresh-${crypto.randomUUID()}`;
+    const intentional = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchenA.id}/recipes/${recipeA.id}/add-gaps-to-shopping-list`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { idempotencyKey: freshKey, servings: 2 },
+      },
+    );
+    expect(intentional.status).toBe(201);
+    expect(
+      (intentional.body as { added: Array<{ quantity: string }> }).added[0]
+        ?.quantity,
+    ).toBe('4.000');
+
+    const listAfterFresh = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchenA.id}/shopping-list/items`,
+      { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
+    );
+    const eggsAfterFresh = (
+      listAfterFresh.body as Array<{
+        productId: string;
+        plannedQuantity: string;
+      }>
+    ).find((item) => item.productId === eggsA.id);
+    expect(eggsAfterFresh?.plannedQuantity).toBe('12.000');
+  });
+
+  it('adds multiple missing ingredients in one transaction', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+    const kitchen = await createKitchen(owner, 'Transakcja braków');
+
+    const eggs = await createProduct(owner, kitchen.id, {
+      name: 'Jajka TX',
+      defaultUnit: 'piece',
+    });
+    const milk = await createProduct(owner, kitchen.id, {
+      name: 'Mleko TX',
+      defaultUnit: 'milliliter',
+    });
+
+    const recipe = await createRecipe(
+      owner,
+      kitchen.id,
+      sampleRecipeBody({
+        servings: 2,
+        ingredients: [
+          {
+            name: 'Jajka',
+            quantity: '2.000',
+            unit: 'piece',
+            productId: eggs.id,
+            sortOrder: 0,
+          },
+          {
+            name: 'Mleko',
+            quantity: '200.000',
+            unit: 'milliliter',
+            productId: milk.id,
+            sortOrder: 1,
+          },
+        ],
+        steps: [{ instruction: 'Wymieszaj.', sortOrder: 0 }],
+      }),
+    );
+
+    const okKey = `recipe-gap-tx-ok-${crypto.randomUUID()}`;
+    const okAdd = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/${recipe.id}/add-gaps-to-shopping-list`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { idempotencyKey: okKey, servings: 2 },
+      },
+    );
+    expect(okAdd.status).toBe(201);
+    expect((okAdd.body as { added: unknown[] }).added).toHaveLength(2);
+
+    const listOk = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/shopping-list/items`,
+      { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
+    );
+    expect((listOk.body as unknown[]).length).toBe(2);
+
+    await executeTestDb(`
+      CREATE OR REPLACE FUNCTION test_fail_second_shopping_item()
+      RETURNS trigger AS $$
+      BEGIN
+        IF (
+          SELECT count(*)::int
+          FROM "ShoppingListItem"
+          WHERE "shoppingListId" = NEW."shoppingListId"
+        ) >= 1 THEN
+          RAISE EXCEPTION 'test forced failure on second shopping item';
+        END IF;
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
+    await executeTestDb(`
+      DROP TRIGGER IF EXISTS test_fail_second_shopping_item ON "ShoppingListItem";
+      CREATE TRIGGER test_fail_second_shopping_item
+      BEFORE INSERT ON "ShoppingListItem"
+      FOR EACH ROW EXECUTE FUNCTION test_fail_second_shopping_item();
+    `);
+
+    try {
+      // clear list so both candidates insert again
+      await executeTestDb(
+        `DELETE FROM "ShoppingListItem" WHERE "productId" = ANY($1::text[])`,
+        [[eggs.id, milk.id]],
+      );
+
+      const failKey = `recipe-gap-tx-fail-${crypto.randomUUID()}`;
+      const failAdd = await apiFetch(
+        api.origin,
+        `/api/kitchens/${kitchen.id}/recipes/${recipe.id}/add-gaps-to-shopping-list`,
+        {
+          method: 'POST',
+          webOrigin: WEB_ORIGIN,
+          cookies: owner.cookies,
+          body: { idempotencyKey: failKey, servings: 2 },
+        },
+      );
+      expect(failAdd.status).toBeGreaterThanOrEqual(400);
+
+      const listAfterFail = await apiFetch(
+        api.origin,
+        `/api/kitchens/${kitchen.id}/shopping-list/items`,
+        { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
+      );
+      expect((listAfterFail.body as unknown[]).length).toBe(0);
+
+      const gapRows = await queryTestDb<{ count: string }>(
+        `SELECT count(*)::text AS count FROM "RecipeGapAddition" WHERE "idempotencyKey" = $1`,
+        [failKey],
+      );
+      expect(gapRows[0]?.count).toBe('0');
+    } finally {
+      await executeTestDb(
+        `DROP TRIGGER IF EXISTS test_fail_second_shopping_item ON "ShoppingListItem"`,
+      );
+      await executeTestDb(
+        `DROP FUNCTION IF EXISTS test_fail_second_shopping_item()`,
+      );
+    }
+  });
+
+  it('rejects productId from another kitchen on create and update', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+    const member = await signUpUser(api.origin, WEB_ORIGIN);
+    const kitchen = await createKitchen(owner, 'Walidacja produktu');
+    const otherKitchen = await createKitchen(owner, 'Inna kuchnia produktów');
+    await inviteMember(owner, kitchen.id, member);
+
+    const foreignProduct = await createProduct(owner, otherKitchen.id, {
+      name: 'Obcy produkt',
+      defaultUnit: 'piece',
+    });
+
+    const createDenied = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: member.cookies,
+        body: sampleRecipeBody({
+          name: 'Z obcym produktem',
+          ingredients: [
+            {
+              name: 'Obcy',
+              quantity: '1.000',
+              unit: 'piece',
+              productId: foreignProduct.id,
+              sortOrder: 0,
+            },
+          ],
+          steps: [{ instruction: 'Krok', sortOrder: 0 }],
+        }),
+      },
+    );
+    expect(createDenied.status).toBe(400);
+
+    const recipe = await createRecipe(
+      member,
+      kitchen.id,
+      sampleRecipeBody({ name: 'Do edycji' }),
+    );
+
+    const updateDenied = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/${recipe.id}`,
+      {
+        method: 'PATCH',
+        webOrigin: WEB_ORIGIN,
+        cookies: member.cookies,
+        body: {
+          ingredients: [
+            {
+              name: 'Obcy',
+              quantity: '1.000',
+              unit: 'piece',
+              productId: foreignProduct.id,
+              sortOrder: 0,
+            },
+          ],
+        },
+      },
+    );
+    expect(updateDenied.status).toBe(400);
   });
 
   it('supports search and mine filter on recipe list', async () => {

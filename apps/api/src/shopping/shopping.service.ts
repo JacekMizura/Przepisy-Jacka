@@ -93,6 +93,20 @@ export class ShoppingService {
     dto: CreateShoppingListItemDto,
   ): Promise<ShoppingListItemDto> {
     await requireKitchenMember(this.prisma, kitchenId, userId);
+    return this.prisma.$transaction(async (tx) => {
+      return this.createShoppingListItemInTx(tx, kitchenId, dto);
+    });
+  }
+
+  /**
+   * Tworzy / scala pozycję listy zakupów w istniejącej transakcji
+   * (bez osobnego sprawdzenia członkostwa — caller odpowiada za dostęp).
+   */
+  async createShoppingListItemInTx(
+    tx: Prisma.TransactionClient,
+    kitchenId: string,
+    dto: CreateShoppingListItemDto,
+  ): Promise<ShoppingListItemDto> {
     validateCreateShoppingListItem(dto);
 
     const plannedQuantity =
@@ -109,9 +123,8 @@ export class ShoppingService {
       );
     }
 
-    let product: Product | null = null;
     if (dto.productId) {
-      product = await this.prisma.product.findFirst({
+      const product = await tx.product.findFirst({
         where: { id: dto.productId, kitchenId },
       });
       if (!product) {
@@ -125,34 +138,31 @@ export class ShoppingService {
       }
     }
 
-    const item = await this.prisma.$transaction(async (tx) => {
-      const shoppingList = await ensureShoppingList(tx, kitchenId);
+    const shoppingList = await ensureShoppingList(tx, kitchenId);
 
-      if (dto.productId) {
-        return upsertPendingProductListItem(
-          tx,
-          shoppingList,
-          dto,
-          plannedQuantity,
-        );
-      }
+    if (dto.productId) {
+      const item = await upsertPendingProductListItem(
+        tx,
+        shoppingList,
+        dto,
+        plannedQuantity,
+      );
+      return toShoppingListItemDto(item);
+    }
 
-      const created = await tx.shoppingListItem.create({
-        data: {
-          shoppingListId: shoppingList.id,
-          productId: null,
-          customName: dto.customName?.trim() ?? null,
-          plannedQuantity,
-          plannedUnit: dto.plannedUnit ?? null,
-          note: normalizeOptionalNote(dto.note),
-        },
-        include: { product: true },
-      });
-      await touchShoppingListUpdatedAt(tx, shoppingList.id);
-      return created;
+    const created = await tx.shoppingListItem.create({
+      data: {
+        shoppingListId: shoppingList.id,
+        productId: null,
+        customName: dto.customName?.trim() ?? null,
+        plannedQuantity,
+        plannedUnit: dto.plannedUnit ?? null,
+        note: normalizeOptionalNote(dto.note),
+      },
+      include: { product: true },
     });
-
-    return toShoppingListItemDto(item);
+    await touchShoppingListUpdatedAt(tx, shoppingList.id);
+    return toShoppingListItemDto(created);
   }
 
   async updateShoppingListItem(

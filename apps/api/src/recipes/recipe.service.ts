@@ -9,6 +9,7 @@ import { Prisma } from '../generated/prisma/client';
 import {
   RecipeVisibility,
   type Recipe,
+  type RecipeGapAddition,
   type RecipeIngredient,
   type RecipeStep,
   type User,
@@ -42,6 +43,12 @@ type RecipeWithRelations = Recipe & {
   author: Pick<User, 'id' | 'name'>;
   ingredients: RecipeIngredient[];
   steps: RecipeStep[];
+};
+
+type StoredGapAdditionResult = AddRecipeGapsResultDto & {
+  kitchenId: string;
+  includeIngredientIds: string[];
+  pending?: boolean;
 };
 
 export type RecipeListFilter = 'all' | 'mine' | 'kitchen';
@@ -242,14 +249,22 @@ export class RecipeService {
   ): Promise<AddRecipeGapsResultDto> {
     await requireKitchenMember(this.prisma, kitchenId, userId);
 
+    const includeIngredientIds = normalizeIncludeIngredientIds(
+      dto.includeIngredientIds,
+    );
+
     const existingAddition = await this.prisma.recipeGapAddition.findUnique({
       where: { idempotencyKey: dto.idempotencyKey },
     });
     if (existingAddition) {
-      if (existingAddition.recipeId !== recipeId) {
-        throw new ConflictException('Klucz idempotencji jest już użyty.');
-      }
-      return existingAddition.result as unknown as AddRecipeGapsResultDto;
+      return resolveExistingGapAddition(
+        this.prisma,
+        existingAddition,
+        kitchenId,
+        recipeId,
+        dto.servings,
+        includeIngredientIds,
+      );
     }
 
     const recipe = await this.findAccessibleRecipe(userId, kitchenId, recipeId);
@@ -259,8 +274,14 @@ export class RecipeService {
       dto.servings,
     );
 
-    const includeSet = new Set(dto.includeIngredientIds ?? []);
-    const added: AddedRecipeGapItemDto[] = [];
+    const includeSet = new Set(includeIngredientIds);
+    const candidates: Array<{
+      ingredientId: string;
+      ingredientName: string;
+      productId: string;
+      quantity: string;
+      shoppingUnit: 'piece' | 'gram' | 'kilogram' | 'milliliter' | 'liter';
+    }> = [];
     const skipped: SkippedRecipeGapItemDto[] = [];
 
     for (const ingredient of availability.ingredients) {
@@ -306,7 +327,9 @@ export class RecipeService {
         continue;
       }
 
-      const shoppingUnit = recipeUnitToShoppingInputUnit(ingredient.gapUnit!);
+      const unitForShopping =
+        ingredient.status === 'unknown' ? ingredient.unit : ingredient.gapUnit!;
+      const shoppingUnit = recipeUnitToShoppingInputUnit(unitForShopping);
       if (!shoppingUnit) {
         skipped.push({
           ingredientId: ingredient.ingredientId,
@@ -321,46 +344,87 @@ export class RecipeService {
           ? ingredient.scaledQuantity!
           : ingredient.gapQuantity!;
 
-      const shoppingItem = await this.shoppingService.createShoppingListItem(
-        userId,
-        kitchenId,
-        {
-          productId: ingredient.productId!,
-          plannedQuantity: quantity,
-          plannedUnit: shoppingUnit,
-          note: `Przepis: ${recipe.name}`,
-          mergeQuantity: true,
-        },
-      );
-
-      added.push({
+      candidates.push({
         ingredientId: ingredient.ingredientId,
         ingredientName: ingredient.name,
-        productId: ingredient.productId,
+        productId: ingredient.productId!,
         quantity,
-        unit: shoppingUnit,
-        shoppingListItemId: shoppingItem.id,
+        shoppingUnit,
       });
     }
 
-    const result: AddRecipeGapsResultDto = {
-      recipeId,
-      servings: dto.servings,
-      idempotencyKey: dto.idempotencyKey,
-      added,
-      skipped,
-      createdAt: new Date().toISOString(),
-    };
-
     try {
-      await this.prisma.recipeGapAddition.create({
-        data: {
+      return await this.prisma.$transaction(async (tx) => {
+        const raced = await tx.recipeGapAddition.findUnique({
+          where: { idempotencyKey: dto.idempotencyKey },
+        });
+        if (raced) {
+          return resolveExistingGapAddition(
+            tx,
+            raced,
+            kitchenId,
+            recipeId,
+            dto.servings,
+            includeIngredientIds,
+          );
+        }
+
+        await tx.recipeGapAddition.create({
+          data: {
+            recipeId,
+            idempotencyKey: dto.idempotencyKey,
+            servings: dto.servings,
+            createdByUserId: userId,
+            result: {
+              pending: true,
+              kitchenId,
+              includeIngredientIds,
+            },
+          },
+        });
+
+        const added: AddedRecipeGapItemDto[] = [];
+        for (const candidate of candidates) {
+          const shoppingItem =
+            await this.shoppingService.createShoppingListItemInTx(
+              tx,
+              kitchenId,
+              {
+                productId: candidate.productId,
+                plannedQuantity: candidate.quantity,
+                plannedUnit: candidate.shoppingUnit,
+                note: `Przepis: ${recipe.name}`,
+                mergeQuantity: true,
+              },
+            );
+
+          added.push({
+            ingredientId: candidate.ingredientId,
+            ingredientName: candidate.ingredientName,
+            productId: candidate.productId,
+            quantity: candidate.quantity,
+            unit: candidate.shoppingUnit,
+            shoppingListItemId: shoppingItem.id,
+          });
+        }
+
+        const result: StoredGapAdditionResult = {
           recipeId,
-          idempotencyKey: dto.idempotencyKey,
           servings: dto.servings,
-          createdByUserId: userId,
-          result: result as unknown as Prisma.InputJsonValue,
-        },
+          idempotencyKey: dto.idempotencyKey,
+          added,
+          skipped,
+          createdAt: new Date().toISOString(),
+          kitchenId,
+          includeIngredientIds,
+        };
+
+        await tx.recipeGapAddition.update({
+          where: { idempotencyKey: dto.idempotencyKey },
+          data: { result: result as unknown as Prisma.InputJsonValue },
+        });
+
+        return toPublicGapResult(result);
       });
     } catch (error) {
       if (
@@ -371,13 +435,18 @@ export class RecipeService {
           where: { idempotencyKey: dto.idempotencyKey },
         });
         if (raced) {
-          return raced.result as unknown as AddRecipeGapsResultDto;
+          return resolveExistingGapAddition(
+            this.prisma,
+            raced,
+            kitchenId,
+            recipeId,
+            dto.servings,
+            includeIngredientIds,
+          );
         }
       }
       throw error;
     }
-
-    return result;
   }
 
   private async computeAvailabilityForRecipe(
@@ -537,6 +606,67 @@ async function validateIngredientProducts(
       throw new BadRequestException('Nie znaleziono produktu w tej kuchni.');
     }
   }
+}
+
+function normalizeIncludeIngredientIds(ids?: string[]): string[] {
+  return [...(ids ?? [])].sort();
+}
+
+function sameIncludeIngredientIds(left: string[], right: string[]): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+  return left.every((id, index) => id === right[index]);
+}
+
+function toPublicGapResult(
+  stored: StoredGapAdditionResult,
+): AddRecipeGapsResultDto {
+  return {
+    recipeId: stored.recipeId,
+    servings: stored.servings,
+    idempotencyKey: stored.idempotencyKey,
+    added: stored.added,
+    skipped: stored.skipped,
+    createdAt: stored.createdAt,
+  };
+}
+
+async function resolveExistingGapAddition(
+  prisma: Pick<PrismaService, 'recipe'>,
+  existing: RecipeGapAddition,
+  kitchenId: string,
+  recipeId: string,
+  servings: number,
+  includeIngredientIds: string[],
+): Promise<AddRecipeGapsResultDto> {
+  if (existing.recipeId !== recipeId || existing.servings !== servings) {
+    throw new ConflictException('Klucz idempotencji jest już użyty.');
+  }
+
+  const recipe = await prisma.recipe.findUnique({
+    where: { id: existing.recipeId },
+    select: { kitchenId: true },
+  });
+  if (!recipe || recipe.kitchenId !== kitchenId) {
+    throw new ConflictException('Klucz idempotencji jest już użyty.');
+  }
+
+  const stored = existing.result as unknown as StoredGapAdditionResult;
+  if (stored.pending) {
+    throw new ConflictException('Operacja z tym kluczem jest w toku.');
+  }
+  if (stored.kitchenId !== kitchenId) {
+    throw new ConflictException('Klucz idempotencji jest już użyty.');
+  }
+  const storedIncludes = normalizeIncludeIngredientIds(
+    stored.includeIngredientIds,
+  );
+  if (!sameIncludeIngredientIds(storedIncludes, includeIngredientIds)) {
+    throw new ConflictException('Klucz idempotencji jest już użyty.');
+  }
+
+  return toPublicGapResult(stored);
 }
 
 function toIngredientCreateData(ingredient: RecipeIngredientInputDto) {

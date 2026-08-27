@@ -30,6 +30,11 @@ export class MediaUploadTargetDto {
   @IsOptional()
   @IsUUID()
   recipeStepId?: string;
+
+  @ApiPropertyOptional({ type: String, format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  purchaseId?: string;
 }
 
 export class BeginMediaUploadDto {

@@ -9,6 +9,7 @@ import { AppShell } from "@/components/app-shell";
 import { ProductThumb } from "@/components/product-thumb";
 import { createWebApiClient } from "@/lib/api";
 import { readApiError } from "@/lib/errors";
+import { mediaDisplayUrl } from "@/lib/media-upload";
 import { productImageUrls } from "@/lib/product-image";
 import { formatPriceMinor } from "@/lib/shopping-labels";
 
@@ -93,6 +94,9 @@ export default function PurchasesPage() {
                       Produkty
                     </th>
                     <th className="px-4 py-3 font-semibold text-gray-700">
+                      Paragon
+                    </th>
+                    <th className="px-4 py-3 font-semibold text-gray-700">
                       Data
                     </th>
                     <th className="px-4 py-3 font-semibold text-gray-700">
@@ -130,6 +134,20 @@ export default function PurchasesPage() {
                             <ProductThumb src={null} alt="" size="sm" />
                           ) : null}
                         </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        {mediaDisplayUrl(purchase.receiptImage, "thumbnail") ? (
+                          <ProductThumb
+                            src={mediaDisplayUrl(
+                              purchase.receiptImage,
+                              "thumbnail",
+                            )}
+                            alt="Paragon"
+                            size="sm"
+                          />
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-gray-800">
                         {new Date(purchase.purchasedAt).toLocaleDateString(

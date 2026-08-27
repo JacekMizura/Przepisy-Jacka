@@ -249,6 +249,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/kitchens/{kitchenId}/purchases/{purchaseId}/receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Przypisanie zdjęcia paragonu do zakupu */
+        post: operations["MediaAttachmentController_attachPurchaseReceipt"];
+        /** Odpięcie zdjęcia paragonu */
+        delete: operations["MediaAttachmentController_detachPurchaseReceipt"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/kitchens/{kitchenId}/nutrition-lookups/by-ean": {
         parameters: {
             query?: never;
@@ -692,10 +710,12 @@ export interface components {
             recipeId?: string;
             /** Format: uuid */
             recipeStepId?: string;
+            /** Format: uuid */
+            purchaseId?: string;
         };
         BeginMediaUploadDto: {
             /** @enum {string} */
-            purpose: "product" | "recipe_cover" | "recipe_step";
+            purpose: "product" | "recipe_cover" | "recipe_step" | "purchase_receipt";
             /**
              * @description Deklarowany typ pliku. Zawartość jest weryfikowana po bajtach.
              * @example image/jpeg
@@ -733,7 +753,7 @@ export interface components {
             id: string;
             kitchenId: string;
             /** @enum {string} */
-            purpose: "product" | "recipe_cover" | "recipe_step";
+            purpose: "product" | "recipe_cover" | "recipe_step" | "purchase_receipt";
             /** @enum {string} */
             status: "pending" | "processing" | "ready" | "failed";
             mimeType: string;
@@ -1139,6 +1159,8 @@ export interface components {
             shoppingListItemId: string | null;
             /** @example 500.000 */
             quantity: string;
+            /** @enum {string} */
+            unit: "piece" | "gram" | "milliliter";
             /** @example 599 */
             priceMinor: number;
             /** @enum {string} */
@@ -1160,6 +1182,7 @@ export interface components {
             /** @example PLN */
             currency: string;
             previewProducts: components["schemas"]["PurchasePreviewProductDto"][];
+            receiptImage: components["schemas"]["MediaImageDto"] | null;
             lines: components["schemas"]["PurchaseLineItemDto"][];
             /** Format: date-time */
             createdAt: string;
@@ -1175,6 +1198,7 @@ export interface components {
             /** @example PLN */
             currency: string;
             previewProducts: components["schemas"]["PurchasePreviewProductDto"][];
+            receiptImage: components["schemas"]["MediaImageDto"] | null;
         };
         RecipeAuthorDto: {
             id: string;
@@ -1920,6 +1944,52 @@ export interface operations {
                 kitchenId: string;
                 recipeId: string;
                 stepId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MediaAttachmentController_attachPurchaseReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                purchaseId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttachMediaDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachedMediaDto"];
+                };
+            };
+        };
+    };
+    MediaAttachmentController_detachPurchaseReceipt: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                purchaseId: string;
             };
             cookie?: never;
         };

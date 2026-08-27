@@ -121,6 +121,9 @@ export class PurchaseLineItemDto {
   @ApiProperty({ type: String, example: '500.000' })
   quantity!: string;
 
+  @ApiProperty({ enum: ProductUnit })
+  unit!: ProductUnit;
+
   @ApiProperty({ example: 599 })
   priceMinor!: number;
 
@@ -175,6 +178,9 @@ export class PurchaseSummaryDto {
 
   @ApiProperty({ type: [PurchasePreviewProductDto] })
   previewProducts!: PurchasePreviewProductDto[];
+
+  @ApiProperty({ type: MediaImageDto, nullable: true })
+  receiptImage!: MediaImageDto | null;
 }
 
 export class PurchaseDetailDto extends PurchaseSummaryDto {

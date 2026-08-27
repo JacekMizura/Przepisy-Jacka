@@ -733,6 +733,85 @@
         ]
       }
     },
+    "/api/kitchens/{kitchenId}/purchases/{purchaseId}/receipt": {
+      "post": {
+        "operationId": "MediaAttachmentController_attachPurchaseReceipt",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "purchaseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachMediaDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttachedMediaDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Przypisanie zdjęcia paragonu do zakupu",
+        "tags": [
+          "media"
+        ]
+      },
+      "delete": {
+        "operationId": "MediaAttachmentController_detachPurchaseReceipt",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "purchaseId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Odpięcie zdjęcia paragonu",
+        "tags": [
+          "media"
+        ]
+      }
+    },
     "/api/kitchens/{kitchenId}/nutrition-lookups/by-ean": {
       "get": {
         "description": "Integracja wyłącznie po stronie API. Nie wysyła danych użytkownika ani zdjęć. Wynik jest podglądem — zapis wymaga jawnego zatwierdzenia w formularzu produktu.",
@@ -2376,6 +2455,10 @@
           "recipeStepId": {
             "type": "string",
             "format": "uuid"
+          },
+          "purchaseId": {
+            "type": "string",
+            "format": "uuid"
           }
         }
       },
@@ -2387,7 +2470,8 @@
             "enum": [
               "product",
               "recipe_cover",
-              "recipe_step"
+              "recipe_step",
+              "purchase_receipt"
             ]
           },
           "declaredMimeType": {
@@ -2502,7 +2586,8 @@
             "enum": [
               "product",
               "recipe_cover",
-              "recipe_step"
+              "recipe_step",
+              "purchase_receipt"
             ]
           },
           "status": {
@@ -3834,6 +3919,14 @@
             "type": "string",
             "example": "500.000"
           },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ]
+          },
           "priceMinor": {
             "type": "number",
             "example": 599
@@ -3877,6 +3970,7 @@
           "stockItemId",
           "shoppingListItemId",
           "quantity",
+          "unit",
           "priceMinor",
           "location",
           "expiresAt",
@@ -3916,6 +4010,15 @@
               "$ref": "#/components/schemas/PurchasePreviewProductDto"
             }
           },
+          "receiptImage": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaImageDto"
+              }
+            ]
+          },
           "lines": {
             "type": "array",
             "items": {
@@ -3935,6 +4038,7 @@
           "totalPriceMinor",
           "currency",
           "previewProducts",
+          "receiptImage",
           "lines",
           "createdAt"
         ]
@@ -3969,6 +4073,15 @@
             "items": {
               "$ref": "#/components/schemas/PurchasePreviewProductDto"
             }
+          },
+          "receiptImage": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaImageDto"
+              }
+            ]
           }
         },
         "required": [
@@ -3978,7 +4091,8 @@
           "itemCount",
           "totalPriceMinor",
           "currency",
-          "previewProducts"
+          "previewProducts",
+          "receiptImage"
         ]
       },
       "RecipeAuthorDto": {

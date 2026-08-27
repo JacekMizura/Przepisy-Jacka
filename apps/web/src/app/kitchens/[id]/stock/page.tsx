@@ -594,10 +594,6 @@ export default function StockPage() {
               <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
                 Co masz w domu?
               </h1>
-              <p className="mt-2 text-base leading-relaxed text-gray-600">
-                Tu trzymasz zapasy pod ręką — żeby mniej wyrzucać, szybciej
-                gotować i wiedzieć, czego brakuje przed zakupami.
-              </p>
             </div>
             <div className="flex flex-col gap-2 sm:items-end">
               <button
@@ -726,14 +722,7 @@ export default function StockPage() {
                     placeholder="np. 5901234123457"
                     value={productEan}
                     onChange={(event) => setProductEan(event.target.value)}
-                    aria-describedby="product-ean-hint"
                   />
-                  <p
-                    id="product-ean-hint"
-                    className="mt-1 text-xs text-gray-500"
-                  >
-                    8, 12, 13 albo 14 cyfr. Puste pole = bez kodu.
-                  </p>
                 </div>
                 <div className="md:col-span-2">
                   <NutritionEanLookup
@@ -815,10 +804,6 @@ export default function StockPage() {
               <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
                 <Package size={20} className="text-amber-600" /> Odłóż na półkę
               </h2>
-              <p className="mt-1 text-sm text-gray-500">
-                Wybierz produkt z katalogu i zapisz partię w lodówce, spiżarni
-                albo zamrażarce.
-              </p>
             </div>
             <div className="p-6">
               <form
@@ -826,8 +811,8 @@ export default function StockPage() {
                 className="grid grid-cols-1 gap-6 md:grid-cols-2"
               >
                 <div className="md:col-span-2">
-                  <Label htmlFor="stock-product">
-                    Wybierz produkt z katalogu
+                  <Label htmlFor="stock-product" className="sr-only">
+                    Produkt
                   </Label>
                   <select
                     id="stock-product"
@@ -981,11 +966,7 @@ export default function StockPage() {
                     placeholder="np. 5901234123457"
                     value={stockEan}
                     onChange={(event) => setStockEan(event.target.value)}
-                    aria-describedby="stock-ean-hint"
                   />
-                  <p id="stock-ean-hint" className="mt-1 text-xs text-gray-500">
-                    8, 12, 13 albo 14 cyfr. Puste = bez kodu.
-                  </p>
                 </div>
                 <div className="md:col-span-2">
                   <ImageField
@@ -1339,10 +1320,6 @@ export default function StockPage() {
               <h2 className="text-lg font-bold text-gray-900">
                 Katalog produktów
               </h2>
-              <p className="text-sm text-gray-500">
-                {(productsQuery.data ?? []).length} pozycji · baza do odkładania
-                na półki
-              </p>
             </div>
             <ChevronDown
               size={20}
@@ -1490,7 +1467,6 @@ export default function StockPage() {
                             <ProductPurchaseOptions
                               kitchenId={kitchenId}
                               productId={product.id}
-                              productName={product.name}
                               defaultUnit={product.defaultUnit as BaseUnit}
                               purchaseMode={product.purchaseMode}
                             />

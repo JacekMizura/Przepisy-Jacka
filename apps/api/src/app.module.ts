@@ -6,6 +6,7 @@ import { validateEnv } from './config/env';
 import { HealthModule } from './health/health.module';
 import { KitchensModule } from './kitchens/kitchens.module';
 import { MediaModule } from './media/media.module';
+import { OpenFoodFactsModule } from './open-food-facts/open-food-facts.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RecipeModule } from './recipes/recipe.module';
 import { ShoppingModule } from './shopping/shopping.module';
@@ -26,6 +27,7 @@ import { UsersModule } from './users/users.module';
     UsersModule,
     KitchensModule,
     MediaModule,
+    OpenFoodFactsModule,
     StockModule,
     ShoppingModule,
     RecipeModule,

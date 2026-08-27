@@ -18,6 +18,14 @@ export function applyTestEnv(overrides?: Record<string, string>): void {
   process.env.MEDIA_S3_BUCKET = '';
   process.env.MEDIA_S3_ACCESS_KEY_ID = '';
   process.env.MEDIA_S3_SECRET_ACCESS_KEY = '';
+  // Testy e2e wskazują na lokalny mock HTTP (patrz nutrition-lookup.e2e-spec.ts).
+  process.env.OPEN_FOOD_FACTS_DRIVER = 'http';
+  process.env.OPEN_FOOD_FACTS_BASE_URL =
+    process.env.OPEN_FOOD_FACTS_BASE_URL ?? 'http://127.0.0.1:9';
+  process.env.OPEN_FOOD_FACTS_USER_AGENT =
+    'MojaKuchnia-Test/0.1 (ci@localhost)';
+  process.env.OPEN_FOOD_FACTS_TIMEOUT_MS = '2000';
+  process.env.OPEN_FOOD_FACTS_CACHE_TTL_SECONDS = '3600';
 
   if (overrides) {
     for (const [key, value] of Object.entries(overrides)) {

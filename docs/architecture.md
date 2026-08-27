@@ -98,14 +98,15 @@ Cookies sesji:
 - Better Auth: `User`, `Session`, `Account` (w tym `issuer` wymagane od 1.7), `Verification`,
 - `Kitchen`, `KitchenMember`, `KitchenInvite` (w bazie tylko `tokenHash`),
 - `Product` (`normalizedName`, unikalność `(kitchenId, normalizedName)`, `defaultUnit`, opcjonalne `ean` / `imageUrl` / `imageMediaId` / `category`, `ProductPurchaseOption` — warianty zakupu z jednym domyślnym),
-- `ProductNutrition` (1:1 z produktem: ilość i jednostka odniesienia, `kcal`, białko, węglowodany, tłuszcz, opcjonalny błonnik i sól — wszystko `DECIMAL(12,3)`),
+- `ProductNutrition` (1:1 z produktem: ilość i jednostka odniesienia, `kcal`, białko, węglowodany, tłuszcz, opcjonalny błonnik i sól — wszystko `DECIMAL(12,3)`; opcjonalne `source` / `sourceFetchedAt` / `sourceLabel` / `sourceBrand` dla zatwierdzonych danych z Open Food Facts),
+- `OpenFoodFactsCache` (cache odpowiedzi lookup po EAN, bez danych użytkownika),
 - `MediaAsset` (kuchnia, autor wysyłki, przeznaczenie `product` / `recipe_cover` / `recipe_step`, klucz obiektu i miniatury, status `pending` / `processing` / `ready` / `failed`); `Product.imageMediaId`, `Recipe.coverMediaId` i `RecipeStep.imageMediaId` są unikalne i mają `ON DELETE SET NULL`,
 - `StockItem` (`initialQuantity`, `quantity`, `purchasePriceMinor`, `currency`, miejsce, daty, opcjonalne `ean` / `imageUrl`). Ilości: `DECIMAL(12,3)`.
 - `ShoppingList` (jedna na kuchnię), `ShoppingListItem` (status `pending` / `bought` / `skipped`, planowana ilość/opakowania, wymagana ilość z przepisu, źródło przepisu, `resolvedAt` po rozliczeniu),
 - `Purchase` (`storeName`, `purchasedAt`, `currency`, `totalPriceMinor`, unikalny `idempotencyKey`), `PurchaseLineItem` (powiązanie z produktem, opcjonalnie `stockItemId` i `shoppingListItemId`; do zapasu trafia zawartość opakowań).
 - `Recipe`, `RecipeIngredient`, `RecipeStep` (opcjonalny tytuł i czas etapu), `RecipeGapAddition` (idempotencja dodawania braków do listy).
 
-Endpointy listy, zakupów i przepisów pod `kitchens/:kitchenId`. Każda operacja wymaga członkostwa w kuchni; prywatne przepisy tylko dla autora.
+Endpointy listy, zakupów i przepisów pod `kitchens/:kitchenId`. Każda operacja wymaga członkostwa w kuchni; prywatne przepisy tylko dla autora. Lookup wartości odżywczych: `GET …/nutrition-lookups/by-ean` (Open Food Facts przez NestJS; timeout, cache, obsługa 429/503; testy CI używają lokalnego mocka HTTP).
 
 Migracje wykonuje wyłącznie Prisma. Seed demo działa tylko gdy `NODE_ENV !== "production"` oraz `ALLOW_DEMO_SEED=true`. Seed nie jest częścią startu ani pre-deploy Railway.
 

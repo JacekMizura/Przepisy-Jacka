@@ -4,7 +4,7 @@
 
 Etap: uwierzytelnianie Better Auth, wspólne kuchnie, zaproszenia, katalog produktów z wariantami zakupu (opakowania) i jawnym `purchaseMode` (`unconfigured` / `packaged` / `exact`), zapasy, lista zakupów z rozliczaniem zakupów oraz moduł przepisów (CRUD, dostępność składników, propozycje pełnych opakowań, braki do listy) na webie. Fundament repozytorium z Etapu 1 pozostaje w mocy.
 
-W API są zdjęcia (produkty, okładki i kroki przepisów) w magazynie S3-kompatybilnym, wartości odżywcze produktów oraz szacunek makroskładników i kosztu przepisu. Web ma już interfejs do tych funkcji: wysyłka zdjęć z postępem, podgląd w powiększeniu, edycja wartości odżywczych produktu oraz panel kosztu i makro w przepisie. Mobile nadal ich nie obsługuje.
+W API są zdjęcia (produkty, okładki i kroki przepisów) w magazynie S3-kompatybilnym, wartości odżywcze produktów (z opcjonalnym pobraniem podglądu z Open Food Facts po EAN) oraz szacunek makroskładników i kosztu przepisu. Web ma już interfejs do tych funkcji: wysyłka zdjęć z postępem, podgląd w powiększeniu, edycja wartości odżywczych produktu z przyciskiem „Pobierz wartości po EAN” oraz panel kosztu i makro w przepisie. Mobile nadal ich nie obsługuje.
 
 `docs/faza-0-architektura.md` pochodzi z wcześniejszego, niezwiązanego projektu. Plik pozostaje na dysku jako materiał historyczny i nie jest źródłem prawdy.
 
@@ -21,9 +21,9 @@ Nie wymagamy identycznego patcha `18.6` lokalnie ani w CI — tylko major 18.
 ## Co rzeczywiście działa
 
 - monorepo pnpm + Turborepo,
-- `apps/api` — NestJS + Fastify, prefix `/api`, Better Auth, Prisma, kuchnie, zaproszenia, produkty, partie zapasów, lista zakupów i zakupy (checkout idempotentny), moduł przepisów (CRUD, dostępność, braki → lista), moduł zdjęć (dwuetapowa wysyłka, WebP + miniatura, usuwanie EXIF, podpisane URL-e), wartości odżywcze produktów, szacunek makro i kosztu przepisu, `GET /api/health`, walidacja env, CORS, Swagger poza produkcją,
+- `apps/api` — NestJS + Fastify, prefix `/api`, Better Auth, Prisma, kuchnie, zaproszenia, produkty, partie zapasów, lista zakupów i zakupy (checkout idempotentny), moduł przepisów (CRUD, dostępność, braki → lista), moduł zdjęć (dwuetapowa wysyłka, WebP + miniatura, usuwanie EXIF, podpisane URL-e), wartości odżywcze produktów z lookupiem Open Food Facts po EAN (cache, timeout, limity), szacunek makro i kosztu przepisu, `GET /api/health`, walidacja env, CORS, Swagger poza produkcją,
 - `packages/api-client` — `openapi-fetch` + typy z OpenAPI dla endpointów domenowych (w tym `components`),
-- `apps/web` — layout sidebar (Moja Kuchnia / zapasy / lista zakupów / historia zakupów / przepisy / domownicy), logowanie, rejestracja, kuchnie, zaproszenia, zapasy, przepisy (kafelki z okładkami, tworzenie, szczegóły z dostępnością oraz kosztem i makro, edycja); zdjęcia produktów, okładek i kroków przepisu przez magazyn mediów (`media-upload.ts` + `MediaImageField`), wartości odżywcze produktu w szczegółach katalogu; względne `/api/*` przez serwerowy proxy do `API_ORIGIN`,
+- `apps/web` — layout sidebar (Moja Kuchnia / zapasy / lista zakupów / historia zakupów / przepisy / domownicy), logowanie, rejestracja, kuchnie, zaproszenia, zapasy, przepisy (kafelki z okładkami, tworzenie, szczegóły z dostępnością oraz kosztem i makro, edycja); zdjęcia produktów, okładek i kroków przepisu przez magazyn mediów (`media-upload.ts` + `MediaImageField`), wartości odżywcze produktu w tworzeniu i edycji katalogu (OFF po EAN); względne `/api/*` przez serwerowy proxy do `API_ORIGIN`,
 - `apps/mobile` — ekran kontrolny health z `EXPO_PUBLIC_API_URL` (bez zmian funkcjonalnych w tym etapie),
 - lokalny PostgreSQL 18 przez `docker-compose.yml`,
 - GitHub Actions: Postgres 18, migracje, OpenAPI, lint, typecheck, unit, e2e API, black-box Next, build, mobile,

@@ -26,6 +26,7 @@ import {
   AddRecipeGapsResultDto,
 } from './dto/add-recipe-gaps.dto';
 import { RecipeAvailabilityDto } from './dto/recipe-availability.dto';
+import { RecipeEstimateDto } from './dto/recipe-estimate.dto';
 import {
   CreateRecipeDto,
   RecipeDetailDto,
@@ -122,6 +123,26 @@ export class RecipeController {
     @Query('servings', ParseIntPipe) servings: number,
   ): Promise<RecipeAvailabilityDto> {
     return this.recipeService.getAvailability(
+      session.user.id,
+      kitchenId,
+      recipeId,
+      servings,
+    );
+  }
+
+  @Get(':recipeId/estimate')
+  @ApiOperation({
+    summary: 'Szacunkowe kalorie, makroskładniki i koszt przepisu',
+  })
+  @ApiQuery({ name: 'servings', required: true, type: Number })
+  @ApiOkResponse({ type: RecipeEstimateDto })
+  estimate(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Param('recipeId', ParseUUIDPipe) recipeId: string,
+    @Query('servings', ParseIntPipe) servings: number,
+  ): Promise<RecipeEstimateDto> {
+    return this.recipeService.getEstimate(
       session.user.id,
       kitchenId,
       recipeId,

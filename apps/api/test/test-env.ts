@@ -11,6 +11,13 @@ export function applyTestEnv(overrides?: Record<string, string>): void {
   process.env.BETTER_AUTH_SECRET = 'local-dev-only-not-for-production-use-32';
   process.env.AUTH_TRUSTED_ORIGINS = 'http://127.0.0.1:3010';
   process.env.ALLOW_DEMO_SEED = 'false';
+  // Testy nie dotykają prawdziwego S3 — zdjęcia trzymamy w pamięci procesu API.
+  process.env.MEDIA_STORAGE_DRIVER = 'memory';
+  process.env.MEDIA_S3_ENDPOINT = '';
+  process.env.MEDIA_S3_REGION = '';
+  process.env.MEDIA_S3_BUCKET = '';
+  process.env.MEDIA_S3_ACCESS_KEY_ID = '';
+  process.env.MEDIA_S3_SECRET_ACCESS_KEY = '';
 
   if (overrides) {
     for (const [key, value] of Object.entries(overrides)) {

@@ -12,6 +12,76 @@ import { Button } from "@/components/ui/button";
 import { createWebApiClient } from "@/lib/api";
 import { readApiError } from "@/lib/errors";
 
+type CreateRecipeBody = components["schemas"]["CreateRecipeDto"];
+type UpdateRecipeBody = components["schemas"]["UpdateRecipeDto"];
+type RecipeDetail = components["schemas"]["RecipeDetailDto"];
+
+/**
+ * API odtwarza składniki i kroki od zera, a odtworzone kroki tracą zdjęcia.
+ * Niezmienione kolekcje pomijamy, żeby zapis opisu nie usuwał zdjęć kroków.
+ */
+function toUpdateRecipeBody(
+  body: CreateRecipeBody,
+  recipe: RecipeDetail,
+): UpdateRecipeBody {
+  const { ingredients, steps, ...rest } = body;
+  return {
+    ...rest,
+    ...(ingredientsUnchanged(ingredients, recipe) ? {} : { ingredients }),
+    ...(stepsUnchanged(steps, recipe) ? {} : { steps }),
+  };
+}
+
+function ingredientsUnchanged(
+  next: CreateRecipeBody["ingredients"],
+  recipe: RecipeDetail,
+): boolean {
+  const current = recipe.ingredients
+    .slice()
+    .sort((left, right) => left.sortOrder - right.sortOrder);
+  if (current.length !== next.length) {
+    return false;
+  }
+  return next.every((ingredient, index) => {
+    const existing = current[index];
+    if (!existing) {
+      return false;
+    }
+    return (
+      ingredient.name === existing.name &&
+      (ingredient.quantity ?? null) === existing.quantity &&
+      ingredient.unit === existing.unit &&
+      (ingredient.note ?? null) === existing.note &&
+      (ingredient.productId ?? null) === existing.productId &&
+      ingredient.sortOrder === existing.sortOrder
+    );
+  });
+}
+
+function stepsUnchanged(
+  next: CreateRecipeBody["steps"],
+  recipe: RecipeDetail,
+): boolean {
+  const current = recipe.steps
+    .slice()
+    .sort((left, right) => left.sortOrder - right.sortOrder);
+  if (current.length !== next.length) {
+    return false;
+  }
+  return next.every((step, index) => {
+    const existing = current[index];
+    if (!existing) {
+      return false;
+    }
+    return (
+      (step.title ?? null) === existing.title &&
+      step.instruction === existing.instruction &&
+      (step.durationMinutes ?? null) === existing.durationMinutes &&
+      step.sortOrder === existing.sortOrder
+    );
+  });
+}
+
 export default function EditRecipePage() {
   const params = useParams<{ id: string; recipeId: string }>();
   const kitchenId = params.id;
@@ -68,7 +138,7 @@ export default function EditRecipePage() {
   });
 
   const updateRecipe = useMutation({
-    mutationFn: async (body: components["schemas"]["CreateRecipeDto"]) => {
+    mutationFn: async (body: components["schemas"]["UpdateRecipeDto"]) => {
       const client = createWebApiClient();
       const { data, error, response } = await client.PATCH(
         "/api/kitchens/{kitchenId}/recipes/{recipeId}",
@@ -118,6 +188,7 @@ export default function EditRecipePage() {
             </h1>
             <p className="mt-2 text-gray-500">
               Zmiany są widoczne dla osób, które mają dostęp do tego przepisu.
+              Okładka i zdjęcia kroków zapisują się od razu po wysłaniu.
             </p>
           </div>
           <Link href={`/kitchens/${kitchenId}/recipes/${recipeId}`}>
@@ -164,12 +235,15 @@ export default function EditRecipePage() {
         {!isLoading && !isError && recipe && isAuthor && productsQuery.data ? (
           <>
             <RecipeForm
-              key={recipe.updatedAt}
+              key={recipe.id}
+              kitchenId={kitchenId}
               products={productsQuery.data}
               initialRecipe={recipe}
               submitLabel="Zapisz zmiany"
               pending={updateRecipe.isPending}
-              onSubmit={(body) => updateRecipe.mutate(body)}
+              onSubmit={(body) =>
+                updateRecipe.mutate(toUpdateRecipeBody(body, recipe))
+              }
             />
             {updateRecipe.isError ? (
               <p className="text-sm text-red-600" role="alert">

@@ -97,7 +97,9 @@ Cookies sesji:
 
 - Better Auth: `User`, `Session`, `Account` (w tym `issuer` wymagane od 1.7), `Verification`,
 - `Kitchen`, `KitchenMember`, `KitchenInvite` (w bazie tylko `tokenHash`),
-- `Product` (`normalizedName`, unikalność `(kitchenId, normalizedName)`, `defaultUnit`, opcjonalne `ean` / `imageUrl` / `category`, `ProductPurchaseOption` — warianty zakupu z jednym domyślnym),
+- `Product` (`normalizedName`, unikalność `(kitchenId, normalizedName)`, `defaultUnit`, opcjonalne `ean` / `imageUrl` / `imageMediaId` / `category`, `ProductPurchaseOption` — warianty zakupu z jednym domyślnym),
+- `ProductNutrition` (1:1 z produktem: ilość i jednostka odniesienia, `kcal`, białko, węglowodany, tłuszcz, opcjonalny błonnik i sól — wszystko `DECIMAL(12,3)`),
+- `MediaAsset` (kuchnia, autor wysyłki, przeznaczenie `product` / `recipe_cover` / `recipe_step`, klucz obiektu i miniatury, status `pending` / `processing` / `ready` / `failed`); `Product.imageMediaId`, `Recipe.coverMediaId` i `RecipeStep.imageMediaId` są unikalne i mają `ON DELETE SET NULL`,
 - `StockItem` (`initialQuantity`, `quantity`, `purchasePriceMinor`, `currency`, miejsce, daty, opcjonalne `ean` / `imageUrl`). Ilości: `DECIMAL(12,3)`.
 - `ShoppingList` (jedna na kuchnię), `ShoppingListItem` (status `pending` / `bought` / `skipped`, planowana ilość/opakowania, wymagana ilość z przepisu, źródło przepisu, `resolvedAt` po rozliczeniu),
 - `Purchase` (`storeName`, `purchasedAt`, `currency`, `totalPriceMinor`, unikalny `idempotencyKey`), `PurchaseLineItem` (powiązanie z produktem, opcjonalnie `stockItemId` i `shoppingListItemId`; do zapasu trafia zawartość opakowań).
@@ -106,6 +108,22 @@ Cookies sesji:
 Endpointy listy, zakupów i przepisów pod `kitchens/:kitchenId`. Każda operacja wymaga członkostwa w kuchni; prywatne przepisy tylko dla autora.
 
 Migracje wykonuje wyłącznie Prisma. Seed demo działa tylko gdy `NODE_ENV !== "production"` oraz `ALLOW_DEMO_SEED=true`. Seed nie jest częścią startu ani pre-deploy Railway.
+
+## Zdjęcia (magazyn obiektowy)
+
+Pliki zdjęć leżą w magazynie S3-kompatybilnym (Railway), nigdy w PostgreSQL. Baza trzyma tylko klucze obiektów w `MediaAsset`.
+
+Warstwa `apps/api/src/media/storage` ma interfejs `MediaStorage` i dwie implementacje: `S3MediaStorage` (AWS SDK v3, `forcePathStyle: true`) oraz `InMemoryMediaStorage` do testów. Implementację wybiera token `MEDIA_STORAGE` na podstawie `MEDIA_STORAGE_DRIVER`; wartość `memory` jest odrzucana w produkcji. Testy e2e ustawiają `MEDIA_STORAGE_DRIVER=memory` w `apps/api/test/test-env.ts`, więc nie dotykają prawdziwego S3.
+
+Przetwarzanie obrazu (`sharp`) usuwa EXIF, obraca zgodnie z orientacją, konwertuje do WebP i tworzy miniaturę. Format pliku sprawdzamy po bajtach nagłówka, nie po nagłówku `Content-Type` z żądania.
+
+Konfiguracja jest opcjonalna: `MEDIA_S3_ENDPOINT`, `MEDIA_S3_REGION`, `MEDIA_S3_BUCKET`, `MEDIA_S3_ACCESS_KEY_ID`, `MEDIA_S3_SECRET_ACCESS_KEY`, `MEDIA_MAX_UPLOAD_BYTES` (domyślnie 10 MiB). Produkcyjny magazyn to prywatny Cloudflare R2 (S3 API, `region=auto`); CORS bucketa musi zezwalać na `PUT`/`GET` z originu weba z nagłówkiem `Content-Type`. Bez pełnej konfiguracji API startuje normalnie, a endpointy wysyłki zwracają 503 z komunikatem po polsku.
+
+Podpisane URL-e do odczytu (15 minut) powstają na żądanie w `MediaService` i nie są zapisywane w bazie.
+
+Po stronie weba całą wysyłkę obsługuje `apps/web/src/lib/media-upload.ts`: walidacja pliku (JPEG/PNG/WebP, maks. 10 MB), `POST …/media/uploads`, transfer zawartości i `POST …/media/{id}/complete`. Dla sterownika `s3` plik leci `PUT` na podpisany URL przez `XMLHttpRequest` (postęp wysyłki), dla sterownika `memory` idzie base64 na endpoint API. Widok pola wysyłki to `apps/web/src/components/media-image-field.tsx`; przypisanie zdjęcia do produktu, okładki albo kroku robią osobne endpointy `image` / `cover`.
+
+Okładka przepisu i zdjęcie kroku wymagają istniejącego celu, więc przy tworzeniu przepisu web wysyła okładkę po zapisie, a zdjęcia kroków są dostępne w edycji. `PATCH …/recipes/{id}` odtwarza kroki od zera i usuwa ich zdjęcia, dlatego edycja pomija w żądaniu niezmienione kolekcje składników i kroków.
 
 ## PostgreSQL
 

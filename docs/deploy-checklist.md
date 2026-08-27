@@ -40,6 +40,39 @@ CLI `prisma` jest w `dependencies` pakietu `@moja-kuchnia/api`.
 | `AUTH_TRUSTED_ORIGINS` | `https://przepisy-jacka-web.vercel.app` |
 | `BETTER_AUTH_SECRET` | nowy trwały sekret (≥ 32 znaki), **nie** kopiuj z CI ani `.env.example` |
 | `ALLOW_DEMO_SEED` | `false` albo brak zmiennej |
+| `MEDIA_STORAGE_DRIVER` | `s3` (lub puste — wtedy S3 gdy pełna konfiguracja) |
+| `MEDIA_S3_ENDPOINT` | Cloudflare R2: `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` |
+| `MEDIA_S3_REGION` | `auto` (wymagane przez SDK przy R2) |
+| `MEDIA_S3_BUCKET` | nazwa bucketa, np. `przepisy-jacka-media` |
+| `MEDIA_S3_ACCESS_KEY_ID` | R2 Access Key ID (token S3 API) |
+| `MEDIA_S3_SECRET_ACCESS_KEY` | R2 Secret Access Key |
+| `MEDIA_MAX_UPLOAD_BYTES` | opcjonalnie, domyślnie `10485760` (10 MB) |
+
+### Cloudflare R2 (zdjęcia) — przed merge funkcji mediów
+
+1. W Cloudflare utwórz **prywatny** bucket R2 (bez publicznego dostępu / custom domain do obiektów).
+2. Utwórz token S3 API z uprawnieniami Object Read & Write do tego bucketa.
+3. Ustaw powyższe zmienne `MEDIA_*` w usłudze API na Railway. **Nie** commituj sekretów.
+4. W ustawieniach bucketa R2 dodaj **CORS** (wymagane dla PUT z przeglądarki na presigned URL):
+
+```json
+[
+  {
+    "AllowedOrigins": [
+      "https://przepisy-jacka-web.vercel.app",
+      "http://localhost:3000"
+    ],
+    "AllowedMethods": ["PUT", "GET", "HEAD"],
+    "AllowedHeaders": ["Content-Type"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+5. Bucket musi pozostać **prywatny** — klienci nigdy nie dostają stałych publicznych URL-i; API wydaje tylko krótko ważne presigned GET/PUT.
+6. Bez pełnych `MEDIA_*` API nadal startuje, ale upload zwraca „Magazyn zdjęć nie jest skonfigurowany.”
+7. Po merge sprawdź w logach Railway migrację `…_media_nutrition_recipe_costs` oraz smoke: begin → PUT do R2 → complete → GET → delete.
 
 Seed demo **nie** może być częścią startu ani pre-deploy.
 

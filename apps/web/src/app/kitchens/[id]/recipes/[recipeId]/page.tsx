@@ -21,11 +21,14 @@ import {
 } from "@/components/add-recipe-gaps-dialog";
 import { AppShell } from "@/components/app-shell";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { ImageLightbox } from "@/components/image-lightbox";
+import { RecipeEstimatePanel } from "@/components/recipe-estimate-panel";
 import { Toast } from "@/components/toast";
 import { Button } from "@/components/ui/button";
 import { createWebApiClient } from "@/lib/api";
 import { readApiError } from "@/lib/errors";
 import { formatQuantityWithUnit } from "@/lib/format-quantity";
+import { mediaDisplayUrl } from "@/lib/media-upload";
 import {
   AVAILABILITY_STATUS_LABELS,
   formatRecipeIngredientQuantity,
@@ -53,6 +56,9 @@ export default function RecipeDetailPage() {
     () => new Set(),
   );
   const [doneSteps, setDoneSteps] = useState<Set<string>>(() => new Set());
+  const [preview, setPreview] = useState<{ src: string; alt: string } | null>(
+    null,
+  );
 
   const meQuery = useQuery({
     queryKey: ["me"],
@@ -170,6 +176,7 @@ export default function RecipeDetailPage() {
   const isAuthor = Boolean(
     recipe && meQuery.data && recipe.author.id === meQuery.data.id,
   );
+  const coverUrl = recipe ? mediaDisplayUrl(recipe.coverImage) : null;
 
   const availabilityByIngredientId = useMemo(() => {
     const map = new Map<
@@ -273,6 +280,24 @@ export default function RecipeDetailPage() {
 
         {recipe ? (
           <>
+            {coverUrl ? (
+              <button
+                type="button"
+                className="mb-6 block w-full overflow-hidden rounded-2xl border border-gray-200/80 bg-gray-50"
+                onClick={() =>
+                  setPreview({ src: coverUrl, alt: recipe.name })
+                }
+                aria-label="Powiększ okładkę przepisu"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element -- podpisane URL-e magazynu zdjęć */}
+                <img
+                  src={coverUrl}
+                  alt={`Okładka przepisu ${recipe.name}`}
+                  className="h-48 w-full object-cover sm:h-64"
+                />
+              </button>
+            ) : null}
+
             <header className="mb-6 border-b border-gray-200/80 pb-6">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
@@ -421,6 +446,12 @@ export default function RecipeDetailPage() {
               />
             </div>
 
+            <RecipeEstimatePanel
+              kitchenId={kitchenId}
+              recipeId={recipeId}
+              servings={activeServings}
+            />
+
             <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:gap-8">
               <section className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white">
                 <div className="border-b border-gray-100 px-4 py-3 sm:px-5">
@@ -547,6 +578,7 @@ export default function RecipeDetailPage() {
                     .map((step, index, all) => {
                       const done = doneSteps.has(step.id);
                       const isLast = index === all.length - 1;
+                      const stepImageUrl = mediaDisplayUrl(step.image);
                       return (
                         <li
                           key={step.id}
@@ -573,6 +605,26 @@ export default function RecipeDetailPage() {
                               className="h-5 w-5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
                             />
                           </div>
+                          {stepImageUrl ? (
+                            <button
+                              type="button"
+                              className="mt-0.5 h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-gray-100 bg-gray-50 transition-shadow hover:shadow-md sm:h-24 sm:w-24"
+                              onClick={() =>
+                                setPreview({
+                                  src: stepImageUrl,
+                                  alt: `Krok ${index + 1}`,
+                                })
+                              }
+                              aria-label={`Powiększ zdjęcie kroku ${index + 1}`}
+                            >
+                              {/* eslint-disable-next-line @next/next/no-img-element -- podpisane URL-e magazynu zdjęć */}
+                              <img
+                                src={stepImageUrl}
+                                alt=""
+                                className="h-full w-full object-cover"
+                              />
+                            </button>
+                          ) : null}
                           <div className="min-w-0 flex-1 pt-0.5">
                             {step.title ? (
                               <p
@@ -615,6 +667,15 @@ export default function RecipeDetailPage() {
           </div>
         ) : null}
       </article>
+
+      {preview ? (
+        <ImageLightbox
+          src={preview.src}
+          alt={preview.alt}
+          caption={preview.alt}
+          onClose={() => setPreview(null)}
+        />
+      ) : null}
 
       {deleteOpen && recipe ? (
         <ConfirmDialog

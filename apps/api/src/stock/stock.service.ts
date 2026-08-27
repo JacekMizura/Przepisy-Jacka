@@ -7,7 +7,9 @@ import { Prisma } from '../generated/prisma/client';
 import {
   ProductPurchaseMode,
   StorageLocation,
+  type MediaAsset,
   type Product,
+  type ProductNutrition,
   type ProductPurchaseOption,
   type StockItem,
 } from '../generated/prisma/client';
@@ -20,6 +22,12 @@ import {
 } from '../common/quantity';
 import { PrismaService } from '../prisma/prisma.service';
 import { requireKitchenMember } from '../kitchens/kitchen-access';
+import { MediaImageDto } from '../media/dto/media.dto';
+import { MediaService } from '../media/media.service';
+import {
+  ProductNutritionDto,
+  UpsertProductNutritionDto,
+} from './dto/product-nutrition.dto';
 import {
   ConfigureProductPurchaseDto,
   CreateProductDto,
@@ -65,23 +73,32 @@ function normalizeOptionalCategory(
   return trimmed.length > 0 ? trimmed : null;
 }
 
+const productInclude = {
+  purchaseOptions: {
+    where: { isActive: true },
+    orderBy: [{ isDefault: 'desc' as const }, { name: 'asc' as const }],
+  },
+  imageMedia: true,
+  nutrition: true,
+};
+
 @Injectable()
 export class StockService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mediaService: MediaService,
+  ) {}
 
   async listProducts(userId: string, kitchenId: string): Promise<ProductDto[]> {
     await requireKitchenMember(this.prisma, kitchenId, userId);
     const products = await this.prisma.product.findMany({
       where: { kitchenId },
-      include: {
-        purchaseOptions: {
-          where: { isActive: true },
-          orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
-        },
-      },
+      include: productInclude,
       orderBy: [{ category: 'asc' }, { name: 'asc' }],
     });
-    return products.map(toProductDto);
+    return Promise.all(
+      products.map((product) => this.toProductDtoWithMedia(product)),
+    );
   }
 
   async createProduct(
@@ -110,7 +127,7 @@ export class StockService {
           category,
         },
       });
-      return toProductDto({ ...product, purchaseOptions: [] });
+      return this.toProductDtoWithMedia({ ...product, purchaseOptions: [] });
     } catch (error) {
       throw toProductWriteError(error);
     }
@@ -129,7 +146,10 @@ export class StockService {
         where: { productId: product.id, isActive: true },
         orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
       });
-      return toProductDto({ ...product, purchaseOptions: options });
+      return this.toProductDtoWithMedia({
+        ...product,
+        purchaseOptions: options,
+      });
     }
 
     if (dto.purchaseMode === ProductPurchaseMode.packaged) {
@@ -139,14 +159,58 @@ export class StockService {
     const updated = await this.prisma.product.update({
       where: { id: product.id },
       data: { purchaseMode: dto.purchaseMode },
-      include: {
-        purchaseOptions: {
-          where: { isActive: true },
-          orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
-        },
-      },
+      include: productInclude,
     });
-    return toProductDto(updated);
+    return this.toProductDtoWithMedia(updated);
+  }
+
+  async getProductNutrition(
+    userId: string,
+    kitchenId: string,
+    productId: string,
+  ): Promise<ProductNutritionDto | null> {
+    const product = await this.findKitchenProduct(userId, kitchenId, productId);
+    const nutrition = await this.prisma.productNutrition.findUnique({
+      where: { productId: product.id },
+    });
+    return nutrition ? toProductNutritionDto(nutrition) : null;
+  }
+
+  async upsertProductNutrition(
+    userId: string,
+    kitchenId: string,
+    productId: string,
+    dto: UpsertProductNutritionDto,
+  ): Promise<ProductNutritionDto> {
+    const product = await this.findKitchenProduct(userId, kitchenId, productId);
+
+    const baseQuantity = parseQuantityString(dto.baseQuantity, 'baseQuantity');
+    if (baseQuantity.lte(0)) {
+      throw new BadRequestException('baseQuantity musi być większe od zera.');
+    }
+    if (dto.baseUnit !== product.defaultUnit) {
+      throw new BadRequestException(
+        'baseUnit musi być zgodne z defaultUnit produktu.',
+      );
+    }
+
+    const data = {
+      baseQuantity,
+      baseUnit: dto.baseUnit,
+      kcal: parseQuantityString(dto.kcal, 'kcal'),
+      proteinGrams: parseQuantityString(dto.proteinGrams, 'proteinGrams'),
+      carbsGrams: parseQuantityString(dto.carbsGrams, 'carbsGrams'),
+      fatGrams: parseQuantityString(dto.fatGrams, 'fatGrams'),
+      fiberGrams: parseOptionalNutritionValue(dto.fiberGrams, 'fiberGrams'),
+      saltGrams: parseOptionalNutritionValue(dto.saltGrams, 'saltGrams'),
+    };
+
+    const nutrition = await this.prisma.productNutrition.upsert({
+      where: { productId: product.id },
+      create: { productId: product.id, ...data },
+      update: data,
+    });
+    return toProductNutritionDto(nutrition);
   }
 
   async configureProductPurchase(
@@ -201,42 +265,27 @@ export class StockService {
         return tx.product.update({
           where: { id: product.id },
           data: { purchaseMode: ProductPurchaseMode.packaged },
-          include: {
-            purchaseOptions: {
-              where: { isActive: true },
-              orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
-            },
-          },
+          include: productInclude,
         });
       });
-      return toProductDto(updated);
+      return this.toProductDtoWithMedia(updated);
     }
 
     if (dto.mode === ProductPurchaseMode.exact) {
       const updated = await this.prisma.product.update({
         where: { id: product.id },
         data: { purchaseMode: ProductPurchaseMode.exact },
-        include: {
-          purchaseOptions: {
-            where: { isActive: true },
-            orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
-          },
-        },
+        include: productInclude,
       });
-      return toProductDto(updated);
+      return this.toProductDtoWithMedia(updated);
     }
 
     const updated = await this.prisma.product.update({
       where: { id: product.id },
       data: { purchaseMode: ProductPurchaseMode.unconfigured },
-      include: {
-        purchaseOptions: {
-          where: { isActive: true },
-          orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
-        },
-      },
+      include: productInclude,
     });
-    return toProductDto(updated);
+    return this.toProductDtoWithMedia(updated);
   }
 
   async deleteProduct(
@@ -560,6 +609,15 @@ export class StockService {
     await this.prisma.stockItem.delete({ where: { id: existing.id } });
   }
 
+  private async toProductDtoWithMedia(
+    product: ProductWithRelations,
+  ): Promise<ProductDto> {
+    const image = await this.mediaService.buildImageSummary(
+      product.imageMedia ?? null,
+    );
+    return toProductDto(product, image);
+  }
+
   private async findKitchenProduct(
     userId: string,
     kitchenId: string,
@@ -704,11 +762,16 @@ function toProductWriteError(error: unknown): Error {
   return error instanceof Error ? error : new Error('Nieznany błąd zapisu.');
 }
 
-type ProductWithPurchaseOptions = Product & {
+type ProductWithRelations = Product & {
   purchaseOptions?: ProductPurchaseOption[];
+  imageMedia?: MediaAsset | null;
+  nutrition?: ProductNutrition | null;
 };
 
-function toProductDto(product: ProductWithPurchaseOptions): ProductDto {
+function toProductDto(
+  product: ProductWithRelations,
+  image: MediaImageDto | null,
+): ProductDto {
   return {
     id: product.id,
     kitchenId: product.kitchenId,
@@ -718,11 +781,46 @@ function toProductDto(product: ProductWithPurchaseOptions): ProductDto {
     purchaseMode: product.purchaseMode,
     ean: product.ean,
     imageUrl: product.imageUrl,
+    image,
+    nutrition: product.nutrition
+      ? toProductNutritionDto(product.nutrition)
+      : null,
     category: product.category,
     createdAt: product.createdAt.toISOString(),
     updatedAt: product.updatedAt.toISOString(),
     purchaseOptions: product.purchaseOptions?.map(toPurchaseOptionDto) ?? [],
   };
+}
+
+function toProductNutritionDto(
+  nutrition: ProductNutrition,
+): ProductNutritionDto {
+  return {
+    productId: nutrition.productId,
+    baseQuantity: formatQuantity(nutrition.baseQuantity),
+    baseUnit: nutrition.baseUnit,
+    kcal: formatQuantity(nutrition.kcal),
+    proteinGrams: formatQuantity(nutrition.proteinGrams),
+    carbsGrams: formatQuantity(nutrition.carbsGrams),
+    fatGrams: formatQuantity(nutrition.fatGrams),
+    fiberGrams:
+      nutrition.fiberGrams !== null
+        ? formatQuantity(nutrition.fiberGrams)
+        : null,
+    saltGrams:
+      nutrition.saltGrams !== null ? formatQuantity(nutrition.saltGrams) : null,
+    updatedAt: nutrition.updatedAt.toISOString(),
+  };
+}
+
+function parseOptionalNutritionValue(
+  value: string | null | undefined,
+  fieldName: string,
+): Prisma.Decimal | null {
+  if (value === undefined || value === null || value.trim().length === 0) {
+    return null;
+  }
+  return parseQuantityString(value, fieldName);
 }
 
 function toPurchaseOptionDto(option: ProductPurchaseOption): PurchaseOptionDto {

@@ -1,5 +1,6 @@
 "use client";
 
+import type { components } from "@moja-kuchnia/api-client";
 import {
   Calendar,
   ChefHat,
@@ -16,13 +17,26 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ImageField } from "@/components/image-field";
+import { ImageLightbox } from "@/components/image-lightbox";
+import { MediaImageField } from "@/components/media-image-field";
+import { ProductNutritionSection } from "@/components/product-nutrition-section";
+import { ProductPhotoField } from "@/components/product-photo-field";
 import { ProductPurchaseOptions } from "@/components/product-purchase-options";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createWebApiClient } from "@/lib/api";
 import { LOCATION_LABELS, UNIT_LABELS, readApiError } from "@/lib/errors";
-import { formatQuantityWithUnit, formatQuantityNumber } from "@/lib/format-quantity";
+import {
+  formatNutritionNumber,
+  formatQuantityWithUnit,
+  formatQuantityNumber,
+} from "@/lib/format-quantity";
+import {
+  deleteKitchenMedia,
+  isDisplayableUrl,
+  mediaDisplayUrl,
+} from "@/lib/media-upload";
 import {
   PRODUCT_CATEGORY_OPTIONS,
   validateOptionalEan,
@@ -37,8 +51,24 @@ import {
 } from "@/lib/quantity-input";
 import { cn } from "@/lib/utils";
 
+type Product = components["schemas"]["ProductDto"];
 type LocationFilter = "" | keyof typeof LOCATION_LABELS;
 type UnitFilter = "" | BaseUnit;
+
+/** Zdjęcie z magazynu mediów ma pierwszeństwo nad starszym `imageUrl`. */
+function productImageUrls(product: Product | undefined): {
+  thumbnail: string | null;
+  full: string | null;
+} {
+  if (!product) {
+    return { thumbnail: null, full: null };
+  }
+  const legacy = isDisplayableUrl(product.imageUrl) ? product.imageUrl : null;
+  return {
+    thumbnail: mediaDisplayUrl(product.image, "thumbnail") ?? legacy,
+    full: mediaDisplayUrl(product.image) ?? legacy,
+  };
+}
 
 const UNIT_OPTION_LABELS: Record<BaseUnit, string> = {
   gram: "gramy (g)",
@@ -59,7 +89,9 @@ export default function StockPage() {
   const [productName, setProductName] = useState("");
   const [productUnit, setProductUnit] = useState<BaseUnit>("gram");
   const [productEan, setProductEan] = useState("");
-  const [productImageUrl, setProductImageUrl] = useState("");
+  const [productMediaAssetId, setProductMediaAssetId] = useState<string | null>(
+    null,
+  );
   const [productCategory, setProductCategory] = useState("");
   const [selectedProductId, setSelectedProductId] = useState("");
   const [quantity, setQuantity] = useState("");
@@ -88,6 +120,12 @@ export default function StockPage() {
     id: string;
     name: string;
   } | null>(null);
+  const [expandedProductIds, setExpandedProductIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [preview, setPreview] = useState<{ src: string; alt: string } | null>(
+    null,
+  );
 
   const productsQuery = useQuery({
     queryKey: ["products", kitchenId],
@@ -222,7 +260,6 @@ export default function StockPage() {
             name: productName.trim(),
             defaultUnit: productUnit,
             ean: productEan.trim() || null,
-            imageUrl: productImageUrl.trim() || null,
             category: productCategory.trim() || null,
           },
         },
@@ -230,13 +267,31 @@ export default function StockPage() {
       if (error) {
         throw new Error(readApiError(error, "Nie udało się dodać produktu."));
       }
+      // Zdjęcie wysłane przed zapisem nie ma jeszcze właściciela — przypisz je teraz.
+      if (data && productMediaAssetId) {
+        const { error: attachError } = await client.POST(
+          "/api/kitchens/{kitchenId}/products/{productId}/image",
+          {
+            params: { path: { kitchenId, productId: data.id } },
+            body: { mediaAssetId: productMediaAssetId },
+          },
+        );
+        if (attachError) {
+          throw new Error(
+            readApiError(
+              attachError,
+              "Produkt powstał, ale nie udało się przypisać zdjęcia.",
+            ),
+          );
+        }
+      }
       return data;
     },
     onSuccess: async (product) => {
       await queryClient.invalidateQueries({ queryKey: ["products", kitchenId] });
       setProductName("");
       setProductEan("");
-      setProductImageUrl("");
+      setProductMediaAssetId(null);
       setProductCategory("");
       setProductFormOpen(false);
       if (product) {
@@ -436,6 +491,27 @@ export default function StockPage() {
     },
   });
 
+  /** Wysyłka bez zapisanego produktu zostawiłaby zdjęcie bez właściciela. */
+  function discardPendingProductMedia() {
+    const assetId = productMediaAssetId;
+    setProductMediaAssetId(null);
+    if (assetId) {
+      void deleteKitchenMedia(kitchenId, assetId).catch(() => undefined);
+    }
+  }
+
+  function toggleProductDetails(productId: string) {
+    setExpandedProductIds((current) => {
+      const next = new Set(current);
+      if (next.has(productId)) {
+        next.delete(productId);
+      } else {
+        next.add(productId);
+      }
+      return next;
+    });
+  }
+
   function requestAddToList(product: { id: string; name: string }) {
     setListFeedback(null);
     setListFeedbackError(false);
@@ -616,17 +692,33 @@ export default function StockPage() {
                   </p>
                 </div>
                 <div className="md:col-span-2">
-                  <ImageField
-                    id="product-image"
-                    value={productImageUrl}
-                    onChange={setProductImageUrl}
+                  <MediaImageField
+                    kitchenId={kitchenId}
+                    purpose="product"
+                    currentImage={null}
+                    label="Zdjęcie produktu (opcjonalnie)"
+                    onUploaded={(mediaAssetId) =>
+                      setProductMediaAssetId(mediaAssetId)
+                    }
+                    onRemoved={async () => {
+                      if (productMediaAssetId) {
+                        await deleteKitchenMedia(
+                          kitchenId,
+                          productMediaAssetId,
+                        );
+                      }
+                      setProductMediaAssetId(null);
+                    }}
                   />
                 </div>
                 <div className="flex justify-end gap-2 md:col-span-2">
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => setProductFormOpen(false)}
+                    onClick={() => {
+                      discardPendingProductMedia();
+                      setProductFormOpen(false);
+                    }}
                   >
                     Anuluj
                   </Button>
@@ -1021,29 +1113,51 @@ export default function StockPage() {
                           const product = productsQuery.data?.find(
                             (entry) => entry.id === item.productId,
                           );
-                          const photo =
-                            item.imageUrl || product?.imageUrl || null;
+                          const productImages = productImageUrls(product);
+                          const thumbnail =
+                            productImages.thumbnail ??
+                            (isDisplayableUrl(item.imageUrl)
+                              ? item.imageUrl
+                              : null);
+                          const fullSize =
+                            productImages.full ??
+                            (isDisplayableUrl(item.imageUrl)
+                              ? item.imageUrl
+                              : null);
+                          const productLabel = product?.name ?? "Produkt";
                           return (
                             <tr
                               key={item.id}
                               className="border-b border-gray-50 last:border-0"
                             >
                               <td className="px-4 py-3">
-                                <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl border border-emerald-50 bg-emerald-50/40">
-                                  {photo ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
+                                {thumbnail && fullSize ? (
+                                  <button
+                                    type="button"
+                                    className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl border border-emerald-50 bg-emerald-50/40 transition-shadow hover:shadow-md"
+                                    onClick={() =>
+                                      setPreview({
+                                        src: fullSize,
+                                        alt: productLabel,
+                                      })
+                                    }
+                                    aria-label={`Powiększ zdjęcie: ${productLabel}`}
+                                  >
+                                    {/* eslint-disable-next-line @next/next/no-img-element -- podpisane URL-e magazynu zdjęć */}
                                     <img
-                                      src={photo}
+                                      src={thumbnail}
                                       alt=""
                                       className="h-full w-full object-cover"
                                     />
-                                  ) : (
+                                  </button>
+                                ) : (
+                                  <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl border border-emerald-50 bg-emerald-50/40">
                                     <Package
                                       size={18}
                                       className="text-emerald-300"
                                     />
-                                  )}
-                                </div>
+                                  </div>
+                                )}
                               </td>
                               <td className="px-4 py-3">
                                 <p className="font-medium text-gray-900">
@@ -1179,6 +1293,8 @@ export default function StockPage() {
                     const hasStock = (stockQuery.data ?? []).some(
                       (item) => item.productId === product.id,
                     );
+                    const { thumbnail, full } = productImageUrls(product);
+                    const detailsOpen = expandedProductIds.has(product.id);
                     return (
                       <li
                         key={product.id}
@@ -1186,21 +1302,33 @@ export default function StockPage() {
                       >
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                           <div className="flex min-w-0 items-center gap-3">
-                            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-emerald-50 bg-emerald-50/40">
-                              {product.imageUrl ? (
-                                // eslint-disable-next-line @next/next/no-img-element
+                            {thumbnail && full ? (
+                              <button
+                                type="button"
+                                className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-emerald-50 bg-emerald-50/40 transition-shadow hover:shadow-md"
+                                onClick={() =>
+                                  setPreview({
+                                    src: full,
+                                    alt: product.name,
+                                  })
+                                }
+                                aria-label={`Powiększ zdjęcie: ${product.name}`}
+                              >
+                                {/* eslint-disable-next-line @next/next/no-img-element -- podpisane URL-e magazynu zdjęć */}
                                 <img
-                                  src={product.imageUrl}
+                                  src={thumbnail}
                                   alt=""
                                   className="h-full w-full object-cover"
                                 />
-                              ) : (
+                              </button>
+                            ) : (
+                              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-emerald-50 bg-emerald-50/40">
                                 <Package
                                   size={18}
                                   className="text-emerald-300"
                                 />
-                              )}
-                            </div>
+                              </div>
+                            )}
                             <div className="min-w-0">
                               <p className="font-medium text-gray-900">
                                 {product.name}{" "}
@@ -1212,6 +1340,19 @@ export default function StockPage() {
                                 {product.category ?? UNCATEGORIZED}
                                 {product.ean ? ` · EAN ${product.ean}` : ""}
                               </p>
+                              {product.nutrition ? (
+                                <p className="mt-1 text-xs text-emerald-700">
+                                  {formatNutritionNumber(
+                                    product.nutrition.kcal,
+                                    0,
+                                  )}{" "}
+                                  kcal /{" "}
+                                  {formatQuantityWithUnit(
+                                    product.nutrition.baseQuantity,
+                                    product.nutrition.baseUnit,
+                                  )}
+                                </p>
+                              ) : null}
                             </div>
                           </div>
                           <div className="flex flex-wrap gap-2">
@@ -1241,15 +1382,48 @@ export default function StockPage() {
                             >
                               Usuń produkt
                             </Button>
+                            <Button
+                              size="sm"
+                              variant={detailsOpen ? "secondary" : "outline"}
+                              aria-expanded={detailsOpen}
+                              onClick={() => toggleProductDetails(product.id)}
+                            >
+                              {detailsOpen ? "Zwiń szczegóły" : "Szczegóły"}
+                              <ChevronDown
+                                size={14}
+                                className={cn(
+                                  "ml-1 transition-transform",
+                                  detailsOpen && "rotate-180",
+                                )}
+                              />
+                            </Button>
                           </div>
                         </div>
-                        <ProductPurchaseOptions
-                          kitchenId={kitchenId}
-                          productId={product.id}
-                          productName={product.name}
-                          defaultUnit={product.defaultUnit as BaseUnit}
-                          purchaseMode={product.purchaseMode}
-                        />
+                        {detailsOpen ? (
+                          <>
+                            <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50/60 p-4">
+                              <ProductPhotoField
+                                kitchenId={kitchenId}
+                                productId={product.id}
+                                image={product.image}
+                              />
+                            </div>
+                            <ProductNutritionSection
+                              kitchenId={kitchenId}
+                              productId={product.id}
+                              productName={product.name}
+                              defaultUnit={product.defaultUnit as BaseUnit}
+                              nutrition={product.nutrition}
+                            />
+                            <ProductPurchaseOptions
+                              kitchenId={kitchenId}
+                              productId={product.id}
+                              productName={product.name}
+                              defaultUnit={product.defaultUnit as BaseUnit}
+                              purchaseMode={product.purchaseMode}
+                            />
+                          </>
+                        ) : null}
                       </li>
                     );
                   })}
@@ -1263,6 +1437,15 @@ export default function StockPage() {
           ) : null}
         </section>
       </div>
+
+      {preview ? (
+        <ImageLightbox
+          src={preview.src}
+          alt={preview.alt}
+          caption={preview.alt}
+          onClose={() => setPreview(null)}
+        />
+      ) : null}
 
       {productToDelete ? (
         <ConfirmDialog

@@ -1,5 +1,22 @@
 import { z } from 'zod';
 
+/** Puste zmienne w `.env` traktujemy jak brak wartości. */
+const optionalString = z
+  .string()
+  .optional()
+  .transform((value) => {
+    const trimmed = value?.trim();
+    return trimmed && trimmed.length > 0 ? trimmed : undefined;
+  });
+
+function emptyStringAsUndefined(value: unknown): unknown {
+  return typeof value === 'string' && value.trim().length === 0
+    ? undefined
+    : value;
+}
+
+export const DEFAULT_MEDIA_MAX_UPLOAD_BYTES = 10_485_760;
+
 export const envSchema = z.object({
   NODE_ENV: z
     .enum(['development', 'test', 'production'])
@@ -16,9 +33,45 @@ export const envSchema = z.object({
     .enum(['true', 'false'])
     .optional()
     .transform((value) => value === 'true'),
+  MEDIA_STORAGE_DRIVER: z.preprocess(
+    emptyStringAsUndefined,
+    z.enum(['s3', 'memory']).optional(),
+  ),
+  MEDIA_S3_ENDPOINT: optionalString,
+  MEDIA_S3_REGION: optionalString,
+  MEDIA_S3_BUCKET: optionalString,
+  MEDIA_S3_ACCESS_KEY_ID: optionalString,
+  MEDIA_S3_SECRET_ACCESS_KEY: optionalString,
+  MEDIA_MAX_UPLOAD_BYTES: z.preprocess(
+    emptyStringAsUndefined,
+    z.coerce.number().int().min(1).default(DEFAULT_MEDIA_MAX_UPLOAD_BYTES),
+  ),
 });
 
 export type AppEnv = z.infer<typeof envSchema>;
+
+export type MediaStorageEnv = Pick<
+  AppEnv,
+  | 'MEDIA_S3_ENDPOINT'
+  | 'MEDIA_S3_REGION'
+  | 'MEDIA_S3_BUCKET'
+  | 'MEDIA_S3_ACCESS_KEY_ID'
+  | 'MEDIA_S3_SECRET_ACCESS_KEY'
+>;
+
+/**
+ * Wymaga pełnej konfiguracji S3-compatible (Cloudflare R2 / inny provider).
+ * Endpoint jest obowiązkowy — R2 nie używa domyślnego hosta AWS.
+ */
+export function isMediaStorageConfigured(env: MediaStorageEnv): boolean {
+  return Boolean(
+    env.MEDIA_S3_ENDPOINT &&
+    env.MEDIA_S3_REGION &&
+    env.MEDIA_S3_BUCKET &&
+    env.MEDIA_S3_ACCESS_KEY_ID &&
+    env.MEDIA_S3_SECRET_ACCESS_KEY,
+  );
+}
 
 export function validateEnv(config: Record<string, unknown>): AppEnv {
   const parsed = envSchema.safeParse(config);

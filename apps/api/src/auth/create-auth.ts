@@ -4,7 +4,12 @@ import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { type AppEnv, parseTrustedOrigins } from '../config/env';
 import { PrismaClient } from '../generated/prisma/client';
 
-export function createAuth(prisma: PrismaClient, env: AppEnv) {
+export type AuthEnv = Pick<
+  AppEnv,
+  'NODE_ENV' | 'BETTER_AUTH_URL' | 'BETTER_AUTH_SECRET' | 'AUTH_TRUSTED_ORIGINS'
+>;
+
+export function createAuth(prisma: PrismaClient, env: AuthEnv) {
   const trustedOrigins = parseTrustedOrigins(env.AUTH_TRUSTED_ORIGINS);
   const useSecureCookies = env.NODE_ENV === 'production';
 

@@ -4,11 +4,17 @@ import type { components } from "@moja-kuchnia/api-client";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { type FormEvent, useMemo, useState } from "react";
 
+import { PendingImageField } from "@/components/media-image-field";
+import {
+  RecipeCoverField,
+  RecipeStepImageField,
+} from "@/components/recipe-media-fields";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { UNIT_LABELS } from "@/lib/errors";
 import { formatQuantityNumber, toApiQuantityString } from "@/lib/format-quantity";
+import type { MediaImage } from "@/lib/media-upload";
 import {
   RECIPE_DIFFICULTY_LABELS,
   RECIPE_INGREDIENT_UNIT_LABELS,
@@ -36,14 +42,19 @@ type StepDraft = {
   title: string;
   instruction: string;
   durationMinutes: string;
+  /** Ustawione tylko dla kroków już zapisanych w API — warunek wysyłki zdjęcia. */
+  stepId?: string;
+  image?: MediaImage | null;
 };
 
 type RecipeFormProps = {
+  kitchenId: string;
   products: Product[];
   initialRecipe?: RecipeDetail;
   submitLabel: string;
   pending?: boolean;
-  onSubmit: (body: CreateRecipeDto) => void;
+  /** `coverFile` jest ustawiane tylko w trybie tworzenia — wysyłka po zapisie. */
+  onSubmit: (body: CreateRecipeDto, coverFile: File | null) => void;
 };
 
 function createIngredientDraft(
@@ -65,6 +76,8 @@ function createStepDraft(partial?: Partial<StepDraft> & { key?: string }): StepD
     title: partial?.title ?? "",
     instruction: partial?.instruction ?? "",
     durationMinutes: partial?.durationMinutes ?? "",
+    ...(partial?.stepId ? { stepId: partial.stepId } : {}),
+    ...(partial?.image !== undefined ? { image: partial.image } : {}),
   };
 }
 
@@ -119,6 +132,8 @@ function recipeToDraft(recipe: RecipeDetail): {
                   step.durationMinutes !== null
                     ? String(step.durationMinutes)
                     : "",
+                stepId: step.id,
+                image: step.image,
               }),
             )
         : [createStepDraft()],
@@ -142,6 +157,7 @@ function moveItem<T>(items: T[], index: number, direction: -1 | 1): T[] {
 }
 
 export function RecipeForm({
+  kitchenId,
   products,
   initialRecipe,
   submitLabel,
@@ -179,7 +195,11 @@ export function RecipeForm({
     useState<NonNullable<CreateRecipeDto["visibility"]>>(initial.visibility);
   const [ingredients, setIngredients] = useState(initial.ingredients);
   const [steps, setSteps] = useState(initial.steps);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+
+  const recipeId = initialRecipe?.id;
+  const hasStepImages = steps.some((step) => step.image);
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -286,18 +306,21 @@ export function RecipeForm({
       return;
     }
 
-    onSubmit({
-      name: name.trim(),
-      description: description.trim() ? description.trim() : null,
-      servings: servingsValue,
-      prepTimeMinutes: prep,
-      cookTimeMinutes: cook,
-      difficulty,
-      tags: tagList,
-      visibility,
-      ingredients: normalizedIngredients,
-      steps: normalizedSteps,
-    });
+    onSubmit(
+      {
+        name: name.trim(),
+        description: description.trim() ? description.trim() : null,
+        servings: servingsValue,
+        prepTimeMinutes: prep,
+        cookTimeMinutes: cook,
+        difficulty,
+        tags: tagList,
+        visibility,
+        ingredients: normalizedIngredients,
+        steps: normalizedSteps,
+      },
+      coverFile,
+    );
   }
 
   return (
@@ -307,6 +330,21 @@ export function RecipeForm({
           <h2 className="text-lg font-bold text-gray-900">Podstawowe informacje</h2>
         </div>
         <div className="space-y-4 p-5">
+          {recipeId ? (
+            <RecipeCoverField
+              kitchenId={kitchenId}
+              recipeId={recipeId}
+              initialImage={initialRecipe?.coverImage ?? null}
+            />
+          ) : (
+            <PendingImageField
+              file={coverFile}
+              onFileSelected={setCoverFile}
+              label="Okładka przepisu (opcjonalnie)"
+              size="wide"
+              note="Zdjęcie wyślemy po utworzeniu przepisu."
+            />
+          )}
           <div className="space-y-2">
             <Label htmlFor="recipe-name">Nazwa</Label>
             <Input
@@ -591,6 +629,12 @@ export function RecipeForm({
             Dodaj krok
           </Button>
         </div>
+        {recipeId && hasStepImages ? (
+          <p className="border-b border-gray-100 bg-amber-50/60 px-5 py-3 text-xs text-amber-900">
+            Zdjęcia kroków zapisują się od razu. Zmiana treści, kolejności albo
+            liczby kroków odtwarza kroki od nowa i usuwa ich zdjęcia.
+          </p>
+        ) : null}
         <div className="divide-y divide-gray-100">
           {steps.map((step, index) => (
             <div key={step.key} className="space-y-3 p-5">
@@ -688,6 +732,19 @@ export function RecipeForm({
                 placeholder="Opisz krok przygotowania…"
                 className="block w-full rounded-lg border border-gray-200 bg-white p-3 text-sm"
               />
+              {recipeId && step.stepId ? (
+                <RecipeStepImageField
+                  kitchenId={kitchenId}
+                  recipeId={recipeId}
+                  stepId={step.stepId}
+                  initialImage={step.image ?? null}
+                  label={`Zdjęcie kroku ${index + 1}`}
+                />
+              ) : (
+                <p className="text-xs text-gray-500">
+                  Zdjęcie tego kroku dodasz po zapisaniu przepisu, w edycji.
+                </p>
+              )}
             </div>
           ))}
         </div>

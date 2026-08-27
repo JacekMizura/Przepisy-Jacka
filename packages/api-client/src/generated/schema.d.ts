@@ -127,6 +127,128 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/kitchens/{kitchenId}/media/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rozpoczęcie wysyłki zdjęcia */
+        post: operations["MediaController_beginUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/media/{mediaAssetId}/memory-upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Wysyłka zawartości do magazynu w pamięci (tylko MEDIA_STORAGE_DRIVER=memory) */
+        post: operations["MediaController_memoryUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/media/{mediaAssetId}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Zakończenie wysyłki i przetworzenie zdjęcia */
+        post: operations["MediaController_completeUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/media/{mediaAssetId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Usunięcie zdjęcia wraz z plikami */
+        delete: operations["MediaController_deleteAsset"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/products/{productId}/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Przypisanie zdjęcia do produktu */
+        post: operations["MediaAttachmentController_attachProductImage"];
+        /** Odpięcie zdjęcia produktu */
+        delete: operations["MediaAttachmentController_detachProductImage"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/recipes/{recipeId}/cover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Przypisanie okładki przepisu (autor) */
+        post: operations["MediaAttachmentController_attachRecipeCover"];
+        /** Odpięcie okładki przepisu (autor) */
+        delete: operations["MediaAttachmentController_detachRecipeCover"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/recipes/{recipeId}/steps/{stepId}/image": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Przypisanie zdjęcia do kroku przepisu (autor) */
+        post: operations["MediaAttachmentController_attachRecipeStepImage"];
+        /** Odpięcie zdjęcia kroku przepisu (autor) */
+        delete: operations["MediaAttachmentController_detachRecipeStepImage"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/kitchens/{kitchenId}/products": {
         parameters: {
             query?: never;
@@ -174,6 +296,24 @@ export interface paths {
         put?: never;
         /** Konfiguracja sposobu zakupu produktu (opakowania / dokładna ilość) */
         post: operations["StockController_configureProductPurchase"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/products/{productId}/nutrition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Wartości odżywcze produktu */
+        get: operations["StockController_getProductNutrition"];
+        /** Zapis wartości odżywczych produktu */
+        put: operations["StockController_upsertProductNutrition"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -410,6 +550,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/kitchens/{kitchenId}/recipes/{recipeId}/estimate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Szacunkowe kalorie, makroskładniki i koszt przepisu */
+        get: operations["RecipeController_estimate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/kitchens/{kitchenId}/recipes/{recipeId}/add-gaps-to-shopping-list": {
         parameters: {
             query?: never;
@@ -508,6 +665,92 @@ export interface components {
             /** @description Jednorazowy link z surowym tokenem. Token nie jest ponownie zwracany. */
             inviteUrl: string;
         };
+        MediaUploadTargetDto: {
+            /** Format: uuid */
+            productId?: string;
+            /** Format: uuid */
+            recipeId?: string;
+            /** Format: uuid */
+            recipeStepId?: string;
+        };
+        BeginMediaUploadDto: {
+            /** @enum {string} */
+            purpose: "product" | "recipe_cover" | "recipe_step";
+            /**
+             * @description Deklarowany typ pliku. Zawartość jest weryfikowana po bajtach.
+             * @example image/jpeg
+             * @enum {string}
+             */
+            declaredMimeType: "image/jpeg" | "image/png" | "image/webp";
+            /** @example 512000 */
+            declaredByteSize: number;
+            target?: components["schemas"]["MediaUploadTargetDto"];
+        };
+        BeginMediaUploadHeadersDto: {
+            /** @example image/jpeg */
+            "Content-Type": string;
+        };
+        BeginMediaUploadResultDto: {
+            mediaAssetId: string;
+            /** @description Adres do wysłania pliku metodą PUT. Dla sterownika memory jest to endpoint API. */
+            uploadUrl: string;
+            objectKey: string;
+            /** Format: date-time */
+            expiresAt: string;
+            headers: components["schemas"]["BeginMediaUploadHeadersDto"];
+        };
+        MemoryUploadDto: {
+            /** @description Zawartość pliku zakodowana w base64. */
+            contentBase64: string;
+        };
+        MediaImageDto: {
+            mediaAssetId: string;
+            /** @description Krótko żyjący podpisany URL. Nie zapisuj go. */
+            url: string;
+            thumbnailUrl: string | null;
+        };
+        MediaAssetDto: {
+            id: string;
+            kitchenId: string;
+            /** @enum {string} */
+            purpose: "product" | "recipe_cover" | "recipe_step";
+            /** @enum {string} */
+            status: "pending" | "processing" | "ready" | "failed";
+            mimeType: string;
+            byteSize: number;
+            width: number | null;
+            height: number | null;
+            image: components["schemas"]["MediaImageDto"] | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        AttachMediaDto: {
+            /** Format: uuid */
+            mediaAssetId: string;
+        };
+        AttachedMediaDto: {
+            /** @description Id produktu, przepisu albo kroku przepisu. */
+            targetId: string;
+            image: components["schemas"]["MediaImageDto"] | null;
+        };
+        ProductNutritionDto: {
+            productId: string;
+            /** @example 100.000 */
+            baseQuantity: string;
+            /** @enum {string} */
+            baseUnit: "piece" | "gram" | "milliliter";
+            /** @example 64.000 */
+            kcal: string;
+            proteinGrams: string;
+            carbsGrams: string;
+            fatGrams: string;
+            fiberGrams: string | null;
+            saltGrams: string | null;
+            /** Format: date-time */
+            updatedAt: string;
+        };
         PurchaseOptionDto: {
             id: string;
             productId: string;
@@ -533,7 +776,11 @@ export interface components {
             /** @enum {string} */
             purchaseMode: "unconfigured" | "packaged" | "exact";
             ean: string | null;
+            /** @description Starsze źródło zdjęcia (http lub data URL). */
             imageUrl: string | null;
+            /** @description Zdjęcie z magazynu mediów; podpisane URL-e wygasają. */
+            image: components["schemas"]["MediaImageDto"] | null;
+            nutrition: components["schemas"]["ProductNutritionDto"] | null;
             category: string | null;
             /** Format: date-time */
             createdAt: string;
@@ -580,6 +827,30 @@ export interface components {
              */
             mode: "unconfigured" | "packaged" | "exact";
             option?: components["schemas"]["ConfigureProductPurchaseOptionDto"];
+        };
+        UpsertProductNutritionDto: {
+            /**
+             * @description Ilość odniesienia w jednostce bazowej produktu.
+             * @example 100.000
+             */
+            baseQuantity: string;
+            /**
+             * @example milliliter
+             * @enum {string}
+             */
+            baseUnit: "piece" | "gram" | "milliliter";
+            /** @example 64.000 */
+            kcal: string;
+            /** @example 3.200 */
+            proteinGrams: string;
+            /** @example 4.700 */
+            carbsGrams: string;
+            /** @example 3.600 */
+            fatGrams: string;
+            /** @example 0.000 */
+            fiberGrams?: string | null;
+            /** @example 0.100 */
+            saltGrams?: string | null;
         };
         CreatePurchaseOptionDto: {
             /** @example Karton 1 l */
@@ -844,6 +1115,8 @@ export interface components {
             /** @enum {string} */
             visibility: "private" | "kitchen";
             author: components["schemas"]["RecipeAuthorDto"];
+            /** @description Okładka przepisu; podpisane URL-e wygasają. */
+            coverImage: components["schemas"]["MediaImageDto"] | null;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -915,6 +1188,7 @@ export interface components {
             instruction: string;
             durationMinutes: number | null;
             sortOrder: number;
+            image: components["schemas"]["MediaImageDto"] | null;
         };
         RecipeDetailDto: {
             id: string;
@@ -930,6 +1204,8 @@ export interface components {
             /** @enum {string} */
             visibility: "private" | "kitchen";
             author: components["schemas"]["RecipeAuthorDto"];
+            /** @description Okładka przepisu; podpisane URL-e wygasają. */
+            coverImage: components["schemas"]["MediaImageDto"] | null;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -1016,6 +1292,53 @@ export interface components {
             servings: number;
             baseServings: number;
             ingredients: components["schemas"]["RecipeIngredientAvailabilityDto"][];
+        };
+        NutritionTotalsDto: {
+            /** @example 384.00 */
+            kcal: string;
+            /** @example 19.20 */
+            proteinGrams: string;
+            /** @example 28.20 */
+            carbsGrams: string;
+            /** @example 21.60 */
+            fatGrams: string;
+        };
+        RecipeNutritionEstimateDto: {
+            isComplete: boolean;
+            countedIngredients: number;
+            totalIngredients: number;
+            missingIngredientNames: string[];
+            /** @description null, gdy żaden składnik nie ma danych. */
+            recipe: components["schemas"]["NutritionTotalsDto"] | null;
+            perServing: components["schemas"]["NutritionTotalsDto"] | null;
+        };
+        RecipeCostPriceSourceDto: {
+            productId: string;
+            productName: string;
+            /** Format: date-time */
+            purchasedAt: string;
+            /** @example 0.3200 */
+            unitPriceMinorPerBase: string;
+            /** @enum {string} */
+            baseUnit: "piece" | "gram" | "milliliter";
+        };
+        RecipeCostEstimateDto: {
+            isComplete: boolean;
+            countedIngredients: number;
+            totalIngredients: number;
+            missingIngredientNames: string[];
+            /** @example 192 */
+            recipeTotalMinor: number | null;
+            /** @example 96 */
+            perServingMinor: number | null;
+            priceSources: components["schemas"]["RecipeCostPriceSourceDto"][];
+            /** @example Szacunkowo na podstawie ostatnich zakupów */
+            note: string;
+        };
+        RecipeEstimateDto: {
+            servings: number;
+            nutrition: components["schemas"]["RecipeNutritionEstimateDto"];
+            cost: components["schemas"]["RecipeCostEstimateDto"];
         };
         RecipeGapSelectionDto: {
             ingredientId: string;
@@ -1300,6 +1623,237 @@ export interface operations {
             };
         };
     };
+    MediaController_beginUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BeginMediaUploadDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BeginMediaUploadResultDto"];
+                };
+            };
+        };
+    };
+    MediaController_memoryUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                mediaAssetId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MemoryUploadDto"];
+            };
+        };
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MediaController_completeUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                mediaAssetId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaAssetDto"];
+                };
+            };
+        };
+    };
+    MediaController_deleteAsset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                mediaAssetId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MediaAttachmentController_attachProductImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttachMediaDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachedMediaDto"];
+                };
+            };
+        };
+    };
+    MediaAttachmentController_detachProductImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MediaAttachmentController_attachRecipeCover: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                recipeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttachMediaDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachedMediaDto"];
+                };
+            };
+        };
+    };
+    MediaAttachmentController_detachRecipeCover: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                recipeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MediaAttachmentController_attachRecipeStepImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                recipeId: string;
+                stepId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AttachMediaDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachedMediaDto"];
+                };
+            };
+        };
+    };
+    MediaAttachmentController_detachRecipeStepImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                recipeId: string;
+                stepId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     StockController_listProducts: {
         parameters: {
             query?: never;
@@ -1416,6 +1970,54 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductDto"];
+                };
+            };
+        };
+    };
+    StockController_getProductNutrition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductNutritionDto"];
+                };
+            };
+        };
+    };
+    StockController_upsertProductNutrition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpsertProductNutritionDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductNutritionDto"];
                 };
             };
         };
@@ -1934,6 +2536,30 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecipeAvailabilityDto"];
+                };
+            };
+        };
+    };
+    RecipeController_estimate: {
+        parameters: {
+            query: {
+                servings: number;
+            };
+            header?: never;
+            path: {
+                kitchenId: string;
+                recipeId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeEstimateDto"];
                 };
             };
         };

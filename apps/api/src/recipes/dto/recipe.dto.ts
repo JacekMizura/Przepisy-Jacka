@@ -22,6 +22,7 @@ import {
   RecipeIngredientUnit,
   RecipeVisibility,
 } from '../../generated/prisma/client';
+import { MediaImageDto } from '../../media/dto/media.dto';
 import { isPresentOptional } from '../../stock/dto/product.dto';
 
 export class RecipeIngredientInputDto {
@@ -290,6 +291,9 @@ export class RecipeStepDto {
 
   @ApiProperty()
   sortOrder!: number;
+
+  @ApiProperty({ type: MediaImageDto, nullable: true })
+  image!: MediaImageDto | null;
 }
 
 export class RecipeSummaryDto {
@@ -325,6 +329,13 @@ export class RecipeSummaryDto {
 
   @ApiProperty({ type: RecipeAuthorDto })
   author!: RecipeAuthorDto;
+
+  @ApiProperty({
+    type: MediaImageDto,
+    nullable: true,
+    description: 'Okładka przepisu; podpisane URL-e wygasają.',
+  })
+  coverImage!: MediaImageDto | null;
 
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;

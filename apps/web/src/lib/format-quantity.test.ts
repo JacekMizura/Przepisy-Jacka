@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  formatMoneyMinor,
+  formatNutritionNumber,
   formatPackagePurchase,
   formatQuantityNumber,
   formatQuantityWithUnit,
@@ -42,5 +44,17 @@ describe("format-quantity", () => {
   it("converts UI quantity to API decimal string", () => {
     assert.equal(toApiQuantityString("1,5"), "1.500");
     assert.equal(toApiQuantityString("100"), "100.000");
+  });
+
+  it("formats minor price with currency suffix", () => {
+    assert.equal(formatMoneyMinor(192), "1,92\u00A0zł");
+    assert.equal(formatMoneyMinor(0), "0,00\u00A0zł");
+    assert.equal(formatMoneyMinor(null), "—");
+  });
+
+  it("strips insignificant zeros in nutrition values", () => {
+    assert.equal(formatNutritionNumber("384.00", 0), "384");
+    assert.equal(formatNutritionNumber("19.20"), "19,2");
+    assert.equal(formatNutritionNumber(null), "");
   });
 });

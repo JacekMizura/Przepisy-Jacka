@@ -10,6 +10,7 @@ import { RecipeForm } from "@/components/recipe-form";
 import { Button } from "@/components/ui/button";
 import { createWebApiClient } from "@/lib/api";
 import { readApiError } from "@/lib/errors";
+import { uploadKitchenMedia } from "@/lib/media-upload";
 
 export default function NewRecipePage() {
   const params = useParams<{ id: string }>();
@@ -35,21 +36,49 @@ export default function NewRecipePage() {
   });
 
   const createRecipe = useMutation({
-    mutationFn: async (body: components["schemas"]["CreateRecipeDto"]) => {
+    mutationFn: async ({
+      body,
+      coverFile,
+    }: {
+      body: components["schemas"]["CreateRecipeDto"];
+      coverFile: File | null;
+    }) => {
       const client = createWebApiClient();
       const { data, error } = await client.POST(
         "/api/kitchens/{kitchenId}/recipes",
         { params: { path: { kitchenId } }, body },
       );
-      if (error) {
+      if (error || !data) {
         throw new Error(readApiError(error, "Nie udało się utworzyć przepisu."));
+      }
+      // Okładka wymaga istniejącego `recipeId`, więc leci dopiero po zapisie.
+      if (coverFile) {
+        const asset = await uploadKitchenMedia({
+          kitchenId,
+          file: coverFile,
+          purpose: "recipe_cover",
+          target: { recipeId: data.id },
+        });
+        const { error: attachError } = await client.POST(
+          "/api/kitchens/{kitchenId}/recipes/{recipeId}/cover",
+          {
+            params: { path: { kitchenId, recipeId: data.id } },
+            body: { mediaAssetId: asset.id },
+          },
+        );
+        if (attachError) {
+          throw new Error(
+            readApiError(
+              attachError,
+              "Przepis powstał, ale nie udało się ustawić okładki.",
+            ),
+          );
+        }
       }
       return data;
     },
     onSuccess: (recipe) => {
-      if (recipe) {
-        router.push(`/kitchens/${kitchenId}/recipes/${recipe.id}`);
-      }
+      router.push(`/kitchens/${kitchenId}/recipes/${recipe.id}`);
     },
   });
 
@@ -63,7 +92,8 @@ export default function NewRecipePage() {
             </h1>
             <p className="mt-2 text-gray-500">
               Uzupełnij składniki i kroki. Możesz powiązać składniki z produktami
-              z katalogu kuchni.
+              z katalogu kuchni. Okładkę wyślemy razem z zapisem, a zdjęcia
+              kroków dodasz w edycji.
             </p>
           </div>
           <Link href={`/kitchens/${kitchenId}/recipes`}>
@@ -89,10 +119,13 @@ export default function NewRecipePage() {
         {productsQuery.isSuccess ? (
           <>
             <RecipeForm
+              kitchenId={kitchenId}
               products={productsQuery.data}
               submitLabel="Utwórz przepis"
               pending={createRecipe.isPending}
-              onSubmit={(body) => createRecipe.mutate(body)}
+              onSubmit={(body, coverFile) =>
+                createRecipe.mutate({ body, coverFile })
+              }
             />
             {createRecipe.isError ? (
               <p className="text-sm text-red-600" role="alert">

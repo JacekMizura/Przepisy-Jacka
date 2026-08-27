@@ -45,7 +45,7 @@ Uwaga do zdjęć na webie: bez pełnej konfiguracji `MEDIA_S3_*` API zwraca 503,
 
 ## Konfiguracja zdjęć przed wdrożeniem
 
-Zmienne `MEDIA_S3_*` są opcjonalne. Bez nich API działa, ale wysyłka zdjęć zwraca 503 z komunikatem „Magazyn zdjęć nie jest skonfigurowany.”. Placeholdery są w `.env.example` i `apps/api/.env.example`; sekrety ustawia się wyłącznie w Railway.
+Zmienne `MEDIA_S3_*` są opcjonalne. Bez nich API działa, ale wysyłka zdjęć zwraca 503 z komunikatem „Magazyn zdjęć nie jest skonfigurowany.”. Produkcja: prywatny Cloudflare R2 (`region=auto`) + CORS bucketa dla originu weba; sekrety wyłącznie w Railway.
 
 ## Checklist przed pierwszym wdrożeniem (nie ustawiane automatycznie)
 

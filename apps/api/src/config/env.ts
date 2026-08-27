@@ -52,6 +52,7 @@ export type AppEnv = z.infer<typeof envSchema>;
 
 export type MediaStorageEnv = Pick<
   AppEnv,
+  | 'MEDIA_S3_ENDPOINT'
   | 'MEDIA_S3_REGION'
   | 'MEDIA_S3_BUCKET'
   | 'MEDIA_S3_ACCESS_KEY_ID'
@@ -59,11 +60,12 @@ export type MediaStorageEnv = Pick<
 >;
 
 /**
- * Endpoint jest opcjonalny (AWS domyślny albo S3 kompatybilne, np. Railway).
- * Reszta pól jest wymagana, żeby podpisywać żądania.
+ * Wymaga pełnej konfiguracji S3-compatible (Cloudflare R2 / inny provider).
+ * Endpoint jest obowiązkowy — R2 nie używa domyślnego hosta AWS.
  */
 export function isMediaStorageConfigured(env: MediaStorageEnv): boolean {
   return Boolean(
+    env.MEDIA_S3_ENDPOINT &&
     env.MEDIA_S3_REGION &&
     env.MEDIA_S3_BUCKET &&
     env.MEDIA_S3_ACCESS_KEY_ID &&

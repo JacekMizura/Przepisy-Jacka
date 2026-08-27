@@ -117,7 +117,7 @@ Warstwa `apps/api/src/media/storage` ma interfejs `MediaStorage` i dwie implemen
 
 Przetwarzanie obrazu (`sharp`) usuwa EXIF, obraca zgodnie z orientacją, konwertuje do WebP i tworzy miniaturę. Format pliku sprawdzamy po bajtach nagłówka, nie po nagłówku `Content-Type` z żądania.
 
-Konfiguracja jest opcjonalna: `MEDIA_S3_ENDPOINT`, `MEDIA_S3_REGION`, `MEDIA_S3_BUCKET`, `MEDIA_S3_ACCESS_KEY_ID`, `MEDIA_S3_SECRET_ACCESS_KEY`, `MEDIA_MAX_UPLOAD_BYTES` (domyślnie 10 MiB). Bez pełnej konfiguracji API startuje normalnie, a endpointy wysyłki zwracają 503 z komunikatem po polsku.
+Konfiguracja jest opcjonalna: `MEDIA_S3_ENDPOINT`, `MEDIA_S3_REGION`, `MEDIA_S3_BUCKET`, `MEDIA_S3_ACCESS_KEY_ID`, `MEDIA_S3_SECRET_ACCESS_KEY`, `MEDIA_MAX_UPLOAD_BYTES` (domyślnie 10 MiB). Produkcyjny magazyn to prywatny Cloudflare R2 (S3 API, `region=auto`); CORS bucketa musi zezwalać na `PUT`/`GET` z originu weba z nagłówkiem `Content-Type`. Bez pełnej konfiguracji API startuje normalnie, a endpointy wysyłki zwracają 503 z komunikatem po polsku.
 
 Podpisane URL-e do odczytu (15 minut) powstają na żądanie w `MediaService` i nie są zapisywane w bazie.
 

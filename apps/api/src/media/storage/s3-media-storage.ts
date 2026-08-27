@@ -47,13 +47,17 @@ export class S3MediaStorage implements MediaStorage {
     this.bucket = env.MEDIA_S3_BUCKET;
     this.client = new S3Client({
       region: env.MEDIA_S3_REGION,
+      // Cloudflare R2: https://<ACCOUNT_ID>.r2.cloudflarestorage.com
       endpoint: env.MEDIA_S3_ENDPOINT,
-      // Railway i inne S3-kompatybilne magazyny nie obsługują virtual-hosted style.
+      // Path-style działa z R2 i innymi S3-kompatybilnymi endpointami.
       forcePathStyle: true,
       credentials: {
         accessKeyId: env.MEDIA_S3_ACCESS_KEY_ID!,
         secretAccessKey: env.MEDIA_S3_SECRET_ACCESS_KEY!,
       },
+      // SDK >= 3.729 domyślnie wysyła checksumy nieobsługiwane przez R2.
+      requestChecksumCalculation: 'WHEN_REQUIRED',
+      responseChecksumValidation: 'WHEN_REQUIRED',
     });
   }
 

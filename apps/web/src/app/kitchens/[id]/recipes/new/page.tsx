@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { AppShell } from "@/components/app-shell";
-import { RecipeForm } from "@/components/recipe-form";
+import { RecipeForm, type RecipeFormMedia } from "@/components/recipe-form";
 import { Button } from "@/components/ui/button";
 import { createWebApiClient } from "@/lib/api";
 import { readApiError } from "@/lib/errors";
@@ -38,10 +38,10 @@ export default function NewRecipePage() {
   const createRecipe = useMutation({
     mutationFn: async ({
       body,
-      coverFile,
+      media,
     }: {
       body: components["schemas"]["CreateRecipeDto"];
-      coverFile: File | null;
+      media: RecipeFormMedia;
     }) => {
       const client = createWebApiClient();
       const { data, error } = await client.POST(
@@ -51,11 +51,11 @@ export default function NewRecipePage() {
       if (error || !data) {
         throw new Error(readApiError(error, "Nie udało się utworzyć przepisu."));
       }
-      // Okładka wymaga istniejącego `recipeId`, więc leci dopiero po zapisie.
-      if (coverFile) {
+
+      if (media.coverFile) {
         const asset = await uploadKitchenMedia({
           kitchenId,
-          file: coverFile,
+          file: media.coverFile,
           purpose: "recipe_cover",
           target: { recipeId: data.id },
         });
@@ -75,6 +75,41 @@ export default function NewRecipePage() {
           );
         }
       }
+
+      const sortedSteps = data.steps
+        .slice()
+        .sort((left, right) => left.sortOrder - right.sortOrder);
+      for (let index = 0; index < sortedSteps.length; index++) {
+        const step = sortedSteps[index];
+        const file = media.stepFiles[index];
+        if (!step || !file) {
+          continue;
+        }
+        const asset = await uploadKitchenMedia({
+          kitchenId,
+          file,
+          purpose: "recipe_step",
+          target: { recipeStepId: step.id },
+        });
+        const { error: stepAttachError } = await client.POST(
+          "/api/kitchens/{kitchenId}/recipes/{recipeId}/steps/{stepId}/image",
+          {
+            params: {
+              path: { kitchenId, recipeId: data.id, stepId: step.id },
+            },
+            body: { mediaAssetId: asset.id },
+          },
+        );
+        if (stepAttachError) {
+          throw new Error(
+            readApiError(
+              stepAttachError,
+              `Przepis powstał, ale nie udało się dodać zdjęcia kroku ${index + 1}.`,
+            ),
+          );
+        }
+      }
+
       return data;
     },
     onSuccess: (recipe) => {
@@ -90,11 +125,6 @@ export default function NewRecipePage() {
             <h1 className="text-3xl font-bold tracking-tight text-gray-900">
               Nowy przepis
             </h1>
-            <p className="mt-2 text-gray-500">
-              Uzupełnij składniki i kroki. Możesz powiązać składniki z produktami
-              z katalogu kuchni. Okładkę wyślemy razem z zapisem, a zdjęcia
-              kroków dodasz w edycji.
-            </p>
           </div>
           <Link href={`/kitchens/${kitchenId}/recipes`}>
             <Button variant="outline">Anuluj</Button>
@@ -123,8 +153,8 @@ export default function NewRecipePage() {
               products={productsQuery.data}
               submitLabel="Utwórz przepis"
               pending={createRecipe.isPending}
-              onSubmit={(body, coverFile) =>
-                createRecipe.mutate({ body, coverFile })
+              onSubmit={(body, media) =>
+                createRecipe.mutate({ body, media })
               }
             />
             {createRecipe.isError ? (

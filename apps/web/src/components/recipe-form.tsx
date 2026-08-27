@@ -5,6 +5,7 @@ import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { type FormEvent, useMemo, useState } from "react";
 
 import { PendingImageField } from "@/components/media-image-field";
+import { ProductThumb } from "@/components/product-thumb";
 import {
   RecipeCoverField,
   RecipeStepImageField,
@@ -15,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { UNIT_LABELS } from "@/lib/errors";
 import { formatQuantityNumber, toApiQuantityString } from "@/lib/format-quantity";
 import type { MediaImage } from "@/lib/media-upload";
+import { productImageUrls } from "@/lib/product-image";
 import {
   RECIPE_DIFFICULTY_LABELS,
   RECIPE_INGREDIENT_UNIT_LABELS,
@@ -45,6 +47,14 @@ type StepDraft = {
   /** Ustawione tylko dla kroków już zapisanych w API — warunek wysyłki zdjęcia. */
   stepId?: string;
   image?: MediaImage | null;
+  /** Plik wybrany przy tworzeniu — wysyłka po zapisie przepisu. */
+  pendingImageFile?: File | null;
+};
+
+export type RecipeFormMedia = {
+  coverFile: File | null;
+  /** Pliki zdjęć w kolejności znormalizowanych kroków (po odfiltrowaniu pustych). */
+  stepFiles: Array<File | null>;
 };
 
 type RecipeFormProps = {
@@ -53,8 +63,7 @@ type RecipeFormProps = {
   initialRecipe?: RecipeDetail;
   submitLabel: string;
   pending?: boolean;
-  /** `coverFile` jest ustawiane tylko w trybie tworzenia — wysyłka po zapisie. */
-  onSubmit: (body: CreateRecipeDto, coverFile: File | null) => void;
+  onSubmit: (body: CreateRecipeDto, media: RecipeFormMedia) => void;
 };
 
 function createIngredientDraft(
@@ -171,7 +180,7 @@ export function RecipeForm({
         : {
             name: "",
             description: "",
-            servings: "2",
+            servings: "1",
             prepTimeMinutes: "",
             cookTimeMinutes: "",
             difficulty: "easy" as const,
@@ -247,6 +256,7 @@ export function RecipeForm({
     }
 
     const normalizedSteps: CreateRecipeDto["steps"] = [];
+    const stepFiles: Array<File | null> = [];
     for (let index = 0; index < steps.length; index++) {
       const step = steps[index];
       if (!step || !step.instruction.trim()) {
@@ -270,6 +280,7 @@ export function RecipeForm({
         durationMinutes,
         sortOrder: normalizedSteps.length,
       } as components["schemas"]["RecipeStepInputDto"]);
+      stepFiles.push(step.pendingImageFile ?? null);
     }
 
     if (normalizedSteps.length === 0) {
@@ -319,7 +330,7 @@ export function RecipeForm({
         ingredients: normalizedIngredients,
         steps: normalizedSteps,
       },
-      coverFile,
+      { coverFile, stepFiles },
     );
   }
 
@@ -374,6 +385,9 @@ export function RecipeForm({
                 value={servings}
                 onChange={(event) => setServings(event.target.value)}
               />
+              <p className="text-xs text-gray-500">
+                Na ile osób jest ten przepis — później przeliczysz na liście.
+              </p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="recipe-prep">Przygotowanie (min)</Label>
@@ -528,26 +542,57 @@ export function RecipeForm({
                 </div>
                 <div className="space-y-2">
                   <Label>Produkt z katalogu (opcjonalnie)</Label>
-                  <select
-                    className="block w-full rounded-lg border border-gray-200 bg-white p-3 text-sm"
-                    value={ingredient.productId}
-                    onChange={(event) =>
-                      setIngredients((current) =>
-                        current.map((entry) =>
-                          entry.key === ingredient.key
-                            ? { ...entry, productId: event.target.value }
-                            : entry,
-                        ),
-                      )
-                    }
-                  >
-                    <option value="">Bez powiązania</option>
-                    {products.map((product) => (
-                      <option key={product.id} value={product.id}>
-                        {product.name} ({UNIT_LABELS[product.defaultUnit]})
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center gap-3">
+                    <ProductThumb
+                      src={
+                        productImageUrls(
+                          products.find(
+                            (product) => product.id === ingredient.productId,
+                          ),
+                        ).thumbnail
+                      }
+                      alt={
+                        products.find(
+                          (product) => product.id === ingredient.productId,
+                        )?.name ?? "Produkt"
+                      }
+                    />
+                    <select
+                      className="block min-w-0 flex-1 rounded-lg border border-gray-200 bg-white p-3 text-sm"
+                      value={ingredient.productId}
+                      onChange={(event) => {
+                        const nextProductId = event.target.value;
+                        const product = products.find(
+                          (entry) => entry.id === nextProductId,
+                        );
+                        setIngredients((current) =>
+                          current.map((entry) => {
+                            if (entry.key !== ingredient.key) {
+                              return entry;
+                            }
+                            if (!product) {
+                              return { ...entry, productId: "" };
+                            }
+                            return {
+                              ...entry,
+                              productId: product.id,
+                              unit: product.defaultUnit as IngredientUnit,
+                              name: entry.name.trim()
+                                ? entry.name
+                                : product.name,
+                            };
+                          }),
+                        );
+                      }}
+                    >
+                      <option value="">Bez powiązania</option>
+                      {products.map((product) => (
+                        <option key={product.id} value={product.id}>
+                          {product.name} ({UNIT_LABELS[product.defaultUnit]})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
               <div className="grid gap-4 sm:grid-cols-3">
@@ -741,9 +786,21 @@ export function RecipeForm({
                   label={`Zdjęcie kroku ${index + 1}`}
                 />
               ) : (
-                <p className="text-xs text-gray-500">
-                  Zdjęcie tego kroku dodasz po zapisaniu przepisu, w edycji.
-                </p>
+                <PendingImageField
+                  file={step.pendingImageFile ?? null}
+                  onFileSelected={(file) =>
+                    setSteps((current) =>
+                      current.map((entry) =>
+                        entry.key === step.key
+                          ? { ...entry, pendingImageFile: file }
+                          : entry,
+                      ),
+                    )
+                  }
+                  label={`Zdjęcie kroku ${index + 1} (opcjonalnie)`}
+                  size="sm"
+                  note="Wyślemy po utworzeniu przepisu."
+                />
               )}
             </div>
           ))}

@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import {
+  NutritionDataSource,
   ProductPurchaseMode,
   StorageLocation,
   type MediaAsset,
@@ -194,6 +195,26 @@ export class StockService {
       );
     }
 
+    const source = dto.source ?? NutritionDataSource.manual;
+    if (
+      source === NutritionDataSource.open_food_facts &&
+      (!dto.sourceFetchedAt || dto.sourceFetchedAt.trim().length === 0)
+    ) {
+      throw new BadRequestException(
+        'sourceFetchedAt jest wymagane przy zapisie danych z Open Food Facts.',
+      );
+    }
+
+    const sourceFetchedAt =
+      source === NutritionDataSource.open_food_facts && dto.sourceFetchedAt
+        ? new Date(dto.sourceFetchedAt)
+        : null;
+    if (sourceFetchedAt !== null && Number.isNaN(sourceFetchedAt.getTime())) {
+      throw new BadRequestException(
+        'sourceFetchedAt musi być poprawną datą ISO.',
+      );
+    }
+
     const data = {
       baseQuantity,
       baseUnit: dto.baseUnit,
@@ -203,6 +224,16 @@ export class StockService {
       fatGrams: parseQuantityString(dto.fatGrams, 'fatGrams'),
       fiberGrams: parseOptionalNutritionValue(dto.fiberGrams, 'fiberGrams'),
       saltGrams: parseOptionalNutritionValue(dto.saltGrams, 'saltGrams'),
+      source,
+      sourceFetchedAt,
+      sourceLabel:
+        source === NutritionDataSource.open_food_facts
+          ? dto.sourceLabel?.trim() || null
+          : null,
+      sourceBrand:
+        source === NutritionDataSource.open_food_facts
+          ? dto.sourceBrand?.trim() || null
+          : null,
     };
 
     const nutrition = await this.prisma.productNutrition.upsert({
@@ -809,6 +840,10 @@ function toProductNutritionDto(
         : null,
     saltGrams:
       nutrition.saltGrams !== null ? formatQuantity(nutrition.saltGrams) : null,
+    source: nutrition.source,
+    sourceFetchedAt: nutrition.sourceFetchedAt?.toISOString() ?? null,
+    sourceLabel: nutrition.sourceLabel,
+    sourceBrand: nutrition.sourceBrand,
     updatedAt: nutrition.updatedAt.toISOString(),
   };
 }

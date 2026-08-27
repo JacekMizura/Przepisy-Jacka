@@ -79,6 +79,8 @@ Produkt może mieć opcjonalnie:
 
 Wartości odżywcze podaje się dla ilości odniesienia w jednostce bazowej produktu (np. 100 ml mleka): `kcal`, białko, węglowodany, tłuszcz oraz opcjonalnie błonnik i sól. Wszystkie liczby są nieujemnymi decimal stringami. Jednostka odniesienia musi być zgodna z `defaultUnit` produktu. Dane wprowadza dowolny członek kuchni.
 
+Można też **pobrać podgląd z Open Food Facts po EAN** (wyłącznie przez NestJS API). Podgląd nie zapisuje się automatycznie — użytkownik zatwierdza „Użyj danych”, a zapis idzie istniejącym zapisem produktu/wartości. Brakujące pola nie są uzupełniane zerami. API nie przelicza g↔ml ani na sztuki. Przy zapisie z OFF zapisujemy źródło (`open_food_facts`), datę pobrania oraz etykietę/markę z podglądu. Nie wysyłamy do OFF prywatnych danych ani zdjęć użytkowników. Dane OFF podlegają ODbL / DbCL — w UI pokazujemy atrybucję.
+
 ## Zdjęcia
 
 Zdjęcia produktów, okładek przepisów i kroków przepisu trzymamy w magazynie obiektowym (S3-kompatybilnym), nie w bazie. W bazie jest tylko `MediaAsset` z kluczem obiektu i statusem.

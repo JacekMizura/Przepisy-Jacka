@@ -733,6 +733,47 @@
         ]
       }
     },
+    "/api/kitchens/{kitchenId}/nutrition-lookups/by-ean": {
+      "get": {
+        "description": "Integracja wyłącznie po stronie API. Nie wysyła danych użytkownika ani zdjęć. Wynik jest podglądem — zapis wymaga jawnego zatwierdzenia w formularzu produktu.",
+        "operationId": "NutritionLookupController_lookupByEan",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ean",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": "3017624010701",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NutritionLookupResultDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Pobranie wartości odżywczych produktu z Open Food Facts po EAN",
+        "tags": [
+          "nutrition-lookup"
+        ]
+      }
+    },
     "/api/kitchens/{kitchenId}/products": {
       "get": {
         "operationId": "StockController_listProducts",
@@ -2553,6 +2594,121 @@
           "image"
         ]
       },
+      "NutritionLookupValuesDto": {
+        "type": "object",
+        "properties": {
+          "baseQuantity": {
+            "type": "string",
+            "example": "100.000"
+          },
+          "baseUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ]
+          },
+          "kcal": {
+            "type": "string"
+          },
+          "proteinGrams": {
+            "type": "string"
+          },
+          "carbsGrams": {
+            "type": "string"
+          },
+          "fatGrams": {
+            "type": "string"
+          },
+          "fiberGrams": {
+            "type": "string",
+            "nullable": true
+          },
+          "saltGrams": {
+            "type": "string",
+            "nullable": true
+          },
+          "sugarsGrams": {
+            "type": "string",
+            "nullable": true,
+            "description": "Dane opcjonalne z Open Food Facts (nie zapisywane w ProductNutrition)."
+          },
+          "saturatedFatGrams": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "baseQuantity",
+          "baseUnit",
+          "kcal",
+          "proteinGrams",
+          "carbsGrams",
+          "fatGrams"
+        ]
+      },
+      "NutritionLookupResultDto": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "found",
+              "not_found",
+              "incomplete",
+              "provider_error",
+              "rate_limited"
+            ]
+          },
+          "message": {
+            "type": "string"
+          },
+          "ean": {
+            "type": "string",
+            "example": "3017624010701"
+          },
+          "productName": {
+            "type": "string",
+            "nullable": true
+          },
+          "brand": {
+            "type": "string",
+            "nullable": true
+          },
+          "nutrition": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/NutritionLookupValuesDto"
+              }
+            ]
+          },
+          "missingFields": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "fetchedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "attribution": {
+            "type": "string",
+            "example": "Open Food Facts"
+          }
+        },
+        "required": [
+          "status",
+          "message",
+          "ean",
+          "missingFields",
+          "fetchedAt",
+          "attribution"
+        ]
+      },
       "ProductNutritionDto": {
         "type": "object",
         "properties": {
@@ -2592,6 +2748,26 @@
             "type": "string",
             "nullable": true
           },
+          "source": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "open_food_facts"
+            ]
+          },
+          "sourceFetchedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "sourceLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "sourceBrand": {
+            "type": "string",
+            "nullable": true
+          },
           "updatedAt": {
             "type": "string",
             "format": "date-time"
@@ -2607,6 +2783,10 @@
           "fatGrams",
           "fiberGrams",
           "saltGrams",
+          "source",
+          "sourceFetchedAt",
+          "sourceLabel",
+          "sourceBrand",
           "updatedAt"
         ]
       },
@@ -2898,6 +3078,30 @@
             "type": "string",
             "nullable": true,
             "example": "0.100"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "open_food_facts"
+            ],
+            "description": "Pochodzenie zatwierdzonych danych. open_food_facts wymaga sourceFetchedAt."
+          },
+          "sourceFetchedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Data pobrania z Open Food Facts (ISO-8601)."
+          },
+          "sourceLabel": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
+          },
+          "sourceBrand": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 200
           }
         },
         "required": [

@@ -249,6 +249,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/kitchens/{kitchenId}/nutrition-lookups/by-ean": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Pobranie wartości odżywczych produktu z Open Food Facts po EAN
+         * @description Integracja wyłącznie po stronie API. Nie wysyła danych użytkownika ani zdjęć. Wynik jest podglądem — zapis wymaga jawnego zatwierdzenia w formularzu produktu.
+         */
+        get: operations["NutritionLookupController_lookupByEan"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/kitchens/{kitchenId}/products": {
         parameters: {
             query?: never;
@@ -735,6 +755,36 @@ export interface components {
             targetId: string;
             image: components["schemas"]["MediaImageDto"] | null;
         };
+        NutritionLookupValuesDto: {
+            /** @example 100.000 */
+            baseQuantity: string;
+            /** @enum {string} */
+            baseUnit: "piece" | "gram" | "milliliter";
+            kcal: string;
+            proteinGrams: string;
+            carbsGrams: string;
+            fatGrams: string;
+            fiberGrams?: string | null;
+            saltGrams?: string | null;
+            /** @description Dane opcjonalne z Open Food Facts (nie zapisywane w ProductNutrition). */
+            sugarsGrams?: string | null;
+            saturatedFatGrams?: string | null;
+        };
+        NutritionLookupResultDto: {
+            /** @enum {string} */
+            status: "found" | "not_found" | "incomplete" | "provider_error" | "rate_limited";
+            message: string;
+            /** @example 3017624010701 */
+            ean: string;
+            productName?: string | null;
+            brand?: string | null;
+            nutrition?: components["schemas"]["NutritionLookupValuesDto"] | null;
+            missingFields: string[];
+            /** Format: date-time */
+            fetchedAt: string;
+            /** @example Open Food Facts */
+            attribution: string;
+        };
         ProductNutritionDto: {
             productId: string;
             /** @example 100.000 */
@@ -748,6 +798,12 @@ export interface components {
             fatGrams: string;
             fiberGrams: string | null;
             saltGrams: string | null;
+            /** @enum {string} */
+            source: "manual" | "open_food_facts";
+            /** Format: date-time */
+            sourceFetchedAt: string | null;
+            sourceLabel: string | null;
+            sourceBrand: string | null;
             /** Format: date-time */
             updatedAt: string;
         };
@@ -851,6 +907,18 @@ export interface components {
             fiberGrams?: string | null;
             /** @example 0.100 */
             saltGrams?: string | null;
+            /**
+             * @description Pochodzenie zatwierdzonych danych. open_food_facts wymaga sourceFetchedAt.
+             * @enum {string}
+             */
+            source?: "manual" | "open_food_facts";
+            /**
+             * Format: date-time
+             * @description Data pobrania z Open Food Facts (ISO-8601).
+             */
+            sourceFetchedAt?: string | null;
+            sourceLabel?: string | null;
+            sourceBrand?: string | null;
         };
         CreatePurchaseOptionDto: {
             /** @example Karton 1 l */
@@ -1851,6 +1919,29 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    NutritionLookupController_lookupByEan: {
+        parameters: {
+            query: {
+                ean: string;
+            };
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NutritionLookupResultDto"];
+                };
             };
         };
     };

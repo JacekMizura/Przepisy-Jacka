@@ -156,6 +156,11 @@ enum MediaUploadStatus {
   failed
 }
 
+enum NutritionDataSource {
+  manual
+  open_food_facts
+}
+
 model Kitchen {
   id              String          @id @default(uuid())
   name            String
@@ -254,17 +259,32 @@ model Product {
 }
 
 model ProductNutrition {
-  productId    String      @id
-  baseQuantity Decimal     @db.Decimal(12, 3)
-  baseUnit     ProductUnit
-  kcal         Decimal     @db.Decimal(12, 3)
-  proteinGrams Decimal     @db.Decimal(12, 3)
-  carbsGrams   Decimal     @db.Decimal(12, 3)
-  fatGrams     Decimal     @db.Decimal(12, 3)
-  fiberGrams   Decimal?    @db.Decimal(12, 3)
-  saltGrams    Decimal?    @db.Decimal(12, 3)
-  updatedAt    DateTime    @updatedAt
-  product      Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId       String               @id
+  baseQuantity    Decimal              @db.Decimal(12, 3)
+  baseUnit        ProductUnit
+  kcal            Decimal              @db.Decimal(12, 3)
+  proteinGrams    Decimal              @db.Decimal(12, 3)
+  carbsGrams      Decimal              @db.Decimal(12, 3)
+  fatGrams        Decimal              @db.Decimal(12, 3)
+  fiberGrams      Decimal?             @db.Decimal(12, 3)
+  saltGrams       Decimal?             @db.Decimal(12, 3)
+  source          NutritionDataSource  @default(manual)
+  sourceFetchedAt DateTime?
+  sourceLabel     String?              @db.VarChar(200)
+  sourceBrand     String?              @db.VarChar(200)
+  updatedAt       DateTime             @updatedAt
+  product         Product              @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+/// Cache odpowiedzi Open Food Facts (tylko EAN + wynik publiczny; bez danych użytkownika).
+model OpenFoodFactsCache {
+  ean       String   @id @db.VarChar(14)
+  status    String   @db.VarChar(32)
+  payload   Json
+  fetchedAt DateTime
+  expiresAt DateTime
+
+  @@index([expiresAt])
 }
 
 model ProductPurchaseOption {

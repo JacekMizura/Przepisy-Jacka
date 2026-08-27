@@ -19,6 +19,11 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ImageField } from "@/components/image-field";
 import { ImageLightbox } from "@/components/image-lightbox";
 import { MediaImageField } from "@/components/media-image-field";
+import {
+  draftHasNutritionValues,
+  NutritionEanLookup,
+  type NutritionFormValues,
+} from "@/components/nutrition-ean-lookup";
 import { ProductNutritionSection } from "@/components/product-nutrition-section";
 import { ProductPhotoField } from "@/components/product-photo-field";
 import { ProductPurchaseOptions } from "@/components/product-purchase-options";
@@ -31,6 +36,7 @@ import {
   formatNutritionNumber,
   formatQuantityWithUnit,
   formatQuantityNumber,
+  toApiQuantityString,
 } from "@/lib/format-quantity";
 import {
   deleteKitchenMedia,
@@ -89,6 +95,8 @@ export default function StockPage() {
   const [productName, setProductName] = useState("");
   const [productUnit, setProductUnit] = useState<BaseUnit>("gram");
   const [productEan, setProductEan] = useState("");
+  const [productNutritionDraft, setProductNutritionDraft] =
+    useState<NutritionFormValues | null>(null);
   const [productMediaAssetId, setProductMediaAssetId] = useState<string | null>(
     null,
   );
@@ -285,12 +293,48 @@ export default function StockPage() {
           );
         }
       }
+      if (data && productNutritionDraft) {
+        const draft = productNutritionDraft;
+        const { error: nutritionError } = await client.PUT(
+          "/api/kitchens/{kitchenId}/products/{productId}/nutrition",
+          {
+            params: { path: { kitchenId, productId: data.id } },
+            body: {
+              baseQuantity: toApiQuantityString(draft.baseQuantity),
+              baseUnit: draft.baseUnit,
+              kcal: toApiQuantityString(draft.kcal),
+              proteinGrams: toApiQuantityString(draft.proteinGrams),
+              carbsGrams: toApiQuantityString(draft.carbsGrams),
+              fatGrams: toApiQuantityString(draft.fatGrams),
+              fiberGrams: draft.fiberGrams.trim()
+                ? toApiQuantityString(draft.fiberGrams)
+                : null,
+              saltGrams: draft.saltGrams.trim()
+                ? toApiQuantityString(draft.saltGrams)
+                : null,
+              source: draft.source,
+              sourceFetchedAt: draft.sourceFetchedAt,
+              sourceLabel: draft.sourceLabel,
+              sourceBrand: draft.sourceBrand,
+            },
+          },
+        );
+        if (nutritionError) {
+          throw new Error(
+            readApiError(
+              nutritionError,
+              "Produkt powstał, ale nie udało się zapisać wartości odżywczych.",
+            ),
+          );
+        }
+      }
       return data;
     },
     onSuccess: async (product) => {
       await queryClient.invalidateQueries({ queryKey: ["products", kitchenId] });
       setProductName("");
       setProductEan("");
+      setProductNutritionDraft(null);
       setProductMediaAssetId(null);
       setProductCategory("");
       setProductFormOpen(false);
@@ -692,6 +736,32 @@ export default function StockPage() {
                   </p>
                 </div>
                 <div className="md:col-span-2">
+                  <NutritionEanLookup
+                    kitchenId={kitchenId}
+                    ean={productEan}
+                    productUnit={productUnit}
+                    hasExistingValues={
+                      productNutritionDraft
+                        ? draftHasNutritionValues(productNutritionDraft)
+                        : false
+                    }
+                    onApply={(values) => setProductNutritionDraft(values)}
+                  />
+                  {productNutritionDraft ? (
+                    <p className="mt-2 text-xs text-emerald-700">
+                      Wartości odżywcze z Open Food Facts są w formularzu
+                      ({formatNutritionNumber(productNutritionDraft.kcal, 0)}{" "}
+                      kcal /{" "}
+                      {formatQuantityWithUnit(
+                        productNutritionDraft.baseQuantity,
+                        productNutritionDraft.baseUnit,
+                      )}
+                      ). Zapiszesz je przyciskiem „Dodaj do katalogu”. Nazwa,
+                      jednostka i zdjęcie nie zostały zmienione.
+                    </p>
+                  ) : null}
+                </div>
+                <div className="md:col-span-2">
                   <MediaImageField
                     kitchenId={kitchenId}
                     purpose="product"
@@ -717,6 +787,7 @@ export default function StockPage() {
                     variant="outline"
                     onClick={() => {
                       discardPendingProductMedia();
+                      setProductNutritionDraft(null);
                       setProductFormOpen(false);
                     }}
                   >
@@ -1412,6 +1483,7 @@ export default function StockPage() {
                               kitchenId={kitchenId}
                               productId={product.id}
                               productName={product.name}
+                              productEan={product.ean}
                               defaultUnit={product.defaultUnit as BaseUnit}
                               nutrition={product.nutrition}
                             />

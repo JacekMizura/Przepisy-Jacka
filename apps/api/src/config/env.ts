@@ -46,6 +46,31 @@ export const envSchema = z.object({
     emptyStringAsUndefined,
     z.coerce.number().int().min(1).default(DEFAULT_MEDIA_MAX_UPLOAD_BYTES),
   ),
+  OPEN_FOOD_FACTS_DRIVER: z.preprocess(
+    emptyStringAsUndefined,
+    z.enum(['http', 'fixture']).default('http'),
+  ),
+  OPEN_FOOD_FACTS_BASE_URL: z.preprocess(
+    emptyStringAsUndefined,
+    z.string().url().default('https://world.openfoodfacts.org'),
+  ),
+  OPEN_FOOD_FACTS_USER_AGENT: z.preprocess(
+    emptyStringAsUndefined,
+    z
+      .string()
+      .min(1)
+      .default(
+        'MojaKuchnia/0.1 (https://github.com/JacekMizura/Przepisy-Jacka)',
+      ),
+  ),
+  OPEN_FOOD_FACTS_TIMEOUT_MS: z.preprocess(
+    emptyStringAsUndefined,
+    z.coerce.number().int().min(500).max(30_000).default(8_000),
+  ),
+  OPEN_FOOD_FACTS_CACHE_TTL_SECONDS: z.preprocess(
+    emptyStringAsUndefined,
+    z.coerce.number().int().min(60).max(604_800).default(86_400),
+  ),
 });
 
 export type AppEnv = z.infer<typeof envSchema>;

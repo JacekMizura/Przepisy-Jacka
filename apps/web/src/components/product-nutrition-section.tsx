@@ -4,6 +4,11 @@ import type { components } from "@moja-kuchnia/api-client";
 import { type FormEvent, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import {
+  draftHasNutritionValues,
+  NutritionEanLookup,
+  type NutritionFormValues,
+} from "@/components/nutrition-ean-lookup";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +30,7 @@ type ProductNutritionSectionProps = {
   kitchenId: string;
   productId: string;
   productName: string;
+  productEan: string | null;
   defaultUnit: BaseUnit;
   nutrition: ProductNutrition | null;
 };
@@ -35,11 +41,13 @@ export function ProductNutritionSection({
   kitchenId,
   productId,
   productName,
+  productEan,
   defaultUnit,
   nutrition,
 }: ProductNutritionSectionProps) {
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
+  const [eanDraft, setEanDraft] = useState(productEan ?? "");
 
   const nutritionQuery = useQuery({
     queryKey: ["product-nutrition", kitchenId, productId],
@@ -102,6 +110,7 @@ export function ProductNutritionSection({
             variant="outline"
             onClick={() => {
               save.reset();
+              setEanDraft(productEan ?? "");
               setEditing(true);
             }}
           >
@@ -124,7 +133,10 @@ export function ProductNutritionSection({
 
       {editing && nutritionQuery.isSuccess ? (
         <NutritionEditor
+          kitchenId={kitchenId}
           productId={productId}
+          ean={eanDraft}
+          onEanChange={setEanDraft}
           defaultUnit={defaultUnit}
           initial={nutritionQuery.data}
           pending={save.isPending}
@@ -166,6 +178,15 @@ function NutritionSummary({
         <NutritionFact label="Błonnik" value={nutrition.fiberGrams} />
         <NutritionFact label="Sól" value={nutrition.saltGrams} />
       </dl>
+      {nutrition.source === "open_food_facts" ? (
+        <p className="mt-2 text-[11px] text-emerald-700">
+          Źródło: Open Food Facts
+          {nutrition.sourceFetchedAt
+            ? ` · pobrano ${new Date(nutrition.sourceFetchedAt).toLocaleString("pl-PL")}`
+            : ""}
+          {nutrition.sourceLabel ? ` · ${nutrition.sourceLabel}` : ""}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -190,16 +211,7 @@ function NutritionFact({
   );
 }
 
-type Draft = {
-  baseQuantity: string;
-  baseUnit: BaseUnit;
-  kcal: string;
-  proteinGrams: string;
-  carbsGrams: string;
-  fatGrams: string;
-  fiberGrams: string;
-  saltGrams: string;
-};
+type Draft = NutritionFormValues;
 
 function toDraft(
   nutrition: ProductNutrition | null,
@@ -215,6 +227,10 @@ function toDraft(
       fatGrams: "",
       fiberGrams: "",
       saltGrams: "",
+      source: "manual",
+      sourceFetchedAt: null,
+      sourceLabel: null,
+      sourceBrand: null,
     };
   }
   return {
@@ -226,11 +242,18 @@ function toDraft(
     fatGrams: formatNutritionNumber(nutrition.fatGrams, 3),
     fiberGrams: formatNutritionNumber(nutrition.fiberGrams, 3),
     saltGrams: formatNutritionNumber(nutrition.saltGrams, 3),
+    source: nutrition.source,
+    sourceFetchedAt: nutrition.sourceFetchedAt,
+    sourceLabel: nutrition.sourceLabel,
+    sourceBrand: nutrition.sourceBrand,
   };
 }
 
 function NutritionEditor({
+  kitchenId,
   productId,
+  ean,
+  onEanChange,
   defaultUnit,
   initial,
   pending,
@@ -238,7 +261,10 @@ function NutritionEditor({
   onCancel,
   onSave,
 }: {
+  kitchenId: string;
   productId: string;
+  ean: string;
+  onEanChange: (value: string) => void;
   defaultUnit: BaseUnit;
   initial: ProductNutrition | null;
   pending: boolean;
@@ -250,7 +276,30 @@ function NutritionEditor({
   const [formError, setFormError] = useState<string | null>(null);
 
   function updateDraft(patch: Partial<Draft>) {
-    setDraft((previous) => ({ ...previous, ...patch }));
+    setDraft((previous) => {
+      const next: Draft = { ...previous, ...patch };
+      const touchedValues =
+        patch.kcal !== undefined ||
+        patch.proteinGrams !== undefined ||
+        patch.carbsGrams !== undefined ||
+        patch.fatGrams !== undefined ||
+        patch.fiberGrams !== undefined ||
+        patch.saltGrams !== undefined ||
+        patch.baseQuantity !== undefined ||
+        patch.baseUnit !== undefined;
+      if (touchedValues && patch.source === undefined) {
+        next.source = "manual";
+        next.sourceFetchedAt = null;
+        next.sourceLabel = null;
+        next.sourceBrand = null;
+      }
+      return next;
+    });
+  }
+
+  function applyLookup(values: NutritionFormValues) {
+    setDraft(values);
+    setFormError(null);
   }
 
   function handleSubmit(event: FormEvent) {
@@ -309,11 +358,44 @@ function NutritionEditor({
       fatGrams: fat.value,
       fiberGrams: fiber.value,
       saltGrams: salt.value,
+      source: draft.source,
+      sourceFetchedAt: draft.sourceFetchedAt,
+      sourceLabel: draft.sourceLabel,
+      sourceBrand: draft.sourceBrand,
     });
   }
 
   return (
     <form onSubmit={handleSubmit} className="mt-3 space-y-3">
+      <div>
+        <Label htmlFor={`nutrition-ean-${productId}`}>
+          EAN do pobrania (nie zmienia kodu produktu)
+        </Label>
+        <Input
+          id={`nutrition-ean-${productId}`}
+          inputMode="numeric"
+          value={ean}
+          onChange={(event) => onEanChange(event.target.value)}
+          placeholder="np. 3017624010701"
+        />
+      </div>
+
+      <NutritionEanLookup
+        kitchenId={kitchenId}
+        ean={ean}
+        productUnit={defaultUnit}
+        hasExistingValues={draftHasNutritionValues(draft)}
+        onApply={applyLookup}
+      />
+
+      {draft.source === "open_food_facts" ? (
+        <p className="text-xs text-emerald-700">
+          Formularz wypełniony danymi Open Food Facts
+          {draft.sourceLabel ? ` („${draft.sourceLabel}”)` : ""}. Zapis
+          zatwierdzisz poniżej.
+        </p>
+      ) : null}
+
       <div className="grid gap-3 sm:grid-cols-2">
         <div>
           <Label htmlFor={`nutrition-base-${productId}`}>

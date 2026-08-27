@@ -1,7 +1,19 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
+import {
+  IsEnum,
+  IsISO8601,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+  ValidateIf,
+} from 'class-validator';
 
-import { ProductUnit } from '../../generated/prisma/client';
+import {
+  NutritionDataSource,
+  ProductUnit,
+} from '../../generated/prisma/client';
+import { isPresentOptional } from './product.dto';
 
 export class UpsertProductNutritionDto {
   @ApiProperty({
@@ -46,6 +58,40 @@ export class UpsertProductNutritionDto {
   @IsOptional()
   @IsString()
   saltGrams?: string | null;
+
+  @ApiPropertyOptional({
+    enum: NutritionDataSource,
+    description:
+      'Pochodzenie zatwierdzonych danych. open_food_facts wymaga sourceFetchedAt.',
+  })
+  @IsOptional()
+  @IsEnum(NutritionDataSource)
+  source?: NutritionDataSource;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: 'Data pobrania z Open Food Facts (ISO-8601).',
+  })
+  @IsOptional()
+  @ValidateIf(isPresentOptional)
+  @IsISO8601()
+  sourceFetchedAt?: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true, maxLength: 200 })
+  @IsOptional()
+  @ValidateIf(isPresentOptional)
+  @IsString()
+  @MaxLength(200)
+  sourceLabel?: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true, maxLength: 200 })
+  @IsOptional()
+  @ValidateIf(isPresentOptional)
+  @IsString()
+  @MaxLength(200)
+  sourceBrand?: string | null;
 }
 
 export class ProductNutritionDto {
@@ -75,6 +121,18 @@ export class ProductNutritionDto {
 
   @ApiProperty({ type: String, nullable: true })
   saltGrams!: string | null;
+
+  @ApiProperty({ enum: NutritionDataSource })
+  source!: NutritionDataSource;
+
+  @ApiProperty({ type: String, format: 'date-time', nullable: true })
+  sourceFetchedAt!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  sourceLabel!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  sourceBrand!: string | null;
 
   @ApiProperty({ type: String, format: 'date-time' })
   updatedAt!: string;

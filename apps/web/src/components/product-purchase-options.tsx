@@ -24,7 +24,6 @@ type PurchaseMode = components["schemas"]["ProductDto"]["purchaseMode"];
 type ProductPurchaseOptionsProps = {
   kitchenId: string;
   productId: string;
-  productName: string;
   defaultUnit: BaseUnit;
   purchaseMode: PurchaseMode;
 };
@@ -54,7 +53,6 @@ const MODE_CHOICES: Array<{
 export function ProductPurchaseOptions({
   kitchenId,
   productId,
-  productName,
   defaultUnit,
   purchaseMode,
 }: ProductPurchaseOptionsProps) {
@@ -308,13 +306,12 @@ export function ProductPurchaseOptions({
         <h3 className="text-sm font-semibold text-gray-900">
           Jak kupuję ten produkt
         </h3>
-        <p className="text-xs text-gray-500">
-          Ustawienie dla „{productName}” — używane przy brakach w przepisach i
-          na liście zakupów.
-        </p>
       </div>
 
-      <fieldset className="mb-4 space-y-2" disabled={modeBusy}>
+      <fieldset
+        className="mb-4 grid grid-cols-1 gap-2 sm:grid-cols-3"
+        disabled={modeBusy}
+      >
         <legend className="sr-only">Sposób zakupu</legend>
         {MODE_CHOICES.map((choice) => {
           const selected =
@@ -325,7 +322,7 @@ export function ProductPurchaseOptions({
             <label
               key={choice.value}
               className={cn(
-                "flex cursor-pointer gap-3 rounded-lg border px-3 py-2.5 transition-colors",
+                "flex h-full cursor-pointer gap-2 rounded-lg border px-3 py-2.5 transition-colors sm:flex-col sm:gap-1.5",
                 selected
                   ? "border-emerald-300 bg-white ring-1 ring-emerald-200"
                   : "border-gray-100 bg-white/70 hover:border-gray-200",
@@ -334,7 +331,7 @@ export function ProductPurchaseOptions({
               <input
                 type="radio"
                 name={`purchase-mode-${productId}`}
-                className="mt-1"
+                className="mt-1 shrink-0 sm:mt-0.5"
                 checked={selected}
                 onChange={() => handleModeSelect(choice.value)}
               />

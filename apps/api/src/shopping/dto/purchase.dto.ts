@@ -19,6 +19,7 @@ import {
   ShoppingInputUnit,
   StorageLocation,
 } from '../../generated/prisma/client';
+import { MediaImageDto } from '../../media/dto/media.dto';
 
 export class CheckoutCreateProductDto {
   @ApiProperty({ example: 'Papryka' })
@@ -131,6 +132,26 @@ export class PurchaseLineItemDto {
 
   @ApiProperty({ type: String, nullable: true })
   displayName!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  imageUrl!: string | null;
+
+  @ApiProperty({ type: MediaImageDto, nullable: true })
+  image!: MediaImageDto | null;
+}
+
+export class PurchasePreviewProductDto {
+  @ApiProperty()
+  productId!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  imageUrl!: string | null;
+
+  @ApiProperty({ type: MediaImageDto, nullable: true })
+  image!: MediaImageDto | null;
 }
 
 export class PurchaseSummaryDto {
@@ -151,6 +172,9 @@ export class PurchaseSummaryDto {
 
   @ApiProperty({ example: 'PLN' })
   currency!: string;
+
+  @ApiProperty({ type: [PurchasePreviewProductDto] })
+  previewProducts!: PurchasePreviewProductDto[];
 }
 
 export class PurchaseDetailDto extends PurchaseSummaryDto {

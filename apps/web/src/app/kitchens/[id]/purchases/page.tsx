@@ -6,8 +6,10 @@ import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
 import { AppShell } from "@/components/app-shell";
+import { ProductThumb } from "@/components/product-thumb";
 import { createWebApiClient } from "@/lib/api";
 import { readApiError } from "@/lib/errors";
+import { productImageUrls } from "@/lib/product-image";
 import { formatPriceMinor } from "@/lib/shopping-labels";
 
 export default function PurchasesPage() {
@@ -88,6 +90,9 @@ export default function PurchasesPage() {
                 <thead className="border-b border-gray-100 bg-emerald-50/50">
                   <tr>
                     <th className="px-4 py-3 font-semibold text-gray-700">
+                      Produkty
+                    </th>
+                    <th className="px-4 py-3 font-semibold text-gray-700">
                       Data
                     </th>
                     <th className="px-4 py-3 font-semibold text-gray-700">
@@ -110,6 +115,22 @@ export default function PurchasesPage() {
                       key={purchase.id}
                       className="border-b border-gray-100 last:border-0"
                     >
+                      <td className="px-4 py-3">
+                        <div className="flex items-center -space-x-2">
+                          {(purchase.previewProducts ?? []).map((product) => (
+                            <ProductThumb
+                              key={product.productId}
+                              src={productImageUrls(product).thumbnail}
+                              alt={product.name}
+                              size="sm"
+                              className="ring-2 ring-white"
+                            />
+                          ))}
+                          {(purchase.previewProducts ?? []).length === 0 ? (
+                            <ProductThumb src={null} alt="" size="sm" />
+                          ) : null}
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-gray-800">
                         {new Date(purchase.purchasedAt).toLocaleDateString(
                           "pl-PL",

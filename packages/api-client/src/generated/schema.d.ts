@@ -1015,6 +1015,7 @@ export interface components {
             purchaseMode: "unconfigured" | "packaged" | "exact";
             ean: string | null;
             imageUrl: string | null;
+            image: components["schemas"]["MediaImageDto"] | null;
             category: string | null;
         };
         PurchaseOptionSummaryDto: {
@@ -1124,6 +1125,12 @@ export interface components {
             currency?: string;
             lines: components["schemas"]["CheckoutPurchaseLineDto"][];
         };
+        PurchasePreviewProductDto: {
+            productId: string;
+            name: string;
+            imageUrl: string | null;
+            image: components["schemas"]["MediaImageDto"] | null;
+        };
         PurchaseLineItemDto: {
             id: string;
             productId: string;
@@ -1139,6 +1146,8 @@ export interface components {
             /** Format: date-time */
             expiresAt: string | null;
             displayName: string | null;
+            imageUrl: string | null;
+            image: components["schemas"]["MediaImageDto"] | null;
         };
         PurchaseDetailDto: {
             id: string;
@@ -1150,6 +1159,7 @@ export interface components {
             totalPriceMinor: number;
             /** @example PLN */
             currency: string;
+            previewProducts: components["schemas"]["PurchasePreviewProductDto"][];
             lines: components["schemas"]["PurchaseLineItemDto"][];
             /** Format: date-time */
             createdAt: string;
@@ -1164,6 +1174,7 @@ export interface components {
             totalPriceMinor: number;
             /** @example PLN */
             currency: string;
+            previewProducts: components["schemas"]["PurchasePreviewProductDto"][];
         };
         RecipeAuthorDto: {
             id: string;

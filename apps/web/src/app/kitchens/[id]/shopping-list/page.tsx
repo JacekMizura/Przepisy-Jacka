@@ -22,11 +22,13 @@ import {
 } from "@/components/checkout-purchase-dialog";
 import { ChangePurchaseModeDialog } from "@/components/change-purchase-mode-dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { ProductThumb } from "@/components/product-thumb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createWebApiClient } from "@/lib/api";
 import { readApiError, UNIT_LABELS } from "@/lib/errors";
+import { productImageUrls } from "@/lib/product-image";
 import { inputUnitsFor, type BaseUnit, type InputUnit } from "@/lib/quantity-input";
 import {
   formatRequiredForRecipe,
@@ -145,30 +147,36 @@ function AddProductModal({
           {addMode === "product" ? (
             <div className="space-y-2">
               <Label htmlFor="modal-product">Produkt</Label>
-              <select
-                id="modal-product"
-                className="block w-full rounded-lg border border-gray-200 bg-white p-3 text-sm"
-                value={productId}
-                onChange={(event) => {
-                  setProductId(event.target.value);
-                  const product = products.find(
-                    (entry) => entry.id === event.target.value,
-                  );
-                  if (product) {
-                    setPlannedUnit(
-                      inputUnitsFor(product.defaultUnit as BaseUnit)[0]
-                        ?.value ?? "piece",
+              <div className="flex items-center gap-3">
+                <ProductThumb
+                  src={productImageUrls(selectedProduct).thumbnail}
+                  alt={selectedProduct?.name ?? "Produkt"}
+                />
+                <select
+                  id="modal-product"
+                  className="block min-w-0 flex-1 rounded-lg border border-gray-200 bg-white p-3 text-sm"
+                  value={productId}
+                  onChange={(event) => {
+                    setProductId(event.target.value);
+                    const product = products.find(
+                      (entry) => entry.id === event.target.value,
                     );
-                  }
-                }}
-              >
-                <option value="">Wybierz produkt…</option>
-                {products.map((product) => (
-                  <option key={product.id} value={product.id}>
-                    {product.name} ({UNIT_LABELS[product.defaultUnit]})
-                  </option>
-                ))}
-              </select>
+                    if (product) {
+                      setPlannedUnit(
+                        inputUnitsFor(product.defaultUnit as BaseUnit)[0]
+                          ?.value ?? "piece",
+                      );
+                    }
+                  }}
+                >
+                  <option value="">Wybierz produkt…</option>
+                  {products.map((product) => (
+                    <option key={product.id} value={product.id}>
+                      {product.name} ({UNIT_LABELS[product.defaultUnit]})
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           ) : (
             <div className="space-y-2">
@@ -275,6 +283,7 @@ function ShoppingRow({
   const isSkipped = item.status === "skipped";
   const canChangePurchaseMode =
     Boolean(item.productId) && Boolean(onChangePurchaseMode);
+  const thumb = productImageUrls(item.product).thumbnail;
 
   return (
     <li
@@ -309,6 +318,8 @@ function ShoppingRow({
           <SkipForward size={12} />
         </span>
       )}
+
+      <ProductThumb src={thumb} alt={name} />
 
       <div className="min-w-0 flex-1">
         <p

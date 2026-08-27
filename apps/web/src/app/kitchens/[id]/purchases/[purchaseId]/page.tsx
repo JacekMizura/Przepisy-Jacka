@@ -5,9 +5,11 @@ import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
 import { AppShell } from "@/components/app-shell";
+import { ProductThumb } from "@/components/product-thumb";
 import { createWebApiClient } from "@/lib/api";
 import { LOCATION_LABELS, readApiError } from "@/lib/errors";
 import { formatQuantityNumber } from "@/lib/format-quantity";
+import { productImageUrls } from "@/lib/product-image";
 import { formatPriceMinor } from "@/lib/shopping-labels";
 
 export default function PurchaseDetailPage() {
@@ -106,13 +108,21 @@ export default function PurchaseDetailPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {purchase.lines.map((line) => (
+                    {purchase.lines.map((line) => {
+                      const label = line.displayName ?? line.productName;
+                      const thumb = productImageUrls(line).thumbnail;
+                      return (
                       <tr
                         key={line.id}
                         className="border-b border-gray-100 last:border-0"
                       >
-                        <td className="px-4 py-3 font-medium text-gray-900">
-                          {line.displayName ?? line.productName}
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            <ProductThumb src={thumb} alt={label} size="sm" />
+                            <span className="font-medium text-gray-900">
+                              {label}
+                            </span>
+                          </div>
                         </td>
                         <td className="px-4 py-3 text-gray-700">
                           {formatQuantityNumber(line.quantity)}
@@ -131,7 +141,8 @@ export default function PurchaseDetailPage() {
                           {formatPriceMinor(line.priceMinor, purchase.currency)}
                         </td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                   <tfoot className="border-t border-gray-200 bg-gray-50">
                     <tr>

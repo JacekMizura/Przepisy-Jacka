@@ -90,3 +90,34 @@ body {
   border-color: #10b981;
   box-shadow: 0 0 0 1px #10b981;
 }
+
+@media print {
+  .recipe-print-hide {
+    display: none !important;
+  }
+
+  .app-shell-chrome {
+    display: none !important;
+  }
+
+  .app-shell-main {
+    margin-left: 0 !important;
+  }
+
+  .app-shell-main-inner {
+    padding: 0 !important;
+  }
+
+  .app-shell-content {
+    max-width: none !important;
+  }
+
+  .recipe-detail {
+    color: #111;
+  }
+
+  .recipe-detail a {
+    text-decoration: none;
+    color: inherit;
+  }
+}

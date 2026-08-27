@@ -3,12 +3,15 @@
 import type { components } from "@moja-kuchnia/api-client";
 import { useId, useMemo, useState } from "react";
 
+import { PendingImageField } from "@/components/media-image-field";
+import { ProductThumb } from "@/components/product-thumb";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createWebApiClient } from "@/lib/api";
 import { LOCATION_LABELS, readApiError, UNIT_LABELS } from "@/lib/errors";
 import { formatQuantityNumber } from "@/lib/format-quantity";
+import { productImageUrls } from "@/lib/product-image";
 import { INPUT_UNIT_LABELS } from "@/lib/shopping-labels";
 import {
   inputUnitsFor,
@@ -45,6 +48,7 @@ type CheckoutPurchaseDialogProps = {
     storeName?: string;
     purchasedAt?: string;
     lines: components["schemas"]["CheckoutPurchaseLineDto"][];
+    receiptFile: File | null;
   }) => void;
   onCancel: () => void;
 };
@@ -101,6 +105,7 @@ export function CheckoutPurchaseDialog({
     items.map((item) => buildLineDraft(item, products)),
   );
   const [formError, setFormError] = useState<string | null>(null);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const idempotencyKey = useMemo(
     () => `checkout-${kitchenId}-${crypto.randomUUID()}`,
     [kitchenId],
@@ -171,6 +176,7 @@ export function CheckoutPurchaseDialog({
       storeName: storeName.trim() || undefined,
       purchasedAt: purchasedAtIso,
       lines: payloadLines,
+      receiptFile,
     });
   }
 
@@ -219,12 +225,32 @@ export function CheckoutPurchaseDialog({
             </div>
           </div>
 
-          {lines.map((line, index) => (
+          <PendingImageField
+            file={receiptFile}
+            onFileSelected={setReceiptFile}
+            label="Zdjęcie paragonu (opcjonalnie)"
+            size="wide"
+            note="Wyślemy razem z rozliczeniem zakupów."
+          />
+
+          {lines.map((line, index) => {
+            const product = line.productId
+              ? products.find((entry) => entry.id === line.productId)
+              : null;
+            const thumb = productImageUrls(
+              product ??
+                items.find((item) => item.id === line.shoppingListItemId)
+                  ?.product,
+            ).thumbnail;
+            return (
             <div
               key={line.shoppingListItemId}
               className="rounded-2xl border border-gray-100 bg-gray-50/60 p-4"
             >
-              <p className="font-medium text-gray-900">{line.label}</p>
+              <div className="flex items-center gap-3">
+                <ProductThumb src={thumb} alt={line.label} size="sm" />
+                <p className="font-medium text-gray-900">{line.label}</p>
+              </div>
 
               {!line.hasProduct ? (
                 <div className="mt-3 space-y-3">
@@ -383,7 +409,8 @@ export function CheckoutPurchaseDialog({
                 </div>
               </div>
             </div>
-          ))}
+            );
+          })}
 
           {formError ? (
             <p className="text-sm text-red-600" role="alert">

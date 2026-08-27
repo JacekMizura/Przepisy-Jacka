@@ -395,6 +395,65 @@ export class MediaService {
     await this.deleteAssetIfOrphan(previousId);
   }
 
+  async attachPurchaseReceipt(
+    userId: string,
+    kitchenId: string,
+    purchaseId: string,
+    mediaAssetId: string,
+  ): Promise<AttachedMediaDto> {
+    await requireKitchenMember(this.prisma, kitchenId, userId);
+    const purchase = await this.prisma.purchase.findFirst({
+      where: { id: purchaseId, kitchenId },
+    });
+    if (!purchase) {
+      throw new NotFoundException('Nie znaleziono zakupu.');
+    }
+    const asset = await this.requireAttachableAsset(
+      kitchenId,
+      mediaAssetId,
+      MediaPurpose.purchase_receipt,
+    );
+
+    const updated = await this.replaceAttachment(
+      purchase.receiptMediaId,
+      asset.id,
+      () =>
+        this.prisma.purchase.update({
+          where: { id: purchase.id },
+          data: { receiptMediaId: asset.id },
+          include: { receiptMedia: true },
+        }),
+    );
+
+    return {
+      targetId: purchase.id,
+      image: await this.buildImageSummary(updated.receiptMedia),
+    };
+  }
+
+  async detachPurchaseReceipt(
+    userId: string,
+    kitchenId: string,
+    purchaseId: string,
+  ): Promise<void> {
+    await requireKitchenMember(this.prisma, kitchenId, userId);
+    const purchase = await this.prisma.purchase.findFirst({
+      where: { id: purchaseId, kitchenId },
+    });
+    if (!purchase) {
+      throw new NotFoundException('Nie znaleziono zakupu.');
+    }
+    if (!purchase.receiptMediaId) {
+      return;
+    }
+    const previousId = purchase.receiptMediaId;
+    await this.prisma.purchase.update({
+      where: { id: purchase.id },
+      data: { receiptMediaId: null },
+    });
+    await this.deleteAssetIfOrphan(previousId);
+  }
+
   /** Podpisany URL powstaje na żądanie i nigdy nie trafia do bazy. */
   async buildImageSummary(
     asset: MediaAsset | null | undefined,
@@ -582,6 +641,7 @@ export class MediaService {
       target?.productId,
       target?.recipeId,
       target?.recipeStepId,
+      target?.purchaseId,
     ].filter((value) => value !== undefined);
     if (provided.length > 1) {
       throw new BadRequestException(
@@ -590,7 +650,7 @@ export class MediaService {
     }
 
     if (dto.purpose === MediaPurpose.product) {
-      if (target?.recipeId || target?.recipeStepId) {
+      if (target?.recipeId || target?.recipeStepId || target?.purchaseId) {
         throw new BadRequestException(
           'Zdjęcie produktu wymaga target.productId.',
         );
@@ -617,23 +677,47 @@ export class MediaService {
       return;
     }
 
-    if (!target?.recipeStepId) {
-      throw new BadRequestException(
-        'Zdjęcie kroku wymaga target.recipeStepId.',
-      );
+    if (dto.purpose === MediaPurpose.recipe_step) {
+      if (!target?.recipeStepId) {
+        throw new BadRequestException(
+          'Zdjęcie kroku wymaga target.recipeStepId.',
+        );
+      }
+      const step = await this.prisma.recipeStep.findFirst({
+        where: { id: target.recipeStepId, recipe: { kitchenId } },
+        select: { recipe: { select: { id: true, authorUserId: true } } },
+      });
+      if (!step) {
+        throw new NotFoundException('Nie znaleziono kroku przepisu.');
+      }
+      if (step.recipe.authorUserId !== userId) {
+        throw new ForbiddenException(
+          'Tę operację może wykonać wyłącznie autor przepisu.',
+        );
+      }
+      return;
     }
-    const step = await this.prisma.recipeStep.findFirst({
-      where: { id: target.recipeStepId, recipe: { kitchenId } },
-      select: { recipe: { select: { id: true, authorUserId: true } } },
-    });
-    if (!step) {
-      throw new NotFoundException('Nie znaleziono kroku przepisu.');
+
+    if (dto.purpose === MediaPurpose.purchase_receipt) {
+      if (!target?.purchaseId) {
+        throw new BadRequestException(
+          'Zdjęcie paragonu wymaga target.purchaseId.',
+        );
+      }
+      await requireKitchenMember(this.prisma, kitchenId, userId);
+      const purchase = await this.prisma.purchase.findFirst({
+        where: { id: target.purchaseId, kitchenId },
+        select: { id: true },
+      });
+      if (!purchase) {
+        throw new NotFoundException('Nie znaleziono zakupu.');
+      }
+      return;
     }
-    if (step.recipe.authorUserId !== userId) {
-      throw new ForbiddenException(
-        'Tę operację może wykonać wyłącznie autor przepisu.',
-      );
-    }
+
+    const exhaustive: never = dto.purpose;
+    void exhaustive;
+    throw new BadRequestException('Nieobsługiwany cel zdjęcia.');
   }
 
   private async requireRecipeAuthor(

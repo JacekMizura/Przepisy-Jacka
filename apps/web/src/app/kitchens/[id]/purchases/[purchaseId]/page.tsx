@@ -6,9 +6,10 @@ import { useQuery } from "@tanstack/react-query";
 
 import { AppShell } from "@/components/app-shell";
 import { ProductThumb } from "@/components/product-thumb";
+import { PurchaseReceiptField } from "@/components/purchase-receipt-field";
 import { createWebApiClient } from "@/lib/api";
 import { LOCATION_LABELS, readApiError } from "@/lib/errors";
-import { formatQuantityNumber } from "@/lib/format-quantity";
+import { formatQuantityWithUnit } from "@/lib/format-quantity";
 import { productImageUrls } from "@/lib/product-image";
 import { formatPriceMinor } from "@/lib/shopping-labels";
 
@@ -72,6 +73,16 @@ export default function PurchaseDetailPage() {
           </Link>
         </header>
 
+        {purchase ? (
+          <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
+            <PurchaseReceiptField
+              kitchenId={kitchenId}
+              purchaseId={purchaseId}
+              initialImage={purchase.receiptImage ?? null}
+            />
+          </section>
+        ) : null}
+
         <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
           {purchaseQuery.isPending ? (
             <div className="p-12 text-center text-sm text-gray-500">
@@ -112,35 +123,42 @@ export default function PurchaseDetailPage() {
                       const label = line.displayName ?? line.productName;
                       const thumb = productImageUrls(line).thumbnail;
                       return (
-                      <tr
-                        key={line.id}
-                        className="border-b border-gray-100 last:border-0"
-                      >
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-3">
-                            <ProductThumb src={thumb} alt={label} size="sm" />
-                            <span className="font-medium text-gray-900">
-                              {label}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-4 py-3 text-gray-700">
-                          {formatQuantityNumber(line.quantity)}
-                        </td>
-                        <td className="px-4 py-3 text-gray-700">
-                          {LOCATION_LABELS[line.location]}
-                        </td>
-                        <td className="px-4 py-3 text-gray-700">
-                          {line.expiresAt
-                            ? new Date(line.expiresAt).toLocaleDateString(
-                                "pl-PL",
-                              )
-                            : "—"}
-                        </td>
-                        <td className="px-4 py-3 text-gray-900">
-                          {formatPriceMinor(line.priceMinor, purchase.currency)}
-                        </td>
-                      </tr>
+                        <tr
+                          key={line.id}
+                          className="border-b border-gray-100 last:border-0"
+                        >
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-3">
+                              <ProductThumb
+                                src={thumb}
+                                alt={label}
+                                size="sm"
+                              />
+                              <span className="font-medium text-gray-900">
+                                {label}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-gray-700">
+                            {formatQuantityWithUnit(line.quantity, line.unit)}
+                          </td>
+                          <td className="px-4 py-3 text-gray-700">
+                            {LOCATION_LABELS[line.location]}
+                          </td>
+                          <td className="px-4 py-3 text-gray-700">
+                            {line.expiresAt
+                              ? new Date(line.expiresAt).toLocaleDateString(
+                                  "pl-PL",
+                                )
+                              : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-gray-900">
+                            {formatPriceMinor(
+                              line.priceMinor,
+                              purchase.currency,
+                            )}
+                          </td>
+                        </tr>
                       );
                     })}
                   </tbody>

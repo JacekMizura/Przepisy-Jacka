@@ -69,6 +69,7 @@ type PurchaseLineWithRelations = PurchaseLineItem & {
 
 type PurchaseWithLines = Purchase & {
   items: PurchaseLineWithRelations[];
+  receiptMedia?: MediaAsset | null;
 };
 
 const INPUT_UNIT_BASE: Record<
@@ -406,6 +407,7 @@ export class ShoppingService {
     const existing = await this.prisma.purchase.findUnique({
       where: { idempotencyKey: dto.idempotencyKey },
       include: {
+        receiptMedia: true,
         items: { include: purchaseLineInclude },
       },
     });
@@ -571,6 +573,7 @@ export class ShoppingService {
       where: { kitchenId },
       include: {
         _count: { select: { items: true } },
+        receiptMedia: true,
         items: {
           include: purchaseLineInclude,
           orderBy: { id: 'asc' },
@@ -593,6 +596,7 @@ export class ShoppingService {
     const purchase = await this.prisma.purchase.findFirst({
       where: { id: purchaseId, kitchenId },
       include: {
+        receiptMedia: true,
         items: { include: purchaseLineInclude },
       },
     });
@@ -681,6 +685,7 @@ export class ShoppingService {
       stockItemId: line.stockItemId,
       shoppingListItemId: line.shoppingListItemId,
       quantity: formatQuantity(line.quantity),
+      unit: line.product.defaultUnit,
       priceMinor: line.priceMinor,
       location: line.location,
       expiresAt: line.expiresAt?.toISOString() ?? null,
@@ -707,12 +712,16 @@ export class ShoppingService {
         purchase.items.map((line) => this.toPurchaseLineItemDto(line)),
       ),
       previewProducts: await this.toPreviewProducts(purchase.items),
+      receiptImage: await this.mediaService.buildImageSummary(
+        purchase.receiptMedia ?? null,
+      ),
     };
   }
 
   private async toPurchaseSummaryDto(
     purchase: Purchase & {
       items: PurchaseLineWithRelations[];
+      receiptMedia?: MediaAsset | null;
       _count: { items: number };
     },
   ): Promise<PurchaseSummaryDto> {
@@ -724,6 +733,9 @@ export class ShoppingService {
       totalPriceMinor: purchase.totalPriceMinor,
       currency: purchase.currency,
       previewProducts: await this.toPreviewProducts(purchase.items),
+      receiptImage: await this.mediaService.buildImageSummary(
+        purchase.receiptMedia ?? null,
+      ),
     };
   }
 

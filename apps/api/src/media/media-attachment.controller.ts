@@ -126,4 +126,37 @@ export class MediaAttachmentController {
       stepId,
     );
   }
+
+  @Post('purchases/:purchaseId/receipt')
+  @ApiOperation({ summary: 'Przypisanie zdjęcia paragonu do zakupu' })
+  @ApiOkResponse({ type: AttachedMediaDto })
+  attachPurchaseReceipt(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Param('purchaseId', ParseUUIDPipe) purchaseId: string,
+    @Body() body: AttachMediaDto,
+  ): Promise<AttachedMediaDto> {
+    return this.mediaService.attachPurchaseReceipt(
+      session.user.id,
+      kitchenId,
+      purchaseId,
+      body.mediaAssetId,
+    );
+  }
+
+  @Delete('purchases/:purchaseId/receipt')
+  @HttpCode(204)
+  @ApiOperation({ summary: 'Odpięcie zdjęcia paragonu' })
+  @ApiNoContentResponse()
+  async detachPurchaseReceipt(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Param('purchaseId', ParseUUIDPipe) purchaseId: string,
+  ): Promise<void> {
+    await this.mediaService.detachPurchaseReceipt(
+      session.user.id,
+      kitchenId,
+      purchaseId,
+    );
+  }
 }

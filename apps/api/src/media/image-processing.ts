@@ -17,6 +17,7 @@ export const MAX_DIMENSION_BY_PURPOSE: Record<MediaPurpose, number> = {
   [MediaPurpose.product]: 800,
   [MediaPurpose.recipe_cover]: 1600,
   [MediaPurpose.recipe_step]: 1200,
+  [MediaPurpose.purchase_receipt]: 1600,
 };
 
 export const THUMBNAIL_MAX_DIMENSION = 400;

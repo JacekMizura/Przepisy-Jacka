@@ -29,6 +29,7 @@ import { Label } from "@/components/ui/label";
 import { createWebApiClient } from "@/lib/api";
 import { readApiError, UNIT_LABELS } from "@/lib/errors";
 import { productImageUrls } from "@/lib/product-image";
+import { uploadKitchenMedia } from "@/lib/media-upload";
 import { inputUnitsFor, type BaseUnit, type InputUnit } from "@/lib/quantity-input";
 import {
   formatRequiredForRecipe,
@@ -628,9 +629,41 @@ export default function ShoppingListPage() {
   });
 
   const checkout = useMutation({
-    mutationFn: async (
-      body: components["schemas"]["CheckoutPurchaseDto"],
-    ) => checkoutPurchase(kitchenId, body),
+    mutationFn: async (payload: {
+      idempotencyKey: string;
+      storeName?: string;
+      purchasedAt?: string;
+      lines: components["schemas"]["CheckoutPurchaseLineDto"][];
+      receiptFile: File | null;
+    }) => {
+      const { receiptFile, ...body } = payload;
+      const purchase = await checkoutPurchase(kitchenId, body);
+      if (receiptFile && purchase) {
+        const asset = await uploadKitchenMedia({
+          kitchenId,
+          file: receiptFile,
+          purpose: "purchase_receipt",
+          target: { purchaseId: purchase.id },
+        });
+        const client = createWebApiClient();
+        const { error: attachError } = await client.POST(
+          "/api/kitchens/{kitchenId}/purchases/{purchaseId}/receipt",
+          {
+            params: { path: { kitchenId, purchaseId: purchase.id } },
+            body: { mediaAssetId: asset.id },
+          },
+        );
+        if (attachError) {
+          throw new Error(
+            readApiError(
+              attachError,
+              "Zakupy rozliczone, ale nie udało się dodać zdjęcia paragonu.",
+            ),
+          );
+        }
+      }
+      return purchase;
+    },
     onSuccess: () => {
       setCheckoutOpen(false);
       invalidate();

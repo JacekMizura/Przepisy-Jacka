@@ -9,6 +9,7 @@ import {
   ProductUnit,
   ShoppingInputUnit,
   ShoppingListItemStatus,
+  type MediaAsset,
   type Product,
   type ProductPurchaseOption,
   type Purchase,
@@ -24,6 +25,7 @@ import {
   parseQuantityString,
 } from '../common/quantity';
 import { requireKitchenMember } from '../kitchens/kitchen-access';
+import { MediaService } from '../media/media.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { PRODUCT_PURCHASE_CONFIG_REQUIRED_MESSAGE } from '../stock/purchase-mode.messages';
 import {
@@ -31,6 +33,7 @@ import {
   CheckoutPurchaseLineDto,
   PurchaseDetailDto,
   PurchaseLineItemDto,
+  PurchasePreviewProductDto,
   PurchaseSummaryDto,
 } from './dto/purchase.dto';
 import {
@@ -42,13 +45,26 @@ import {
 import { PurchaseOptionSummaryDto } from '../stock/dto/purchase-option.dto';
 import { productUnitToShoppingInputUnit } from './purchase-proposal';
 
+const shoppingItemInclude = {
+  product: { include: { imageMedia: true } },
+  purchaseOption: true,
+} as const;
+
+const purchaseLineInclude = {
+  product: { include: { imageMedia: true } },
+} as const;
+
+type ProductWithImageMedia = Product & {
+  imageMedia?: MediaAsset | null;
+};
+
 type ShoppingListItemWithProduct = ShoppingListItem & {
-  product: Product | null;
+  product: ProductWithImageMedia | null;
   purchaseOption?: ProductPurchaseOption | null;
 };
 
 type PurchaseLineWithRelations = PurchaseLineItem & {
-  product: Product;
+  product: ProductWithImageMedia;
 };
 
 type PurchaseWithLines = Purchase & {
@@ -75,7 +91,10 @@ const PRODUCT_UNIT_BASE: Record<ProductUnit, 'piece' | 'gram' | 'milliliter'> =
 
 @Injectable()
 export class ShoppingService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mediaService: MediaService,
+  ) {}
 
   async listShoppingListItems(
     userId: string,
@@ -87,10 +106,10 @@ export class ShoppingService {
         shoppingList: { kitchenId },
         resolvedAt: null,
       },
-      include: { product: true, purchaseOption: true },
+      include: shoppingItemInclude,
       orderBy: [{ status: 'asc' }, { id: 'asc' }],
     });
-    return items.map(toShoppingListItemDto);
+    return Promise.all(items.map((item) => this.toShoppingListItemDto(item)));
   }
 
   async createShoppingListItem(
@@ -222,7 +241,7 @@ export class ShoppingService {
         requiredQuantity,
         purchaseOption,
       );
-      return toShoppingListItemDto(item);
+      return this.toShoppingListItemDto(item);
     }
 
     const created = await tx.shoppingListItem.create({
@@ -234,10 +253,10 @@ export class ShoppingService {
         purchaseOptionId: null,
         packageCount: null,
       }),
-      include: { product: true, purchaseOption: true },
+      include: shoppingItemInclude,
     });
     await touchShoppingListUpdatedAt(tx, shoppingList.id);
-    return toShoppingListItemDto(created);
+    return this.toShoppingListItemDto(created);
   }
 
   async updateShoppingListItem(
@@ -343,9 +362,9 @@ export class ShoppingService {
         note:
           dto.note === undefined ? undefined : normalizeOptionalNote(dto.note),
       },
-      include: { product: true, purchaseOption: true },
+      include: shoppingItemInclude,
     });
-    return toShoppingListItemDto(item);
+    return this.toShoppingListItemDto(item);
   }
 
   async updateShoppingListItemStatus(
@@ -361,9 +380,9 @@ export class ShoppingService {
     const item = await this.prisma.shoppingListItem.update({
       where: { id: existing.id },
       data: { status },
-      include: { product: true, purchaseOption: true },
+      include: shoppingItemInclude,
     });
-    return toShoppingListItemDto(item);
+    return this.toShoppingListItemDto(item);
   }
 
   async deleteShoppingListItem(
@@ -387,14 +406,14 @@ export class ShoppingService {
     const existing = await this.prisma.purchase.findUnique({
       where: { idempotencyKey: dto.idempotencyKey },
       include: {
-        items: { include: { product: true } },
+        items: { include: purchaseLineInclude },
       },
     });
     if (existing) {
       if (existing.kitchenId !== kitchenId) {
         throw new ConflictException('Klucz idempotencji jest już użyty.');
       }
-      return toPurchaseDetailDto(existing);
+      return this.toPurchaseDetailDto(existing);
     }
 
     const currency = (dto.currency ?? 'PLN').trim().toUpperCase();
@@ -421,7 +440,7 @@ export class ShoppingService {
           shoppingListId: shoppingList.id,
           id: { in: dto.lines.map((line) => line.shoppingListItemId) },
         },
-        include: { product: true, purchaseOption: true },
+        include: shoppingItemInclude,
       });
       const listItemById = new Map(listItems.map((item) => [item.id, item]));
 
@@ -430,7 +449,7 @@ export class ShoppingService {
       const lineCreates: Array<{
         line: CheckoutPurchaseLineDto;
         listItem: ShoppingListItemWithProduct;
-        product: Product;
+        product: ProductWithImageMedia;
         stockQuantity: Prisma.Decimal;
         displayName: string | null;
       }> = [];
@@ -524,7 +543,7 @@ export class ShoppingService {
               : null,
             displayName: entry.displayName,
           },
-          include: { product: true },
+          include: purchaseLineInclude,
         });
         createdLines.push(purchaseLine);
 
@@ -540,7 +559,7 @@ export class ShoppingService {
       };
     });
 
-    return toPurchaseDetailDto(purchase);
+    return this.toPurchaseDetailDto(purchase);
   }
 
   async listPurchases(
@@ -550,17 +569,19 @@ export class ShoppingService {
     await requireKitchenMember(this.prisma, kitchenId, userId);
     const purchases = await this.prisma.purchase.findMany({
       where: { kitchenId },
-      include: { _count: { select: { items: true } } },
+      include: {
+        _count: { select: { items: true } },
+        items: {
+          include: purchaseLineInclude,
+          orderBy: { id: 'asc' },
+          take: 4,
+        },
+      },
       orderBy: [{ purchasedAt: 'desc' }, { createdAt: 'desc' }],
     });
-    return purchases.map((purchase) => ({
-      id: purchase.id,
-      purchasedAt: purchase.purchasedAt.toISOString(),
-      storeName: purchase.storeName,
-      itemCount: purchase._count.items,
-      totalPriceMinor: purchase.totalPriceMinor,
-      currency: purchase.currency,
-    }));
+    return Promise.all(
+      purchases.map((purchase) => this.toPurchaseSummaryDto(purchase)),
+    );
   }
 
   async getPurchase(
@@ -572,13 +593,13 @@ export class ShoppingService {
     const purchase = await this.prisma.purchase.findFirst({
       where: { id: purchaseId, kitchenId },
       include: {
-        items: { include: { product: true } },
+        items: { include: purchaseLineInclude },
       },
     });
     if (!purchase) {
       throw new BadRequestException('Nie znaleziono zakupu.');
     }
-    return toPurchaseDetailDto(purchase);
+    return this.toPurchaseDetailDto(purchase);
   }
 
   private async findActiveShoppingListItem(
@@ -591,12 +612,144 @@ export class ShoppingService {
         shoppingList: { kitchenId },
         resolvedAt: null,
       },
-      include: { product: true, purchaseOption: true },
+      include: shoppingItemInclude,
     });
     if (!item) {
       throw new BadRequestException('Nie znaleziono pozycji listy zakupów.');
     }
     return item;
+  }
+
+  private async toShoppingListItemProductDto(
+    product: ProductWithImageMedia,
+  ): Promise<ShoppingListItemProductDto> {
+    return {
+      id: product.id,
+      name: product.name,
+      defaultUnit: product.defaultUnit,
+      purchaseMode: product.purchaseMode,
+      ean: product.ean,
+      imageUrl: product.imageUrl,
+      image: await this.mediaService.buildImageSummary(
+        product.imageMedia ?? null,
+      ),
+      category: product.category,
+    };
+  }
+
+  private async toShoppingListItemDto(
+    item: ShoppingListItemWithProduct,
+  ): Promise<ShoppingListItemDto> {
+    return {
+      id: item.id,
+      shoppingListId: item.shoppingListId,
+      productId: item.productId,
+      customName: item.customName,
+      plannedQuantity:
+        item.plannedQuantity !== null
+          ? formatQuantity(item.plannedQuantity)
+          : null,
+      plannedUnit: item.plannedUnit,
+      requiredQuantity:
+        item.requiredQuantity !== null
+          ? formatQuantity(item.requiredQuantity)
+          : null,
+      requiredUnit: item.requiredUnit,
+      sourceRecipeId: item.sourceRecipeId,
+      sourceRecipeName: item.sourceRecipeName,
+      purchaseOptionId: item.purchaseOptionId,
+      packageCount: item.packageCount,
+      purchaseOption: item.purchaseOption
+        ? toPurchaseOptionSummaryDto(item.purchaseOption)
+        : null,
+      note: item.note,
+      status: item.status,
+      resolvedAt: item.resolvedAt?.toISOString() ?? null,
+      product: item.product
+        ? await this.toShoppingListItemProductDto(item.product)
+        : null,
+    };
+  }
+
+  private async toPurchaseLineItemDto(
+    line: PurchaseLineWithRelations,
+  ): Promise<PurchaseLineItemDto> {
+    return {
+      id: line.id,
+      productId: line.productId,
+      productName: line.product.name,
+      stockItemId: line.stockItemId,
+      shoppingListItemId: line.shoppingListItemId,
+      quantity: formatQuantity(line.quantity),
+      priceMinor: line.priceMinor,
+      location: line.location,
+      expiresAt: line.expiresAt?.toISOString() ?? null,
+      displayName: line.displayName,
+      imageUrl: line.product.imageUrl,
+      image: await this.mediaService.buildImageSummary(
+        line.product.imageMedia ?? null,
+      ),
+    };
+  }
+
+  private async toPurchaseDetailDto(
+    purchase: PurchaseWithLines,
+  ): Promise<PurchaseDetailDto> {
+    return {
+      id: purchase.id,
+      purchasedAt: purchase.purchasedAt.toISOString(),
+      storeName: purchase.storeName,
+      itemCount: purchase.items.length,
+      totalPriceMinor: purchase.totalPriceMinor,
+      currency: purchase.currency,
+      createdAt: purchase.createdAt.toISOString(),
+      lines: await Promise.all(
+        purchase.items.map((line) => this.toPurchaseLineItemDto(line)),
+      ),
+      previewProducts: await this.toPreviewProducts(purchase.items),
+    };
+  }
+
+  private async toPurchaseSummaryDto(
+    purchase: Purchase & {
+      items: PurchaseLineWithRelations[];
+      _count: { items: number };
+    },
+  ): Promise<PurchaseSummaryDto> {
+    return {
+      id: purchase.id,
+      purchasedAt: purchase.purchasedAt.toISOString(),
+      storeName: purchase.storeName,
+      itemCount: purchase._count.items,
+      totalPriceMinor: purchase.totalPriceMinor,
+      currency: purchase.currency,
+      previewProducts: await this.toPreviewProducts(purchase.items),
+    };
+  }
+
+  private async toPreviewProducts(
+    lines: PurchaseLineWithRelations[],
+  ): Promise<PurchasePreviewProductDto[]> {
+    const seen = new Set<string>();
+    const preview: PurchasePreviewProductDto[] = [];
+    for (const line of lines) {
+      if (seen.has(line.productId)) {
+        continue;
+      }
+      seen.add(line.productId);
+      preview.push({
+        productId: line.productId,
+        name: line.displayName ?? line.product.name,
+        imageUrl: line.product.imageUrl,
+        image: await this.mediaService.buildImageSummary(
+          line.product.imageMedia ?? null,
+        ),
+      });
+      if (preview.length >= 4) {
+        break;
+      }
+    }
+    return preview;
   }
 }
 
@@ -666,7 +819,7 @@ async function findPendingProductItemForUpdate(
   }
   return tx.shoppingListItem.findUnique({
     where: { id: row.id },
-    include: { product: true, purchaseOption: true },
+    include: shoppingItemInclude,
   });
 }
 
@@ -761,7 +914,7 @@ async function mergePendingProductItem(
       note:
         dto.note !== undefined ? normalizeOptionalNote(dto.note) : undefined,
     },
-    include: { product: true, purchaseOption: true },
+    include: shoppingItemInclude,
   });
   await touchShoppingListUpdatedAt(tx, shoppingList.id);
   return updated;
@@ -784,7 +937,7 @@ async function createProductListItem(
       purchaseOptionId: purchaseOption?.id ?? dto.purchaseOptionId ?? null,
       packageCount: dto.packageCount ?? null,
     }),
-    include: { product: true, purchaseOption: true },
+    include: shoppingItemInclude,
   });
   await touchShoppingListUpdatedAt(tx, shoppingList.id);
   return created;
@@ -1125,20 +1278,6 @@ async function resolveCheckoutProduct(
   }
 }
 
-function toShoppingListItemProductDto(
-  product: Product,
-): ShoppingListItemProductDto {
-  return {
-    id: product.id,
-    name: product.name,
-    defaultUnit: product.defaultUnit,
-    purchaseMode: product.purchaseMode,
-    ean: product.ean,
-    imageUrl: product.imageUrl,
-    category: product.category,
-  };
-}
-
 function toPurchaseOptionSummaryDto(
   option: ProductPurchaseOption,
 ): PurchaseOptionSummaryDto {
@@ -1147,67 +1286,5 @@ function toPurchaseOptionSummaryDto(
     name: option.name,
     contentQuantity: formatQuantity(option.contentQuantity),
     contentUnit: option.contentUnit,
-  };
-}
-
-function toShoppingListItemDto(
-  item: ShoppingListItemWithProduct,
-): ShoppingListItemDto {
-  return {
-    id: item.id,
-    shoppingListId: item.shoppingListId,
-    productId: item.productId,
-    customName: item.customName,
-    plannedQuantity:
-      item.plannedQuantity !== null
-        ? formatQuantity(item.plannedQuantity)
-        : null,
-    plannedUnit: item.plannedUnit,
-    requiredQuantity:
-      item.requiredQuantity !== null
-        ? formatQuantity(item.requiredQuantity)
-        : null,
-    requiredUnit: item.requiredUnit,
-    sourceRecipeId: item.sourceRecipeId,
-    sourceRecipeName: item.sourceRecipeName,
-    purchaseOptionId: item.purchaseOptionId,
-    packageCount: item.packageCount,
-    purchaseOption: item.purchaseOption
-      ? toPurchaseOptionSummaryDto(item.purchaseOption)
-      : null,
-    note: item.note,
-    status: item.status,
-    resolvedAt: item.resolvedAt?.toISOString() ?? null,
-    product: item.product ? toShoppingListItemProductDto(item.product) : null,
-  };
-}
-
-function toPurchaseLineItemDto(
-  line: PurchaseLineWithRelations,
-): PurchaseLineItemDto {
-  return {
-    id: line.id,
-    productId: line.productId,
-    productName: line.product.name,
-    stockItemId: line.stockItemId,
-    shoppingListItemId: line.shoppingListItemId,
-    quantity: formatQuantity(line.quantity),
-    priceMinor: line.priceMinor,
-    location: line.location,
-    expiresAt: line.expiresAt?.toISOString() ?? null,
-    displayName: line.displayName,
-  };
-}
-
-function toPurchaseDetailDto(purchase: PurchaseWithLines): PurchaseDetailDto {
-  return {
-    id: purchase.id,
-    purchasedAt: purchase.purchasedAt.toISOString(),
-    storeName: purchase.storeName,
-    itemCount: purchase.items.length,
-    totalPriceMinor: purchase.totalPriceMinor,
-    currency: purchase.currency,
-    createdAt: purchase.createdAt.toISOString(),
-    lines: purchase.items.map(toPurchaseLineItemDto),
   };
 }

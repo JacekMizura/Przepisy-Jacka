@@ -17,6 +17,7 @@ import {
   ShoppingInputUnit,
   ShoppingListItemStatus,
 } from '../../generated/prisma/client';
+import { MediaImageDto } from '../../media/dto/media.dto';
 import { isPresentOptional } from '../../stock/dto/product.dto';
 import { PurchaseOptionSummaryDto } from '../../stock/dto/purchase-option.dto';
 
@@ -162,6 +163,9 @@ export class ShoppingListItemProductDto {
 
   @ApiProperty({ type: String, nullable: true })
   imageUrl!: string | null;
+
+  @ApiProperty({ type: MediaImageDto, nullable: true })
+  image!: MediaImageDto | null;
 
   @ApiProperty({ type: String, nullable: true })
   category!: string | null;

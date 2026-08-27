@@ -3376,6 +3376,15 @@
             "type": "string",
             "nullable": true
           },
+          "image": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaImageDto"
+              }
+            ]
+          },
           "category": {
             "type": "string",
             "nullable": true
@@ -3388,6 +3397,7 @@
           "purchaseMode",
           "ean",
           "imageUrl",
+          "image",
           "category"
         ]
       },
@@ -3770,6 +3780,36 @@
           "lines"
         ]
       },
+      "PurchasePreviewProductDto": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "image": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaImageDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "productId",
+          "name",
+          "imageUrl",
+          "image"
+        ]
+      },
       "PurchaseLineItemDto": {
         "type": "object",
         "properties": {
@@ -3815,6 +3855,19 @@
           "displayName": {
             "type": "string",
             "nullable": true
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "image": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaImageDto"
+              }
+            ]
           }
         },
         "required": [
@@ -3827,7 +3880,9 @@
           "priceMinor",
           "location",
           "expiresAt",
-          "displayName"
+          "displayName",
+          "imageUrl",
+          "image"
         ]
       },
       "PurchaseDetailDto": {
@@ -3855,6 +3910,12 @@
             "type": "string",
             "example": "PLN"
           },
+          "previewProducts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PurchasePreviewProductDto"
+            }
+          },
           "lines": {
             "type": "array",
             "items": {
@@ -3873,6 +3934,7 @@
           "itemCount",
           "totalPriceMinor",
           "currency",
+          "previewProducts",
           "lines",
           "createdAt"
         ]
@@ -3901,6 +3963,12 @@
           "currency": {
             "type": "string",
             "example": "PLN"
+          },
+          "previewProducts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PurchasePreviewProductDto"
+            }
           }
         },
         "required": [
@@ -3909,7 +3977,8 @@
           "storeName",
           "itemCount",
           "totalPriceMinor",
-          "currency"
+          "currency",
+          "previewProducts"
         ]
       },
       "RecipeAuthorDto": {

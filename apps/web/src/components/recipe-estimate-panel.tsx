@@ -48,30 +48,30 @@ export function RecipeEstimatePanel({
   const estimate: RecipeEstimate | undefined = estimateQuery.data;
 
   return (
-    <section className="mb-8 overflow-hidden rounded-2xl border border-gray-200/80 bg-white">
-      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-gray-100 px-4 py-3 sm:px-5">
-        <h2 className="text-base font-semibold text-gray-900 sm:text-lg">
+    <section className="mb-10 border-b border-stone-200/80 pb-8">
+      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="font-serif text-2xl tracking-tight text-stone-900">
           Koszt i wartości odżywcze
         </h2>
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-stone-500">
           {formatServings(servings)} ·{" "}
           {estimate?.cost.note ?? "Szacunkowo na podstawie ostatnich zakupów"}
         </p>
       </div>
 
       {estimateQuery.isPending ? (
-        <p className="px-4 py-4 text-sm text-gray-500 sm:px-5">Liczenie…</p>
+        <p className="py-3 text-sm text-stone-500">Liczenie…</p>
       ) : null}
 
       {estimateQuery.isError ? (
-        <p className="px-4 py-4 text-sm text-red-600 sm:px-5" role="alert">
+        <p className="py-3 text-sm text-red-600" role="alert">
           {readApiError(estimateQuery.error)}
         </p>
       ) : null}
 
       {estimate ? (
-        <div className="space-y-4 px-4 py-4 sm:px-5">
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
             <EstimateStat
               label="Koszt przepisu"
               value={
@@ -112,7 +112,7 @@ export function RecipeEstimatePanel({
             />
           </div>
 
-          <div className="space-y-1 text-xs leading-snug text-gray-500">
+          <div className="space-y-1 text-xs leading-snug text-stone-500">
             <Completeness
               title="Koszt"
               counted={estimate.cost.countedIngredients}
@@ -135,15 +135,15 @@ export function RecipeEstimatePanel({
 function EstimateStat({ label, value }: { label: string; value: string }) {
   const isMissing = value === MISSING;
   return (
-    <div className="rounded-xl border border-gray-100 bg-gray-50/60 px-3 py-2.5">
-      <p className="text-[11px] tracking-wide text-gray-500 uppercase">
+    <div>
+      <p className="text-[11px] font-medium tracking-[0.14em] text-stone-500 uppercase">
         {label}
       </p>
       <p
         className={
           isMissing
-            ? "mt-0.5 text-sm font-medium text-gray-400"
-            : "mt-0.5 text-sm font-semibold text-gray-900"
+            ? "mt-1.5 text-base font-medium text-stone-400"
+            : "mt-1.5 text-base font-semibold text-stone-900"
         }
       >
         {value}
@@ -165,7 +165,7 @@ function Completeness({
 }) {
   return (
     <p>
-      <span className="font-medium text-gray-600">{title}:</span> wyliczono dla{" "}
+      <span className="font-medium text-stone-600">{title}:</span> wyliczono dla{" "}
       {counted} z {total} składników
       {missingNames.length > 0
         ? `. Brak danych dla: ${missingNames.join(", ")}`

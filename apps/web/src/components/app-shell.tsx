@@ -176,7 +176,7 @@ export function AppShell({
     <div className="flex min-h-screen overflow-x-hidden bg-[#F9FAFB] font-sans selection:bg-emerald-100 selection:text-emerald-900">
       {/* Desktop sidebar — always in layout from md */}
       <aside
-        className="fixed inset-y-0 left-0 z-30 hidden w-72 flex-col border-r border-gray-100 bg-white md:flex"
+        className="app-shell-chrome fixed inset-y-0 left-0 z-30 hidden w-72 flex-col border-r border-gray-100 bg-white md:flex"
         aria-label="Nawigacja"
       >
         <SidebarContent
@@ -217,11 +217,11 @@ export function AppShell({
           <button
             type="button"
             aria-label="Zamknij menu"
-            className="fixed inset-0 z-40 bg-gray-900/30 backdrop-blur-[2px] md:hidden"
+            className="app-shell-chrome fixed inset-0 z-40 bg-gray-900/30 backdrop-blur-[2px] md:hidden"
             onClick={closeSidebar}
           />
           <aside
-            className="fixed inset-y-0 left-0 z-50 flex w-[min(18rem,100vw)] max-w-full flex-col border-r border-gray-100 bg-white shadow-xl md:hidden"
+            className="app-shell-chrome fixed inset-y-0 left-0 z-50 flex w-[min(18rem,100vw)] max-w-full flex-col border-r border-gray-100 bg-white shadow-xl md:hidden"
             aria-label="Menu mobilne"
           >
             <SidebarContent
@@ -258,9 +258,9 @@ export function AppShell({
         </>
       ) : null}
 
-      <main className="min-w-0 flex-1 overflow-x-hidden md:ml-72">
-        <div className="w-full px-4 py-4 md:px-8 md:py-8 lg:px-10 lg:py-10">
-          <header className="mb-6 flex w-full items-center justify-between md:hidden">
+      <main className="app-shell-main min-w-0 flex-1 overflow-x-hidden md:ml-72">
+        <div className="app-shell-main-inner w-full px-4 py-4 md:px-8 md:py-8 lg:px-10 lg:py-10">
+          <header className="app-shell-chrome mb-6 flex w-full items-center justify-between md:hidden">
             <div className="flex min-w-0 items-center gap-2 text-emerald-700">
               <ChefHat size={24} strokeWidth={2.5} className="shrink-0" />
               <span className="truncate text-xl font-bold tracking-tight">
@@ -276,7 +276,7 @@ export function AppShell({
               <Menu size={24} />
             </button>
           </header>
-          <div className="w-full max-w-[1360px]">{children}</div>
+          <div className="app-shell-content w-full max-w-[1360px]">{children}</div>
         </div>
       </main>
     </div>

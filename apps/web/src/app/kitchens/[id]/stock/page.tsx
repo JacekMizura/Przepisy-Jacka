@@ -120,6 +120,10 @@ export default function StockPage() {
     name: string;
     hasStock: boolean;
   } | null>(null);
+  const [batchToDelete, setBatchToDelete] = useState<{
+    id: string;
+    label: string;
+  } | null>(null);
   const [consumeProduct, setConsumeProduct] = useState<StockSummary | null>(
     null,
   );
@@ -492,6 +496,7 @@ export default function StockPage() {
       await queryClient.invalidateQueries({
         queryKey: ["stock-summary", kitchenId],
       });
+      setBatchToDelete(null);
     },
   });
 
@@ -1330,7 +1335,38 @@ export default function StockPage() {
                                       ) : null}
                                     </div>
                                     <div className="flex flex-wrap gap-2">
-                                      {batch.isExpired ? (
+                                      {!batch.canDelete ? (
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => {
+                                            setConsumePreferManual(true);
+                                            setConsumeInitialBatchId(batch.id);
+                                            setConsumeProduct(summary);
+                                          }}
+                                        >
+                                          Odpisz
+                                        </Button>
+                                      ) : (
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="destructive"
+                                          onClick={() =>
+                                            setBatchToDelete({
+                                              id: batch.id,
+                                              label: `${summary.productName} (${formatQuantityWithUnit(
+                                                batch.quantity,
+                                                summary.defaultUnit,
+                                              )})`,
+                                            })
+                                          }
+                                        >
+                                          Usuń partię
+                                        </Button>
+                                      )}
+                                      {batch.isExpired && batch.canDelete ? (
                                         <Button
                                           type="button"
                                           size="sm"
@@ -1344,17 +1380,12 @@ export default function StockPage() {
                                           Odpisz
                                         </Button>
                                       ) : null}
-                                      <Button
-                                        type="button"
-                                        size="sm"
-                                        variant="destructive"
-                                        onClick={() =>
-                                          deleteStock.mutate(batch.id)
-                                        }
-                                      >
-                                        Usuń partię
-                                      </Button>
                                     </div>
+                                    {batch.deleteBlockReason ? (
+                                      <p className="mt-2 text-xs text-gray-500">
+                                        {batch.deleteBlockReason}
+                                      </p>
+                                    ) : null}
                                   </div>
                                 </li>
                               ))}
@@ -1701,6 +1732,17 @@ export default function StockPage() {
               mergeQuantity: true,
             })
           }
+        />
+      ) : null}
+
+      {batchToDelete ? (
+        <ConfirmDialog
+          title="Usunąć partię?"
+          description={`Fizycznie usuniesz „${batchToDelete.label}”. To dozwolone tylko dla ręcznie dodanej partii bez zakupu i bez historii zużycia.`}
+          confirmLabel="Usuń partię"
+          pending={deleteStock.isPending}
+          onCancel={() => setBatchToDelete(null)}
+          onConfirm={() => deleteStock.mutate(batchToDelete.id)}
         />
       ) : null}
 

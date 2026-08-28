@@ -3943,6 +3943,15 @@
           "isExpired": {
             "type": "boolean"
           },
+          "canDelete": {
+            "type": "boolean",
+            "description": "Czy fizyczne usunięcie jest dozwolone (tylko ręczna, niepowiązana, nigdy nieużyta partia)."
+          },
+          "deleteBlockReason": {
+            "type": "string",
+            "nullable": true,
+            "description": "Powód blokady usunięcia; null gdy canDelete=true."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -3955,6 +3964,7 @@
           "location",
           "currency",
           "isExpired",
+          "canDelete",
           "createdAt"
         ]
       },

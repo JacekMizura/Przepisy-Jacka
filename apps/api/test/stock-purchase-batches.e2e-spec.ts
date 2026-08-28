@@ -20,6 +20,8 @@ type StockSummary = {
     purchasePriceMinor: number | null;
     storeName: string | null;
     purchaseId: string | null;
+    canDelete?: boolean;
+    deleteBlockReason?: string | null;
   }>;
 };
 
@@ -41,6 +43,7 @@ type ConsumptionResult = {
   totalQuantity: string;
   totalCostMinor: number | null;
   costComplete: boolean;
+  isReversal?: boolean;
   lines: Array<{
     stockItemId: string;
     quantity: string;
@@ -678,5 +681,234 @@ describe('Stock purchase batches and consumption (e2e)', () => {
       totalCost += (commit.body as ConsumptionResult).totalCostMinor ?? 0;
     }
     expect(totalCost).toBe(100);
+  });
+
+  it('allows deleting unused manual batch and blocks linked or used batches', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+    const outsider = await signUpUser(api.origin, WEB_ORIGIN);
+    const { kitchen, product } = await createKitchenWithTomatoes(owner.cookies);
+
+    const manual = await createBatch(kitchen.id, owner.cookies, {
+      productId: product.id,
+      quantity: '50.000',
+      purchasePriceMinor: 50,
+    });
+
+    const summaryBefore = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/stock-summary`,
+      { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
+    );
+    const manualDetail = (
+      summaryBefore.body as StockSummary[]
+    )[0]?.batches.find((b) => b.id === manual.id) as {
+      canDelete?: boolean;
+      deleteBlockReason?: string | null;
+    };
+    expect(manualDetail?.canDelete).toBe(true);
+    expect(manualDetail?.deleteBlockReason ?? null).toBeNull();
+
+    const deleted = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/stock-items/${manual.id}`,
+      {
+        method: 'DELETE',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+      },
+    );
+    expect(deleted.status).toBe(200);
+
+    const used = await createBatch(kitchen.id, owner.cookies, {
+      productId: product.id,
+      quantity: '80.000',
+      purchasePriceMinor: 80,
+    });
+    const preview = (
+      await apiFetch(
+        api.origin,
+        `/api/kitchens/${kitchen.id}/products/${product.id}/consume/preview`,
+        {
+          method: 'POST',
+          webOrigin: WEB_ORIGIN,
+          cookies: owner.cookies,
+          body: { quantity: '10.000' },
+        },
+      )
+    ).body as ConsumePreview;
+    await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/products/${product.id}/consume`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          quantity: '10.000',
+          idempotencyKey: `del-used-${crypto.randomUUID()}`,
+          previewFingerprint: preview.previewFingerprint,
+        },
+      },
+    );
+
+    const blockedUsed = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/stock-items/${used.id}`,
+      {
+        method: 'DELETE',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+      },
+    );
+    expect(blockedUsed.status).toBe(409);
+
+    const history = (
+      await apiFetch(
+        api.origin,
+        `/api/kitchens/${kitchen.id}/stock-consumptions?productId=${product.id}`,
+        { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
+      )
+    ).body as ConsumptionResult[];
+    const toReverse = history.find((h) => !h.isReversal);
+    expect(toReverse).toBeTruthy();
+    await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/stock-consumptions/${toReverse!.id}/reverse`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { idempotencyKey: `del-rev-${crypto.randomUUID()}` },
+      },
+    );
+
+    const blockedAfterReverse = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/stock-items/${used.id}`,
+      {
+        method: 'DELETE',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+      },
+    );
+    expect(blockedAfterReverse.status).toBe(409);
+
+    await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/products/${product.id}`,
+      {
+        method: 'PATCH',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { purchaseMode: 'exact' },
+      },
+    );
+    const listItem = (
+      await apiFetch(
+        api.origin,
+        `/api/kitchens/${kitchen.id}/shopping-list/items`,
+        {
+          method: 'POST',
+          webOrigin: WEB_ORIGIN,
+          cookies: owner.cookies,
+          body: {
+            productId: product.id,
+            plannedQuantity: '25.000',
+            plannedUnit: 'gram',
+          },
+        },
+      )
+    ).body as { id: string };
+    await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/shopping-list/items/${listItem.id}/status`,
+      {
+        method: 'PATCH',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { status: 'bought' },
+      },
+    );
+    const checkout = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/purchases/checkout`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          idempotencyKey: `del-checkout-${crypto.randomUUID()}`,
+          storeName: 'Lidl',
+          currency: 'PLN',
+          lines: [
+            {
+              shoppingListItemId: listItem.id,
+              quantity: '25.000',
+              inputUnit: 'gram',
+              location: 'fridge',
+              priceMinor: 250,
+              productId: product.id,
+            },
+          ],
+        },
+      },
+    );
+    expect(checkout.status).toBe(201);
+    const purchaseBatchId = (
+      checkout.body as { lines: Array<{ stockItemId: string | null }> }
+    ).lines[0]?.stockItemId;
+    expect(purchaseBatchId).toBeTruthy();
+
+    const blockedPurchase = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/stock-items/${purchaseBatchId}`,
+      {
+        method: 'DELETE',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+      },
+    );
+    expect(blockedPurchase.status).toBe(409);
+
+    const summaryAfter = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/stock-summary`,
+      { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
+    );
+    const purchaseBatch = (
+      summaryAfter.body as StockSummary[]
+    )[0]?.batches.find((b) => b.id === purchaseBatchId) as {
+      canDelete?: boolean;
+    };
+    expect(purchaseBatch?.canDelete).toBe(false);
+
+    const foreignKitchen = await apiFetch(api.origin, '/api/kitchens', {
+      method: 'POST',
+      webOrigin: WEB_ORIGIN,
+      cookies: outsider.cookies,
+      body: { name: 'Obca' },
+    });
+    const otherKitchenId = (foreignKitchen.body as { id: string }).id;
+    const crossKitchen = await apiFetch(
+      api.origin,
+      `/api/kitchens/${otherKitchenId}/stock-items/${used.id}`,
+      {
+        method: 'DELETE',
+        webOrigin: WEB_ORIGIN,
+        cookies: outsider.cookies,
+      },
+    );
+    expect([400, 404]).toContain(crossKitchen.status);
+
+    const foreignOwner = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/stock-items/${used.id}`,
+      {
+        method: 'DELETE',
+        webOrigin: WEB_ORIGIN,
+        cookies: outsider.cookies,
+      },
+    );
+    expect(foreignOwner.status).toBe(404);
   });
 });

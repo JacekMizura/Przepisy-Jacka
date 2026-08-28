@@ -42,6 +42,19 @@ export class StockBatchDetailDto {
   @ApiProperty()
   isExpired!: boolean;
 
+  @ApiProperty({
+    description:
+      'Czy fizyczne usunięcie jest dozwolone (tylko ręczna, niepowiązana, nigdy nieużyta partia).',
+  })
+  canDelete!: boolean;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'Powód blokady usunięcia; null gdy canDelete=true.',
+  })
+  deleteBlockReason!: string | null;
+
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;
 }

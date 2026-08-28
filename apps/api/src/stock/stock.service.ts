@@ -58,6 +58,7 @@ import {
 } from './dto/stock-summary.dto';
 import {
   allocateConsumption,
+  stockItemDeleteBlockReason,
   unitPriceMinor,
   type StockBatchRow,
 } from './stock-consume';
@@ -73,6 +74,9 @@ const stockBatchInclude = {
         },
       },
     },
+  },
+  _count: {
+    select: { consumptionLines: true },
   },
 } satisfies Prisma.StockItemInclude;
 
@@ -1030,9 +1034,20 @@ export class StockService {
     await requireKitchenMember(this.prisma, kitchenId, userId);
     const existing = await this.prisma.stockItem.findFirst({
       where: { id: stockItemId, product: { kitchenId } },
+      include: {
+        purchaseLineItem: { select: { id: true } },
+        _count: { select: { consumptionLines: true } },
+      },
     });
     if (!existing) {
       throw new BadRequestException('Nie znaleziono partii.');
+    }
+    const block = stockItemDeleteBlockReason({
+      hasPurchaseLink: existing.purchaseLineItem !== null,
+      consumptionLineCount: existing._count.consumptionLines,
+    });
+    if (block) {
+      throw new ConflictException(block);
     }
     await this.prisma.stockItem.delete({ where: { id: existing.id } });
   }
@@ -1285,6 +1300,10 @@ function toStockBatchDetailDto(
   item: StockItemWithPurchase,
   now: Date,
 ): StockBatchDetailDto {
+  const deleteBlockReason = stockItemDeleteBlockReason({
+    hasPurchaseLink: item.purchaseLineItem !== null,
+    consumptionLineCount: item._count.consumptionLines,
+  });
   return {
     id: item.id,
     quantity: formatQuantity(item.quantity),
@@ -1302,6 +1321,8 @@ function toStockBatchDetailDto(
     purchaseId: item.purchaseLineItem?.purchase.id ?? null,
     receiptMediaId: item.purchaseLineItem?.purchase.receiptMediaId ?? null,
     isExpired: item.expiresAt !== null && item.expiresAt <= now,
+    canDelete: deleteBlockReason === null,
+    deleteBlockReason,
     createdAt: item.createdAt.toISOString(),
   };
 }

@@ -4,6 +4,7 @@ import {
   allocateConsumption,
   batchLineCostMinor,
   sortBatchesForConsumption,
+  stockItemDeleteBlockReason,
   type StockBatchRow,
 } from './stock-consume';
 
@@ -203,5 +204,26 @@ describe('stock-consume', () => {
       { stockItemId: 'b', quantity: new Prisma.Decimal('50') },
     ]);
     expect(auto.fingerprint).not.toBe(manual.fingerprint);
+  });
+
+  it('blokuje fizyczne usunięcie partii z zakupem lub historią zużycia', () => {
+    expect(
+      stockItemDeleteBlockReason({
+        hasPurchaseLink: true,
+        consumptionLineCount: 0,
+      }),
+    ).toMatch(/zakupu/);
+    expect(
+      stockItemDeleteBlockReason({
+        hasPurchaseLink: false,
+        consumptionLineCount: 1,
+      }),
+    ).toMatch(/histor/);
+    expect(
+      stockItemDeleteBlockReason({
+        hasPurchaseLink: false,
+        consumptionLineCount: 0,
+      }),
+    ).toBeNull();
   });
 });

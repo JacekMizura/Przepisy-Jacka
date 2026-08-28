@@ -438,7 +438,7 @@ model PurchaseLineItem {
   displayName         String?
   purchase            Purchase        @relation(fields: [purchaseId], references: [id], onDelete: Cascade)
   product             Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
-  stockItem           StockItem?      @relation(fields: [stockItemId], references: [id], onDelete: SetNull)
+  stockItem           StockItem?      @relation(fields: [stockItemId], references: [id], onDelete: Restrict)
   shoppingListItem    ShoppingListItem? @relation(fields: [shoppingListItemId], references: [id], onDelete: SetNull)
 }
 

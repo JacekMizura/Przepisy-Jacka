@@ -248,3 +248,17 @@ export function unitPriceMinor(
   const raw = new Prisma.Decimal(purchasePriceMinor).div(initialQuantity);
   return raw.toDecimalPlaces(0, Prisma.Decimal.ROUND_HALF_UP).toNumber();
 }
+
+/** Powód blokady fizycznego usunięcia partii; null = wolno usunąć. */
+export function stockItemDeleteBlockReason(input: {
+  hasPurchaseLink: boolean;
+  consumptionLineCount: number;
+}): string | null {
+  if (input.hasPurchaseLink) {
+    return 'Partia pochodzi z zakupu lub paragonu — nie można jej usunąć. Użyj „Odpisz”, aby wyzerować zapas z zapisem w historii.';
+  }
+  if (input.consumptionLineCount > 0) {
+    return 'Partia ma historię zużycia — nie można jej usunąć. Użyj „Odpisz”, aby skorygować pozostałą ilość.';
+  }
+  return null;
+}

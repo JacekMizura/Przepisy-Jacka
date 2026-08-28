@@ -1182,6 +1182,10 @@ export interface components {
             /** Format: uuid */
             receiptMediaId?: string | null;
             isExpired: boolean;
+            /** @description Czy fizyczne usunięcie jest dozwolone (tylko ręczna, niepowiązana, nigdy nieużyta partia). */
+            canDelete: boolean;
+            /** @description Powód blokady usunięcia; null gdy canDelete=true. */
+            deleteBlockReason?: string | null;
             /** Format: date-time */
             createdAt: string;
         };

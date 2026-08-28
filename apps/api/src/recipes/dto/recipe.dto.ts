@@ -25,7 +25,50 @@ import {
 import { MediaImageDto } from '../../media/dto/media.dto';
 import { isPresentOptional } from '../../stock/dto/product.dto';
 
+export class RecipeIngredientGroupInputDto {
+  @ApiProperty({
+    format: 'uuid',
+    description:
+      'Stabilny identyfikator grupy w payloadzie (nowy albo istniejący). Składniki wskazują go przez groupId.',
+  })
+  @IsUUID()
+  id!: string;
+
+  @ApiProperty({ example: 'Ciasto' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  name!: string;
+
+  @ApiProperty({ example: 0 })
+  @IsInt()
+  @Min(0)
+  sortOrder!: number;
+}
+
 export class RecipeIngredientInputDto {
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    description:
+      'Opcjonalny istniejący identyfikator składnika — zachowuje powiązania przy edycji.',
+  })
+  @IsOptional()
+  @ValidateIf(isPresentOptional)
+  @IsUUID()
+  id?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: 'Id grupy z tego samego payloadu; null = bez grupy.',
+  })
+  @IsOptional()
+  @ValidateIf(isPresentOptional)
+  @IsUUID()
+  groupId?: string | null;
+
   @ApiProperty({ example: 'Jajka' })
   @IsString()
   @MinLength(1)
@@ -65,6 +108,17 @@ export class RecipeIngredientInputDto {
 export class RecipeStepInputDto {
   @ApiPropertyOptional({
     type: String,
+    format: 'uuid',
+    description:
+      'Opcjonalny istniejący identyfikator kroku — zachowuje zdjęcie przy edycji.',
+  })
+  @IsOptional()
+  @ValidateIf(isPresentOptional)
+  @IsUUID()
+  id?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
     nullable: true,
     example: 'Przygotowanie makaronu',
   })
@@ -79,6 +133,18 @@ export class RecipeStepInputDto {
   @MinLength(1)
   @MaxLength(2000)
   instruction!: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: 'Nie mieszaj zbyt długo, żeby masa nie stała się gumowata.',
+    description: 'Opcjonalna wskazówka autora pod opisem kroku.',
+  })
+  @IsOptional()
+  @ValidateIf(isPresentOptional)
+  @IsString()
+  @MaxLength(1000)
+  tip?: string | null;
 
   @ApiPropertyOptional({ type: Number, nullable: true, example: 10 })
   @IsOptional()
@@ -152,6 +218,16 @@ export class CreateRecipeDto {
   @IsUrl({ require_protocol: true })
   @MaxLength(2048)
   sourceUrl?: string | null;
+
+  @ApiPropertyOptional({
+    type: [RecipeIngredientGroupInputDto],
+    description: 'Opcjonalne grupy składników. Pusty przepis nie wymaga grup.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RecipeIngredientGroupInputDto)
+  ingredientGroups?: RecipeIngredientGroupInputDto[];
 
   @ApiProperty({ type: [RecipeIngredientInputDto] })
   @IsArray()
@@ -228,6 +304,13 @@ export class UpdateRecipeDto {
   @MaxLength(2048)
   sourceUrl?: string | null;
 
+  @ApiPropertyOptional({ type: [RecipeIngredientGroupInputDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RecipeIngredientGroupInputDto)
+  ingredientGroups?: RecipeIngredientGroupInputDto[];
+
   @ApiPropertyOptional({ type: [RecipeIngredientInputDto] })
   @IsOptional()
   @IsArray()
@@ -253,9 +336,23 @@ export class RecipeAuthorDto {
   name!: string;
 }
 
+export class RecipeIngredientGroupDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty()
+  sortOrder!: number;
+}
+
 export class RecipeIngredientDto {
   @ApiProperty()
   id!: string;
+
+  @ApiProperty({ type: String, nullable: true })
+  groupId!: string | null;
 
   @ApiProperty()
   name!: string;
@@ -285,6 +382,13 @@ export class RecipeStepDto {
 
   @ApiProperty()
   instruction!: string;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Opcjonalna wskazówka autora.',
+  })
+  tip!: string | null;
 
   @ApiProperty({ type: Number, nullable: true })
   durationMinutes!: number | null;
@@ -347,6 +451,9 @@ export class RecipeSummaryDto {
 export class RecipeDetailDto extends RecipeSummaryDto {
   @ApiProperty({ type: String, nullable: true })
   sourceUrl!: string | null;
+
+  @ApiProperty({ type: [RecipeIngredientGroupDto] })
+  ingredientGroups!: RecipeIngredientGroupDto[];
 
   @ApiProperty({ type: [RecipeIngredientDto] })
   ingredients!: RecipeIngredientDto[];

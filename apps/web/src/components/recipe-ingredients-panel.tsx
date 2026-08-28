@@ -14,11 +14,19 @@ import {
 import { cn } from "@/lib/utils";
 
 type Ingredient = components["schemas"]["RecipeIngredientDto"];
+type IngredientGroup = components["schemas"]["RecipeIngredientGroupDto"];
 type Availability =
   components["schemas"]["RecipeIngredientAvailabilityDto"];
 
+type IngredientSection = {
+  key: string;
+  title: string | null;
+  ingredients: Ingredient[];
+};
+
 type RecipeIngredientsPanelProps = {
   ingredients: Ingredient[];
+  ingredientGroups?: IngredientGroup[];
   availabilityByIngredientId: Map<string, Availability>;
   checkedIngredientIds: Set<string>;
   availabilityPending: boolean;
@@ -28,6 +36,7 @@ type RecipeIngredientsPanelProps = {
 
 export function RecipeIngredientsPanel({
   ingredients,
+  ingredientGroups = [],
   availabilityByIngredientId,
   checkedIngredientIds,
   availabilityPending,
@@ -36,7 +45,7 @@ export function RecipeIngredientsPanel({
 }: RecipeIngredientsPanelProps) {
   const [copied, setCopied] = useState(false);
 
-  const sorted = useMemo(
+  const sortedIngredients = useMemo(
     () =>
       ingredients
         .slice()
@@ -44,17 +53,69 @@ export function RecipeIngredientsPanel({
     [ingredients],
   );
 
+  const sections = useMemo((): IngredientSection[] => {
+    const groups = ingredientGroups
+      .slice()
+      .sort((left, right) => left.sortOrder - right.sortOrder);
+
+    if (groups.length === 0) {
+      return [
+        {
+          key: "all",
+          title: null,
+          ingredients: sortedIngredients,
+        },
+      ];
+    }
+
+    const result: IngredientSection[] = [];
+    for (const group of groups) {
+      const groupIngredients = sortedIngredients.filter(
+        (ingredient) => ingredient.groupId === group.id,
+      );
+      if (groupIngredients.length === 0) {
+        continue;
+      }
+      result.push({
+        key: group.id,
+        title: group.name,
+        ingredients: groupIngredients,
+      });
+    }
+
+    const ungrouped = sortedIngredients.filter(
+      (ingredient) =>
+        !ingredient.groupId ||
+        !groups.some((group) => group.id === ingredient.groupId),
+    );
+    if (ungrouped.length > 0) {
+      result.push({
+        key: "ungrouped",
+        title: "Pozostałe",
+        ingredients: ungrouped,
+      });
+    }
+
+    return result;
+  }, [ingredientGroups, sortedIngredients]);
+
   async function copyIngredients() {
-    const lines = sorted.map((ingredient) => {
-      const availability = availabilityByIngredientId.get(ingredient.id);
-      const quantity =
-        availability?.scaledQuantity ?? ingredient.quantity;
-      const unit = availability?.unit ?? ingredient.unit;
-      const name = ingredientDisplayName(ingredient, availability);
-      const qty = formatRecipeIngredientQuantity(quantity, unit);
-      const note = ingredient.note ? ` (${ingredient.note})` : "";
-      return `• ${name} — ${qty}${note}`;
-    });
+    const lines: string[] = [];
+    for (const section of sections) {
+      if (section.title) {
+        lines.push(`${section.title}:`);
+      }
+      for (const ingredient of section.ingredients) {
+        const availability = availabilityByIngredientId.get(ingredient.id);
+        const quantity =
+          availability?.scaledQuantity ?? ingredient.quantity;
+        const unit = availability?.unit ?? ingredient.unit;
+        const name = ingredientDisplayName(ingredient, availability);
+        const qty = formatRecipeIngredientQuantity(quantity, unit);
+        const note = ingredient.note ? ` (${ingredient.note})` : "";
+        lines.push(`• ${name} — ${qty}${note}`);
+      }
+    }
     try {
       await navigator.clipboard.writeText(lines.join("\n"));
       setCopied(true);
@@ -97,83 +158,96 @@ export function RecipeIngredientsPanel({
       ) : null}
 
       {!availabilityPending && !availabilityError ? (
-        <ul className="divide-y divide-stone-200/80 border-t border-stone-200/80">
-          {sorted.map((ingredient) => {
-            const availability = availabilityByIngredientId.get(ingredient.id);
-            const displayQuantity =
-              availability?.scaledQuantity ?? ingredient.quantity;
-            const displayUnit = availability?.unit ?? ingredient.unit;
-            const hint = availability
-              ? availabilityHint(availability)
-              : null;
-            const checked = checkedIngredientIds.has(ingredient.id);
+        <div className="border-t border-stone-200/80">
+          {sections.map((section) => (
+            <div key={section.key}>
+              {section.title ? (
+                <h3 className="pt-4 pb-1 text-xs font-semibold tracking-wide text-stone-500 uppercase">
+                  {section.title}
+                </h3>
+              ) : null}
+              <ul className="divide-y divide-stone-200/80">
+                {section.ingredients.map((ingredient) => {
+                  const availability = availabilityByIngredientId.get(
+                    ingredient.id,
+                  );
+                  const displayQuantity =
+                    availability?.scaledQuantity ?? ingredient.quantity;
+                  const displayUnit = availability?.unit ?? ingredient.unit;
+                  const hint = availability
+                    ? availabilityHint(availability)
+                    : null;
+                  const checked = checkedIngredientIds.has(ingredient.id);
 
-            return (
-              <li
-                key={ingredient.id}
-                className={cn(
-                  "flex gap-3 py-3.5",
-                  checked && "opacity-70",
-                )}
-              >
-                <input
-                  type="checkbox"
-                  className="recipe-print-hide mt-1 h-5 w-5 shrink-0 rounded border-stone-300 text-emerald-700 focus:ring-emerald-600"
-                  checked={checked}
-                  onChange={() => onToggleIngredient(ingredient.id)}
-                  aria-label={`Oznacz ${ingredient.name} jako przygotowane`}
-                />
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p
-                        className={cn(
-                          "text-[15px] leading-snug text-stone-900",
-                          checked && "text-stone-500 line-through",
-                        )}
-                      >
-                        <span className="font-medium">
-                          {ingredientDisplayName(ingredient, availability)}
-                        </span>{" "}
-                        <span
-                          className={cn(
-                            "text-stone-600",
-                            checked && "text-stone-400",
-                          )}
-                        >
-                          {formatRecipeIngredientQuantity(
-                            displayQuantity,
-                            displayUnit,
-                          )}
-                        </span>
-                      </p>
-                      {ingredient.note ? (
-                        <p className="mt-0.5 text-xs text-stone-500">
-                          {ingredient.note}
-                        </p>
-                      ) : null}
-                      {hint ? (
-                        <p className="recipe-print-hide mt-1 text-xs leading-snug text-stone-500">
-                          {hint}
-                        </p>
-                      ) : null}
-                    </div>
-                    {availability ? (
-                      <span
-                        className={cn(
-                          "recipe-print-hide shrink-0 whitespace-nowrap",
-                          availabilityBadgeClass(availability.status),
-                        )}
-                      >
-                        {AVAILABILITY_STATUS_LABELS[availability.status]}
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+                  return (
+                    <li
+                      key={ingredient.id}
+                      className={cn(
+                        "flex gap-3 py-3.5",
+                        checked && "opacity-70",
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        className="recipe-print-hide mt-1 h-5 w-5 shrink-0 rounded border-stone-300 text-emerald-700 focus:ring-emerald-600"
+                        checked={checked}
+                        onChange={() => onToggleIngredient(ingredient.id)}
+                        aria-label={`Oznacz ${ingredient.name} jako przygotowane`}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <p
+                              className={cn(
+                                "text-[15px] leading-snug text-stone-900",
+                                checked && "text-stone-500 line-through",
+                              )}
+                            >
+                              <span className="font-medium">
+                                {ingredientDisplayName(ingredient, availability)}
+                              </span>{" "}
+                              <span
+                                className={cn(
+                                  "text-stone-600",
+                                  checked && "text-stone-400",
+                                )}
+                              >
+                                {formatRecipeIngredientQuantity(
+                                  displayQuantity,
+                                  displayUnit,
+                                )}
+                              </span>
+                            </p>
+                            {ingredient.note ? (
+                              <p className="mt-0.5 text-xs text-stone-500">
+                                {ingredient.note}
+                              </p>
+                            ) : null}
+                            {hint ? (
+                              <p className="recipe-print-hide mt-1 text-xs leading-snug text-stone-500">
+                                {hint}
+                              </p>
+                            ) : null}
+                          </div>
+                          {availability ? (
+                            <span
+                              className={cn(
+                                "recipe-print-hide shrink-0 whitespace-nowrap",
+                                availabilityBadgeClass(availability.status),
+                              )}
+                            >
+                              {AVAILABILITY_STATUS_LABELS[availability.status]}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
       ) : null}
     </section>
   );

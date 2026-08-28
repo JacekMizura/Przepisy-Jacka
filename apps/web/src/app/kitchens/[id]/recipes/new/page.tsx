@@ -1,12 +1,15 @@
 "use client";
 
-import type { components } from "@moja-kuchnia/api-client";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { AppShell } from "@/components/app-shell";
-import { RecipeForm, type RecipeFormMedia } from "@/components/recipe-form";
+import {
+  RecipeForm,
+  type RecipeFormMedia,
+  type RecipeFormValues,
+} from "@/components/recipe-form";
 import { Button } from "@/components/ui/button";
 import { createWebApiClient } from "@/lib/api";
 import { readApiError } from "@/lib/errors";
@@ -40,13 +43,16 @@ export default function NewRecipePage() {
       body,
       media,
     }: {
-      body: components["schemas"]["CreateRecipeDto"];
+      body: RecipeFormValues;
       media: RecipeFormMedia;
     }) => {
       const client = createWebApiClient();
       const { data, error } = await client.POST(
         "/api/kitchens/{kitchenId}/recipes",
-        { params: { path: { kitchenId } }, body },
+        {
+          params: { path: { kitchenId } },
+          body,
+        },
       );
       if (error || !data) {
         throw new Error(readApiError(error, "Nie udało się utworzyć przepisu."));

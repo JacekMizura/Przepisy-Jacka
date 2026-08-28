@@ -30,19 +30,29 @@ type IngredientUnit = components["schemas"]["RecipeIngredientInputDto"]["unit"];
 
 export type RecipeFormValues = CreateRecipeDto;
 
+type IngredientGroupDraft = {
+  key: string;
+  id: string;
+  name: string;
+};
+
 type IngredientDraft = {
   key: string;
+  id?: string;
   name: string;
   quantity: string;
   unit: IngredientUnit;
   note: string;
   productId: string;
+  groupId: string | null;
 };
 
 type StepDraft = {
   key: string;
   title: string;
   instruction: string;
+  tip: string;
+  showTip: boolean;
   durationMinutes: string;
   /** Ustawione tylko dla kroków już zapisanych w API — warunek wysyłki zdjęcia. */
   stepId?: string;
@@ -63,7 +73,7 @@ type RecipeFormProps = {
   initialRecipe?: RecipeDetail;
   submitLabel: string;
   pending?: boolean;
-  onSubmit: (body: CreateRecipeDto, media: RecipeFormMedia) => void;
+  onSubmit: (body: RecipeFormValues, media: RecipeFormMedia) => void;
 };
 
 function createIngredientDraft(
@@ -71,19 +81,35 @@ function createIngredientDraft(
 ): IngredientDraft {
   return {
     key: partial?.key ?? crypto.randomUUID(),
+    ...(partial?.id ? { id: partial.id } : {}),
     name: partial?.name ?? "",
     quantity: partial?.quantity ?? "",
     unit: partial?.unit ?? "piece",
     note: partial?.note ?? "",
     productId: partial?.productId ?? "",
+    groupId: partial?.groupId ?? null,
+  };
+}
+
+function createGroupDraft(
+  partial?: Partial<IngredientGroupDraft> & { key?: string; id?: string },
+): IngredientGroupDraft {
+  const id = partial?.id ?? crypto.randomUUID();
+  return {
+    key: partial?.key ?? id,
+    id,
+    name: partial?.name ?? "",
   };
 }
 
 function createStepDraft(partial?: Partial<StepDraft> & { key?: string }): StepDraft {
+  const tip = partial?.tip ?? "";
   return {
     key: partial?.key ?? crypto.randomUUID(),
     title: partial?.title ?? "",
     instruction: partial?.instruction ?? "",
+    tip,
+    showTip: partial?.showTip ?? tip.trim().length > 0,
     durationMinutes: partial?.durationMinutes ?? "",
     ...(partial?.stepId ? { stepId: partial.stepId } : {}),
     ...(partial?.image !== undefined ? { image: partial.image } : {}),
@@ -99,9 +125,15 @@ function recipeToDraft(recipe: RecipeDetail): {
   difficulty: CreateRecipeDto["difficulty"];
   tags: string;
   visibility: CreateRecipeDto["visibility"];
+  ingredientGroups: IngredientGroupDraft[];
   ingredients: IngredientDraft[];
   steps: StepDraft[];
 } {
+  const detail = recipe;
+  const groups = [...detail.ingredientGroups].sort(
+    (left, right) => left.sortOrder - right.sortOrder,
+  );
+
   return {
     name: recipe.name,
     description: recipe.description ?? "",
@@ -113,30 +145,36 @@ function recipeToDraft(recipe: RecipeDetail): {
     difficulty: recipe.difficulty,
     tags: recipe.tags.join(", "),
     visibility: recipe.visibility,
+    ingredientGroups: groups.map((group) =>
+      createGroupDraft({ id: group.id, name: group.name }),
+    ),
     ingredients:
-      recipe.ingredients.length > 0
-        ? recipe.ingredients
+      detail.ingredients.length > 0
+        ? detail.ingredients
             .slice()
             .sort((left, right) => left.sortOrder - right.sortOrder)
             .map((ingredient) =>
               createIngredientDraft({
+                id: ingredient.id,
                 name: ingredient.name,
                 quantity: formatQuantityNumber(ingredient.quantity ?? ""),
                 unit: ingredient.unit,
                 note: ingredient.note ?? "",
                 productId: ingredient.productId ?? "",
+                groupId: ingredient.groupId ?? null,
               }),
             )
         : [createIngredientDraft()],
     steps:
-      recipe.steps.length > 0
-        ? recipe.steps
+      detail.steps.length > 0
+        ? detail.steps
             .slice()
             .sort((left, right) => left.sortOrder - right.sortOrder)
             .map((step) =>
               createStepDraft({
                 title: step.title ?? "",
                 instruction: step.instruction,
+                tip: step.tip ?? "",
                 durationMinutes:
                   step.durationMinutes !== null
                     ? String(step.durationMinutes)
@@ -186,6 +224,7 @@ export function RecipeForm({
             difficulty: "easy" as const,
             tags: "",
             visibility: "private" as const,
+            ingredientGroups: [] as IngredientGroupDraft[],
             ingredients: [createIngredientDraft()],
             steps: [createStepDraft()],
           },
@@ -202,6 +241,9 @@ export function RecipeForm({
   const [tags, setTags] = useState(initial.tags);
   const [visibility, setVisibility] =
     useState<NonNullable<CreateRecipeDto["visibility"]>>(initial.visibility);
+  const [ingredientGroups, setIngredientGroups] = useState(
+    initial.ingredientGroups,
+  );
   const [ingredients, setIngredients] = useState(initial.ingredients);
   const [steps, setSteps] = useState(initial.steps);
   const [coverFile, setCoverFile] = useState<File | null>(null);
@@ -209,6 +251,34 @@ export function RecipeForm({
 
   const recipeId = initialRecipe?.id;
   const hasStepImages = steps.some((step) => step.image);
+
+  function updateIngredient(
+    key: string,
+    patch: Partial<IngredientDraft>,
+  ): void {
+    setIngredients((current) =>
+      current.map((entry) =>
+        entry.key === key ? { ...entry, ...patch } : entry,
+      ),
+    );
+  }
+
+  function deleteGroup(group: IngredientGroupDraft): void {
+    const confirmed = window.confirm(
+      `Usunąć grupę „${group.name.trim() || "bez nazwy"}”? Składniki nie zostaną usunięte — trafią do listy bez grupy.`,
+    );
+    if (!confirmed) {
+      return;
+    }
+    setIngredientGroups((current) =>
+      current.filter((entry) => entry.id !== group.id),
+    );
+    setIngredients((current) =>
+      current.map((entry) =>
+        entry.groupId === group.id ? { ...entry, groupId: null } : entry,
+      ),
+    );
+  }
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -225,8 +295,40 @@ export function RecipeForm({
       return;
     }
 
-    const normalizedIngredients = ingredients
-      .map((ingredient, index) => ({
+    const normalizedGroups: NonNullable<CreateRecipeDto["ingredientGroups"]> =
+      [];
+    for (let index = 0; index < ingredientGroups.length; index++) {
+      const group = ingredientGroups[index];
+      if (!group) {
+        continue;
+      }
+      const trimmedName = group.name.trim();
+      if (!trimmedName) {
+        setFormError(`Podaj nazwę grupy składników nr ${index + 1}.`);
+        return;
+      }
+      normalizedGroups.push({
+        id: group.id,
+        name: trimmedName,
+        sortOrder: normalizedGroups.length,
+      });
+    }
+
+    const groupIdSet = new Set(normalizedGroups.map((group) => group.id));
+
+    const normalizedIngredients: CreateRecipeDto["ingredients"] = [];
+    for (let index = 0; index < ingredients.length; index++) {
+      const ingredient = ingredients[index];
+      if (!ingredient || !ingredient.name.trim()) {
+        continue;
+      }
+      const groupId =
+        ingredient.groupId && groupIdSet.has(ingredient.groupId)
+          ? ingredient.groupId
+          : null;
+      normalizedIngredients.push({
+        ...(ingredient.id ? { id: ingredient.id } : {}),
+        groupId,
         name: ingredient.name.trim(),
         quantity: ingredient.quantity.trim()
           ? toApiQuantityString(ingredient.quantity)
@@ -234,9 +336,9 @@ export function RecipeForm({
         unit: ingredient.unit,
         note: ingredient.note.trim() ? ingredient.note.trim() : null,
         productId: ingredient.productId || undefined,
-        sortOrder: index,
-      }))
-      .filter((ingredient) => ingredient.name.length > 0);
+        sortOrder: normalizedIngredients.length,
+      });
+    }
 
     if (normalizedIngredients.length === 0) {
       setFormError("Dodaj co najmniej jeden składnik.");
@@ -274,12 +376,15 @@ export function RecipeForm({
         }
         durationMinutes = parsed;
       }
+      const tipTrimmed = step.showTip ? step.tip.trim() : "";
       normalizedSteps.push({
+        ...(step.stepId ? { id: step.stepId } : {}),
         title: step.title.trim() || undefined,
         instruction: step.instruction.trim(),
+        tip: tipTrimmed ? tipTrimmed : null,
         durationMinutes,
         sortOrder: normalizedSteps.length,
-      } as components["schemas"]["RecipeStepInputDto"]);
+      });
       stepFiles.push(step.pendingImageFile ?? null);
     }
 
@@ -327,6 +432,7 @@ export function RecipeForm({
         difficulty,
         tags: tagList,
         visibility,
+        ingredientGroups: normalizedGroups,
         ingredients: normalizedIngredients,
         steps: normalizedSteps,
       },
@@ -461,20 +567,108 @@ export function RecipeForm({
       </section>
 
       <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
-          <h2 className="text-lg font-bold text-gray-900">Składniki</h2>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() =>
-              setIngredients((current) => [...current, createIngredientDraft()])
-            }
-          >
-            <Plus size={14} className="mr-1" />
-            Dodaj składnik
-          </Button>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-5 py-4">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Składniki</h2>
+            <p className="mt-0.5 text-xs text-gray-500">
+              Grupy są opcjonalne — prosty przepis może zostać bez nich.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                setIngredientGroups((current) => [
+                  ...current,
+                  createGroupDraft({ name: "" }),
+                ])
+              }
+            >
+              <Plus size={14} className="mr-1" />
+              Dodaj grupę
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                setIngredients((current) => [...current, createIngredientDraft()])
+              }
+            >
+              <Plus size={14} className="mr-1" />
+              Dodaj składnik
+            </Button>
+          </div>
         </div>
+
+        {ingredientGroups.length > 0 ? (
+          <div className="space-y-3 border-b border-gray-100 bg-gray-50/60 px-5 py-4">
+            <p className="text-sm font-semibold text-gray-700">Grupy składników</p>
+            <div className="space-y-2">
+              {ingredientGroups.map((group, index) => (
+                <div
+                  key={group.key}
+                  className="flex flex-wrap items-center gap-2 rounded-2xl border border-gray-100 bg-white p-3"
+                >
+                  <Input
+                    value={group.name}
+                    onChange={(event) =>
+                      setIngredientGroups((current) =>
+                        current.map((entry) =>
+                          entry.key === group.key
+                            ? { ...entry, name: event.target.value }
+                            : entry,
+                        ),
+                      )
+                    }
+                    placeholder={`Nazwa grupy ${index + 1}`}
+                    className="min-w-[12rem] flex-1"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={index === 0}
+                    onClick={() =>
+                      setIngredientGroups((current) =>
+                        moveItem(current, index, -1),
+                      )
+                    }
+                    aria-label="Przesuń grupę wyżej"
+                  >
+                    <ArrowUp size={14} />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={index === ingredientGroups.length - 1}
+                    onClick={() =>
+                      setIngredientGroups((current) =>
+                        moveItem(current, index, 1),
+                      )
+                    }
+                    aria-label="Przesuń grupę niżej"
+                  >
+                    <ArrowDown size={14} />
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => deleteGroup(group)}
+                  >
+                    <Trash2 size={14} className="mr-1" />
+                    Usuń
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         <div className="divide-y divide-gray-100">
           {ingredients.map((ingredient, index) => (
             <div key={ingredient.key} className="space-y-3 p-5">
@@ -529,13 +723,9 @@ export function RecipeForm({
                   <Input
                     value={ingredient.name}
                     onChange={(event) =>
-                      setIngredients((current) =>
-                        current.map((entry) =>
-                          entry.key === ingredient.key
-                            ? { ...entry, name: event.target.value }
-                            : entry,
-                        ),
-                      )
+                      updateIngredient(ingredient.key, {
+                        name: event.target.value,
+                      })
                     }
                     placeholder="np. Jajka"
                   />
@@ -595,19 +785,36 @@ export function RecipeForm({
                   </div>
                 </div>
               </div>
+              {ingredientGroups.length > 0 ? (
+                <div className="space-y-2">
+                  <Label>Grupa</Label>
+                  <select
+                    className="block w-full rounded-lg border border-gray-200 bg-white p-3 text-sm sm:max-w-xs"
+                    value={ingredient.groupId ?? ""}
+                    onChange={(event) =>
+                      updateIngredient(ingredient.key, {
+                        groupId: event.target.value || null,
+                      })
+                    }
+                  >
+                    <option value="">Bez grupy</option>
+                    {ingredientGroups.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.name.trim() || "Bez nazwy"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
               <div className="grid gap-4 sm:grid-cols-3">
                 <div className="space-y-2">
                   <Label>Ilość</Label>
                   <Input
                     value={ingredient.quantity}
                     onChange={(event) =>
-                      setIngredients((current) =>
-                        current.map((entry) =>
-                          entry.key === ingredient.key
-                            ? { ...entry, quantity: event.target.value }
-                            : entry,
-                        ),
-                      )
+                      updateIngredient(ingredient.key, {
+                        quantity: event.target.value,
+                      })
                     }
                     placeholder="opcjonalnie"
                   />
@@ -618,16 +825,9 @@ export function RecipeForm({
                     className="block w-full rounded-lg border border-gray-200 bg-white p-3 text-sm"
                     value={ingredient.unit}
                     onChange={(event) =>
-                      setIngredients((current) =>
-                        current.map((entry) =>
-                          entry.key === ingredient.key
-                            ? {
-                                ...entry,
-                                unit: event.target.value as IngredientUnit,
-                              }
-                            : entry,
-                        ),
-                      )
+                      updateIngredient(ingredient.key, {
+                        unit: event.target.value as IngredientUnit,
+                      })
                     }
                   >
                     {Object.entries(RECIPE_INGREDIENT_UNIT_LABELS).map(
@@ -644,13 +844,9 @@ export function RecipeForm({
                   <Input
                     value={ingredient.note}
                     onChange={(event) =>
-                      setIngredients((current) =>
-                        current.map((entry) =>
-                          entry.key === ingredient.key
-                            ? { ...entry, note: event.target.value }
-                            : entry,
-                        ),
-                      )
+                      updateIngredient(ingredient.key, {
+                        note: event.target.value,
+                      })
                     }
                     placeholder="np. drobno posiekana"
                   />
@@ -675,9 +871,10 @@ export function RecipeForm({
           </Button>
         </div>
         {recipeId && hasStepImages ? (
-          <p className="border-b border-gray-100 bg-amber-50/60 px-5 py-3 text-xs text-amber-900">
-            Zdjęcia kroków zapisują się od razu. Zmiana treści, kolejności albo
-            liczby kroków odtwarza kroki od nowa i usuwa ich zdjęcia.
+          <p className="border-b border-gray-100 bg-emerald-50/60 px-5 py-3 text-xs text-emerald-900">
+            Zdjęcia kroków zapisują się od razu. Przy zapisie przepisu zachowujemy
+            zdjęcie istniejącego kroku, gdy w payloadzie jest jego identyfikator.
+            Usunięcie kroku usuwa też jego zdjęcie.
           </p>
         ) : null}
         <div className="divide-y divide-gray-100">
@@ -775,8 +972,65 @@ export function RecipeForm({
                 }
                 rows={3}
                 placeholder="Opisz krok przygotowania…"
-                className="block w-full rounded-lg border border-gray-200 bg-white p-3 text-sm"
+                className="block w-full rounded-lg border border-gray-200 bg-white p-3 text-sm whitespace-pre-wrap"
               />
+              {step.showTip ? (
+                <div className="space-y-2 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <Label htmlFor={`step-tip-${step.key}`}>Wskazówka</Label>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        setSteps((current) =>
+                          current.map((entry) =>
+                            entry.key === step.key
+                              ? { ...entry, tip: "", showTip: false }
+                              : entry,
+                          ),
+                        )
+                      }
+                    >
+                      Usuń wskazówkę
+                    </Button>
+                  </div>
+                  <textarea
+                    id={`step-tip-${step.key}`}
+                    value={step.tip}
+                    onChange={(event) =>
+                      setSteps((current) =>
+                        current.map((entry) =>
+                          entry.key === step.key
+                            ? { ...entry, tip: event.target.value }
+                            : entry,
+                        ),
+                      )
+                    }
+                    rows={2}
+                    placeholder="np. Nie mieszaj zbyt długo…"
+                    className="block w-full rounded-lg border border-gray-200 bg-white p-3 text-sm whitespace-pre-wrap"
+                  />
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    setSteps((current) =>
+                      current.map((entry) =>
+                        entry.key === step.key
+                          ? { ...entry, showTip: true }
+                          : entry,
+                      ),
+                    )
+                  }
+                >
+                  <Plus size={14} className="mr-1" />
+                  Dodaj wskazówkę
+                </Button>
+              )}
               {recipeId && step.stepId ? (
                 <RecipeStepImageField
                   kitchenId={kitchenId}

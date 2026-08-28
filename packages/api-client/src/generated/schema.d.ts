@@ -1225,7 +1225,28 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        RecipeIngredientGroupInputDto: {
+            /**
+             * Format: uuid
+             * @description Stabilny identyfikator grupy w payloadzie (nowy albo istniejący). Składniki wskazują go przez groupId.
+             */
+            id: string;
+            /** @example Ciasto */
+            name: string;
+            /** @example 0 */
+            sortOrder: number;
+        };
         RecipeIngredientInputDto: {
+            /**
+             * Format: uuid
+             * @description Opcjonalny istniejący identyfikator składnika — zachowuje powiązania przy edycji.
+             */
+            id?: string;
+            /**
+             * Format: uuid
+             * @description Id grupy z tego samego payloadu; null = bez grupy.
+             */
+            groupId?: string | null;
             /** @example Jajka */
             name: string;
             /** @example 2.000 */
@@ -1239,10 +1260,20 @@ export interface components {
             sortOrder: number;
         };
         RecipeStepInputDto: {
+            /**
+             * Format: uuid
+             * @description Opcjonalny istniejący identyfikator kroku — zachowuje zdjęcie przy edycji.
+             */
+            id?: string;
             /** @example Przygotowanie makaronu */
             title?: string | null;
             /** @example Ugotuj makaron al dente. */
             instruction: string;
+            /**
+             * @description Opcjonalna wskazówka autora pod opisem kroku.
+             * @example Nie mieszaj zbyt długo, żeby masa nie stała się gumowata.
+             */
+            tip?: string | null;
             /** @example 10 */
             durationMinutes?: number | null;
             /** @example 0 */
@@ -1271,11 +1302,19 @@ export interface components {
              */
             visibility: "private" | "kitchen";
             sourceUrl?: string | null;
+            /** @description Opcjonalne grupy składników. Pusty przepis nie wymaga grup. */
+            ingredientGroups?: components["schemas"]["RecipeIngredientGroupInputDto"][];
             ingredients: components["schemas"]["RecipeIngredientInputDto"][];
             steps: components["schemas"]["RecipeStepInputDto"][];
         };
+        RecipeIngredientGroupDto: {
+            id: string;
+            name: string;
+            sortOrder: number;
+        };
         RecipeIngredientDto: {
             id: string;
+            groupId: string | null;
             name: string;
             /** @example 2.000 */
             quantity: string | null;
@@ -1289,6 +1328,8 @@ export interface components {
             id: string;
             title: string | null;
             instruction: string;
+            /** @description Opcjonalna wskazówka autora. */
+            tip: string | null;
             durationMinutes: number | null;
             sortOrder: number;
             image: components["schemas"]["MediaImageDto"] | null;
@@ -1314,6 +1355,7 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
             sourceUrl: string | null;
+            ingredientGroups: components["schemas"]["RecipeIngredientGroupDto"][];
             ingredients: components["schemas"]["RecipeIngredientDto"][];
             steps: components["schemas"]["RecipeStepDto"][];
         };
@@ -1331,6 +1373,7 @@ export interface components {
             /** @enum {string} */
             visibility?: "private" | "kitchen";
             sourceUrl?: string | null;
+            ingredientGroups?: components["schemas"]["RecipeIngredientGroupInputDto"][];
             ingredients?: components["schemas"]["RecipeIngredientInputDto"][];
             steps?: components["schemas"]["RecipeStepInputDto"][];
         };

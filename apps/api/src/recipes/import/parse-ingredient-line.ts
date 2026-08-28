@@ -103,6 +103,25 @@ export function parseIngredientLine(rawInput: string): ParsedIngredientLine {
     };
   }
 
+  // Alternatywy typu „360 g - 2 sztuki” / zakresy — bez sumowania i zgadywania.
+  if (
+    /\d+(?:[.,]\d+)?\s*(?:g|kg|ml|l|łyżk\w*|szt\w*)?\s*[-–—]\s*\d+/iu.test(
+      rawText,
+    )
+  ) {
+    warnings.push(
+      'Ilość ma zapis alternatywny lub zakres — pozostawiono do sprawdzenia (bez automatycznego sumowania).',
+    );
+    return {
+      rawText,
+      name: rawText,
+      quantity: null,
+      unit: null,
+      confidence: 'ambiguous',
+      warnings,
+    };
+  }
+
   const quantityMatch = rawText.match(
     /^((?:\d+[.,]\d+|\d+\s+\d+\/\d+|\d+\/\d+|[¼½¾⅓⅔⅛⅜⅝⅞]|\d+))\s*(.*)$/u,
   );

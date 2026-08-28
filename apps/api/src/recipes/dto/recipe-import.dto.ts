@@ -1,14 +1,56 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsUrl, MaxLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  IsIn,
+  IsOptional,
+  IsString,
+  IsUrl,
+  MaxLength,
+  ValidateIf,
+} from 'class-validator';
 
 import { RecipeIngredientUnit } from '../../generated/prisma/client';
 
 export class PreviewRecipeImportDto {
-  @ApiProperty({ example: 'https://example.com/przepis' })
+  @ApiPropertyOptional({
+    enum: ['url', 'text'],
+    default: 'url',
+    description: 'Tryb importu: link albo wklejony tekst.',
+  })
+  @IsOptional()
+  @IsIn(['url', 'text'])
+  mode?: 'url' | 'text';
+
+  @ApiPropertyOptional({ example: 'https://example.com/przepis' })
+  @ValidateIf((dto: PreviewRecipeImportDto) => (dto.mode ?? 'url') === 'url')
   @IsString()
   @IsUrl({ require_protocol: true, protocols: ['https'] })
   @MaxLength(2048)
-  url!: string;
+  url?: string;
+
+  @ApiPropertyOptional({
+    description: 'Wklejony tekst przepisu (tryb text).',
+  })
+  @ValidateIf((dto: PreviewRecipeImportDto) => dto.mode === 'text')
+  @IsString()
+  @MaxLength(100_000)
+  text?: string;
+
+  @ApiPropertyOptional({
+    description: 'Opcjonalny adres źródła przy imporcie tekstu.',
+    type: String,
+    nullable: true,
+    example: 'https://www.instagram.com/p/example/',
+  })
+  @IsOptional()
+  @ValidateIf(
+    (dto: PreviewRecipeImportDto) =>
+      dto.sourceUrl !== undefined &&
+      dto.sourceUrl !== null &&
+      dto.sourceUrl !== '',
+  )
+  @IsUrl({ require_protocol: true, protocols: ['https'] })
+  @MaxLength(2048)
+  sourceUrl?: string | null;
 }
 
 export class ImportedIngredientPreviewDto {
@@ -99,6 +141,13 @@ export class ImportedRecipeCandidateDto {
 
   @ApiProperty({ type: [String] })
   gaps!: string[];
+
+  @ApiPropertyOptional({
+    type: [String],
+    description:
+      'Fragmenty tekstu nierozpoznane jako składniki/kroki — do ręcznego opracowania.',
+  })
+  unassignedFragments?: string[];
 }
 
 export class ExistingSourceRecipeDto {
@@ -110,14 +159,39 @@ export class ExistingSourceRecipeDto {
 }
 
 export class RecipeImportPreviewDto {
-  @ApiProperty()
-  sourceUrl!: string;
+  @ApiProperty({ type: String, nullable: true })
+  sourceUrl!: string | null;
 
   @ApiProperty()
   importIdempotencyKey!: string;
 
   @ApiProperty({ type: String, format: 'date-time' })
   importedAt!: string;
+
+  @ApiProperty({
+    enum: [
+      'jsonld',
+      'microdata',
+      'rdfa',
+      'site:aniagotuje',
+      'html',
+      'pasted_text',
+    ],
+    nullable: true,
+  })
+  extractionMethod!: string | null;
+
+  @ApiProperty({
+    description:
+      'true = automatyczny import z linku; false = tekst wklejony przez użytkownika.',
+  })
+  fromUrlFetch!: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Gdy automatyczny odczyt z Instagrama/TikToka nie wystarczył — zaproponuj wklejenie opisu.',
+  })
+  suggestPasteCaption!: boolean;
 
   @ApiProperty({ type: [ImportedRecipeCandidateDto] })
   candidates!: ImportedRecipeCandidateDto[];

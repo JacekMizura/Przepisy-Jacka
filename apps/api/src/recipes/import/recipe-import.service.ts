@@ -19,9 +19,13 @@ import {
   PreviewRecipeImportDto,
   RecipeImportPreviewDto,
 } from '../dto/recipe-import.dto';
-import { extractRecipesFromHtml } from './jsonld-recipe';
+import {
+  extractRecipesFromFetchedHtml,
+  extractRecipesFromTextInput,
+} from './extract-pipeline';
 import { parseIngredientLine } from './parse-ingredient-line';
 import { safeFetchHttps, type SafeFetchResult } from './safe-http-fetch';
+import type { ExtractedRecipeCandidate } from './types';
 import { assertPublicHttpsUrl } from './url-safety';
 
 type RateBucket = number[];
@@ -43,6 +47,23 @@ export class RecipeImportService {
     await requireKitchenMember(this.prisma, kitchenId, userId);
     this.assertRateLimit(userId);
 
+    const mode = dto.mode ?? (dto.text ? 'text' : 'url');
+
+    if (mode === 'text') {
+      return this.previewFromText(userId, kitchenId, dto);
+    }
+    return this.previewFromUrl(userId, kitchenId, dto);
+  }
+
+  private async previewFromUrl(
+    userId: string,
+    kitchenId: string,
+    dto: PreviewRecipeImportDto,
+  ): Promise<RecipeImportPreviewDto> {
+    if (!dto.url?.trim()) {
+      throw new BadRequestException('Podaj adres HTTPS przepisu.');
+    }
+
     let sourceUrl: string;
     try {
       sourceUrl = assertPublicHttpsUrl(dto.url).toString();
@@ -63,24 +84,105 @@ export class RecipeImportService {
       );
     }
 
-    const extracted = extractRecipesFromHtml(fetched.body);
-    if (extracted.length === 0) {
+    const extracted = extractRecipesFromFetchedHtml(
+      fetched.body,
+      fetched.finalUrl,
+    );
+
+    if (extracted.candidates.length === 0) {
+      if (extracted.suggestPasteCaption) {
+        return {
+          sourceUrl: fetched.finalUrl,
+          importIdempotencyKey: randomUUID(),
+          importedAt: new Date().toISOString(),
+          extractionMethod: null,
+          fromUrlFetch: true,
+          suggestPasteCaption: true,
+          candidates: [],
+          existingFromSameSource: await this.findVisibleBySourceUrl(
+            userId,
+            kitchenId,
+            fetched.finalUrl,
+          ),
+        };
+      }
       throw new BadRequestException(
-        'Na stronie nie znaleziono obsługiwanych danych strukturalnych Recipe (JSON-LD).',
+        extracted.message ??
+          'Na stronie nie znaleziono obsługiwanego przepisu.',
       );
     }
 
+    return this.toPreviewDto({
+      userId,
+      kitchenId,
+      sourceUrl: fetched.finalUrl,
+      extractionMethod: extracted.method,
+      fromUrlFetch: true,
+      suggestPasteCaption: extracted.suggestPasteCaption,
+      candidates: extracted.candidates,
+    });
+  }
+
+  private async previewFromText(
+    userId: string,
+    kitchenId: string,
+    dto: PreviewRecipeImportDto,
+  ): Promise<RecipeImportPreviewDto> {
+    if (!dto.text?.trim()) {
+      throw new BadRequestException('Wklej tekst przepisu.');
+    }
+
+    let optionalSource: string | null = null;
+    if (dto.sourceUrl?.trim()) {
+      try {
+        optionalSource = assertPublicHttpsUrl(dto.sourceUrl).toString();
+      } catch (error) {
+        throw new BadRequestException(
+          error instanceof Error
+            ? error.message
+            : 'Niepoprawny opcjonalny adres źródła.',
+        );
+      }
+    }
+
+    const extracted = extractRecipesFromTextInput(dto.text, optionalSource);
+    if (extracted.candidates.length === 0) {
+      throw new BadRequestException(
+        extracted.message ?? 'Nie udało się rozpoznać przepisu w tekście.',
+      );
+    }
+
+    return this.toPreviewDto({
+      userId,
+      kitchenId,
+      sourceUrl: optionalSource,
+      extractionMethod: extracted.method,
+      fromUrlFetch: false,
+      suggestPasteCaption: false,
+      candidates: extracted.candidates,
+    });
+  }
+
+  private async toPreviewDto(input: {
+    userId: string;
+    kitchenId: string;
+    sourceUrl: string | null;
+    extractionMethod: string | null;
+    fromUrlFetch: boolean;
+    suggestPasteCaption: boolean;
+    candidates: ExtractedRecipeCandidate[];
+  }): Promise<RecipeImportPreviewDto> {
     const products = await this.prisma.product.findMany({
-      where: { kitchenId },
+      where: { kitchenId: input.kitchenId },
       select: { id: true, name: true, normalizedName: true },
       orderBy: { name: 'asc' },
     });
     const categories = await this.prisma.recipeCategory.findMany({
-      where: { kitchenId },
+      where: { kitchenId: input.kitchenId },
       select: { id: true, name: true, normalizedName: true },
     });
 
-    const candidates = extracted.map((candidate, index) => {
+    const candidates = input.candidates.map((candidate, index) => {
       const matchedCategoryIds: string[] = [];
       const unmatchedSourceCategories: string[] = [];
       for (const sourceCategory of candidate.sourceCategories) {
@@ -129,19 +231,25 @@ export class RecipeImportService {
         steps: candidate.steps,
         warnings: candidate.warnings,
         gaps: candidate.gaps,
+        unassignedFragments: candidate.unassignedFragments ?? [],
       };
     });
 
-    const existingFromSameSource = await this.findVisibleBySourceUrl(
-      userId,
-      kitchenId,
-      fetched.finalUrl,
-    );
+    const existingFromSameSource = input.sourceUrl
+      ? await this.findVisibleBySourceUrl(
+          input.userId,
+          input.kitchenId,
+          input.sourceUrl,
+        )
+      : [];
 
     return {
-      sourceUrl: fetched.finalUrl,
+      sourceUrl: input.sourceUrl,
       importIdempotencyKey: randomUUID(),
       importedAt: new Date().toISOString(),
+      extractionMethod: input.extractionMethod,
+      fromUrlFetch: input.fromUrlFetch,
+      suggestPasteCaption: input.suggestPasteCaption,
       candidates,
       existingFromSameSource,
     };
@@ -184,7 +292,7 @@ export class RecipeImportService {
       throw new Error(`Brak fixture importu: ${safeName}`);
     }
     return {
-      finalUrl: `https://recipe-import.test/${safeName}`,
+      finalUrl: aniaFixtureFinalUrl(safeName),
       statusCode: 200,
       contentType: 'text/html; charset=utf-8',
       body,
@@ -253,4 +361,14 @@ function suggestProduct(
     return { id: contained[0]!.id, name: contained[0]!.name };
   }
   return null;
+}
+
+function aniaFixtureFinalUrl(safeName: string): string {
+  if (safeName.startsWith('ania-')) {
+    return `https://aniagotuje.pl/przepis/${safeName}`;
+  }
+  if (safeName === 'instagram-empty') {
+    return 'https://www.instagram.com/p/fixture-empty/';
+  }
+  return `https://recipe-import.test/${safeName}`;
 }

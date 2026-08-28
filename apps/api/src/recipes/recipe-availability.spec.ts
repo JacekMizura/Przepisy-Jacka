@@ -19,6 +19,7 @@ describe('recipe-availability', () => {
     unit: RecipeIngredientUnit.liter,
     note: null,
     productId: 'prod-1',
+    groupId: null,
     sortOrder: 0,
     product: {
       id: 'prod-1',
@@ -29,6 +30,7 @@ describe('recipe-availability', () => {
       purchaseMode: ProductPurchaseMode.unconfigured,
       ean: null,
       imageUrl: null,
+      imageMediaId: null,
       category: null,
       createdAt: new Date(),
       updatedAt: new Date(),

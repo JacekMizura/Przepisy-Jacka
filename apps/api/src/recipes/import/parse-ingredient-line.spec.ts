@@ -52,4 +52,15 @@ describe('parseIngredientLine', () => {
     const parsed = parseIngredientLine(raw);
     expect(parsed.rawText).toBe('100 g mąki');
   });
+
+  it('marks alternative quantity notations as ambiguous without summing', () => {
+    const parsed = parseIngredientLine(
+      'papryka żółta i czerwona 360 g - 2 sztuki',
+    );
+    expect(parsed.confidence).toBe('ambiguous');
+    expect(parsed.quantity).toBeNull();
+    expect(parsed.warnings.some((w) => /alternatywny|zakres/i.test(w))).toBe(
+      true,
+    );
+  });
 });

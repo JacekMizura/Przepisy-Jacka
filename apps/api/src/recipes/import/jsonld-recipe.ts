@@ -1,30 +1,18 @@
-export type ExtractedRecipeStep = {
-  title: string | null;
-  instruction: string;
-  tip: string | null;
-  sortOrder: number;
-};
+import type { ExtractedRecipeCandidate, ExtractedRecipeStep } from './types';
+import {
+  finalizeCandidateGaps,
+  parseIsoDurationMinutes,
+  parseServings,
+  readString,
+  decodeHtmlEntities,
+} from './shared-parse';
 
-export type ExtractedRecipeCandidate = {
-  name: string;
-  description: string | null;
-  servings: number | null;
-  servingsRaw: string | null;
-  servingsAmbiguous: boolean;
-  prepTimeMinutes: number | null;
-  cookTimeMinutes: number | null;
-  sourceAuthor: string | null;
-  sourceCategories: string[];
-  ingredientLines: string[];
-  steps: ExtractedRecipeStep[];
-  warnings: string[];
-  gaps: string[];
-};
+export type { ExtractedRecipeCandidate, ExtractedRecipeStep } from './types';
 
 /**
  * Wyszukuje obiekty Recipe w JSON-LD (obiekt, tablica, @graph, wielowartościowe @type).
  */
-export function extractRecipesFromHtml(
+export function extractRecipesFromJsonLd(
   html: string,
 ): ExtractedRecipeCandidate[] {
   const scripts = [
@@ -45,11 +33,18 @@ export function extractRecipesFromHtml(
     }
     for (const node of flattenLdNodes(parsed)) {
       if (isRecipeNode(node)) {
-        candidates.push(mapRecipeNode(node));
+        candidates.push(finalizeCandidateGaps(mapRecipeNode(node)));
       }
     }
   }
   return candidates;
+}
+
+/** @deprecated Użyj extractRecipesFromJsonLd — zachowane dla kompatybilności testów. */
+export function extractRecipesFromHtml(
+  html: string,
+): ExtractedRecipeCandidate[] {
+  return extractRecipesFromJsonLd(html);
 }
 
 function flattenLdNodes(input: unknown): Record<string, unknown>[] {
@@ -112,9 +107,6 @@ function mapRecipeNode(
       `Liczba porcji jest niejednoznaczna („${servingsParsed.raw}”) — ustal ją przed zapisem.`,
     );
   }
-  if (!servingsParsed.raw) {
-    gaps.push('Brak liczby porcji w źródle.');
-  }
 
   const prepTimeMinutes = parseIsoDurationMinutes(node.prepTime);
   const cookTimeMinutes = parseIsoDurationMinutes(
@@ -131,14 +123,7 @@ function mapRecipeNode(
   const sourceCategories = readCategories(node.recipeCategory ?? node.keywords);
 
   const ingredientLines = readIngredientLines(node.recipeIngredient);
-  if (ingredientLines.length === 0) {
-    gaps.push('Brak listy składników.');
-  }
-
   const steps = readInstructions(node.recipeInstructions);
-  if (steps.length === 0) {
-    gaps.push('Brak instrukcji przygotowania.');
-  }
 
   return {
     name: name || 'Zaimportowany przepis',
@@ -157,39 +142,6 @@ function mapRecipeNode(
     warnings,
     gaps,
   };
-}
-
-function decodeHtmlEntities(input: string): string {
-  return input
-    .replace(/&#(\d+);/g, (match, code: string) => {
-      const value = Number(code);
-      return Number.isFinite(value) ? String.fromCodePoint(value) : match;
-    })
-    .replace(/&#x([0-9a-f]+);/gi, (match, hex: string) => {
-      const value = Number.parseInt(hex, 16);
-      return Number.isFinite(value) ? String.fromCodePoint(value) : match;
-    })
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&nbsp;/g, ' ');
-}
-
-function readString(value: unknown): string | null {
-  if (typeof value === 'string') return decodeHtmlEntities(value);
-  if (typeof value === 'number' && Number.isFinite(value)) return String(value);
-  if (value && typeof value === 'object') {
-    const obj = value as Record<string, unknown>;
-    if (typeof obj['@value'] === 'string') {
-      return decodeHtmlEntities(obj['@value']);
-    }
-    if (typeof obj.name === 'string') {
-      return decodeHtmlEntities(obj.name);
-    }
-  }
-  return null;
 }
 
 function readAuthor(value: unknown): string | null {
@@ -332,54 +284,4 @@ function readInstructions(value: unknown): ExtractedRecipeStep[] {
 
   visit(value, null);
   return steps;
-}
-
-function parseServings(value: unknown): {
-  value: number | null;
-  raw: string | null;
-} {
-  if (value === null || value === undefined) {
-    return { value: null, raw: null };
-  }
-  if (typeof value === 'number' && Number.isInteger(value) && value > 0) {
-    return { value, raw: String(value) };
-  }
-  if (Array.isArray(value)) {
-    return parseServings(value[0]);
-  }
-  const raw = readString(value)?.trim() ?? null;
-  if (!raw) {
-    return { value: null, raw: null };
-  }
-  if (/^\d+$/.test(raw)) {
-    const num = Number(raw);
-    return num > 0 ? { value: num, raw } : { value: null, raw };
-  }
-  const withLabel = raw.match(
-    /^(\d+)\s*(porcje|porcja|porcji|servings?|people)$/i,
-  );
-  if (withLabel?.[1]) {
-    const num = Number(withLabel[1]);
-    return num > 0 ? { value: num, raw } : { value: null, raw };
-  }
-  return { value: null, raw };
-}
-
-function parseIsoDurationMinutes(value: unknown): number | null {
-  const raw = readString(value)?.trim();
-  if (!raw) return null;
-  // ISO 8601 duration e.g. PT1H30M
-  const match = raw.match(
-    /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/i,
-  );
-  if (!match) {
-    return null;
-  }
-  const days = Number(match[1] ?? 0);
-  const hours = Number(match[2] ?? 0);
-  const minutes = Number(match[3] ?? 0);
-  const seconds = Number(match[4] ?? 0);
-  const total =
-    days * 24 * 60 + hours * 60 + minutes + Math.round(seconds / 60);
-  return total > 0 ? total : null;
 }

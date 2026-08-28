@@ -2,7 +2,7 @@
 
 ## Aktualnie ukończony etap
 
-Etap: uwierzytelnianie Better Auth, wspólne kuchnie, zaproszenia, katalog produktów z wariantami zakupu (opakowania) i jawnym `purchaseMode` (`unconfigured` / `packaged` / `exact`), zapasy, lista zakupów z rozliczaniem zakupów oraz moduł przepisów (CRUD, kategorie kuchni z filtrowaniem, import z linku JSON-LD, dostępność składników, propozycje pełnych opakowań, braki do listy) na webie. Fundament repozytorium z Etapu 1 pozostaje w mocy.
+Etap: uwierzytelnianie Better Auth, wspólne kuchnie, zaproszenia, katalog produktów z wariantami zakupu (opakowania) i jawnym `purchaseMode` (`unconfigured` / `packaged` / `exact`), zapasy, lista zakupów z rozliczaniem zakupów oraz moduł przepisów (CRUD, kategorie kuchni z filtrowaniem, import z linku HTML/JSON-LD/microdata oraz wklejonego tekstu, dostępność składników, propozycje pełnych opakowań, braki do listy) na webie. Fundament repozytorium z Etapu 1 pozostaje w mocy.
 
 W API są zdjęcia (produkty, okładki i kroki przepisów, paragony zakupów) w magazynie S3-kompatybilnym, wartości odżywcze produktów (z opcjonalnym pobraniem podglądu z Open Food Facts po EAN) oraz szacunek makroskładników i kosztu przepisu. Web ma już interfejs do tych funkcji: wysyłka zdjęć z postępem, podgląd w powiększeniu, edycja wartości odżywczych produktu z przyciskiem „Pobierz wartości po EAN” oraz panel kosztu i makro w przepisie. Widok szczegółów przepisu jest w stylu czytelnego bloga kulinarnego (bez zmian API). Przepisy obsługują opcjonalne grupy składników oraz wskazówki przy krokach, a także wspólne kategorie kuchni (filtry na liście, zarządzanie z listy, wielokrotny wybór w formularzu). Lista zakupów i historia zakupów pokazują miniatury zdjęć produktów; historia pokazuje ilość z jednostką i opcjonalne zdjęcie paragonu. Mobile nadal ich nie obsługuje.
 
@@ -21,9 +21,9 @@ Nie wymagamy identycznego patcha `18.6` lokalnie ani w CI — tylko major 18.
 ## Co rzeczywiście działa
 
 - monorepo pnpm + Turborepo,
-- `apps/api` — NestJS + Fastify, prefix `/api`, Better Auth, Prisma, kuchnie, zaproszenia, produkty, partie zapasów, lista zakupów i zakupy (checkout idempotentny), moduł przepisów (CRUD, kategorie, import z HTTPS/JSON-LD z SSRF-safe fetch i podglądem bez zapisu, dostępność, braki → lista), moduł zdjęć (dwuetapowa wysyłka, WebP + miniatura, usuwanie EXIF, podpisane URL-e), wartości odżywcze produktów z lookupiem Open Food Facts po EAN (cache, timeout, limity), szacunek makro i kosztu przepisu, `GET /api/health`, walidacja env, CORS, Swagger poza produkcją,
+- `apps/api` — NestJS + Fastify, prefix `/api`, Better Auth, Prisma, kuchnie, zaproszenia, produkty, partie zapasów, lista zakupów i zakupy (checkout idempotentny), moduł przepisów (CRUD, kategorie, import z HTTPS/JSON-LD/microdata/HTML witryn oraz wklejonego tekstu z SSRF-safe fetch i podglądem bez zapisu, dostępność, braki → lista), moduł zdjęć (dwuetapowa wysyłka, WebP + miniatura, usuwanie EXIF, podpisane URL-e), wartości odżywcze produktów z lookupiem Open Food Facts po EAN (cache, timeout, limity), szacunek makro i kosztu przepisu, `GET /api/health`, walidacja env, CORS, Swagger poza produkcją,
 - `packages/api-client` — `openapi-fetch` + typy z OpenAPI dla endpointów domenowych (w tym `components`),
-- `apps/web` — layout sidebar (Moja Kuchnia / zapasy / lista zakupów / historia zakupów / przepisy / domownicy), logowanie, rejestracja, kuchnie, zaproszenia, zapasy, przepisy (lista w układzie editorialnym jak blog kulinarny: tytuł nad kwadratowym zdjęciem, pasek meta na dole, siatka 3 kolumny; tworzenie z domyślną 1 porcją, auto-jednostką i zdjęciem produktu z katalogu oraz zdjęciami kroków już przy create, import z linku → podgląd w edytorze → zapis prywatny ze źródłem; szczegóły w układzie editorialnym: hero, sticky składniki, narracyjne kroki, kopiowanie składników, print CSS, dostępność oraz koszt i makro, edycja); lista zakupów i historia z miniaturami produktów; zdjęcia produktów, okładek i kroków przepisu przez magazyn mediów (`media-upload.ts` + `MediaImageField`), wartości odżywcze produktu w tworzeniu i edycji katalogu (OFF po EAN); względne `/api/*` przez serwerowy proxy do `API_ORIGIN`,
+- `apps/web` — layout sidebar (Moja Kuchnia / zapasy / lista zakupów / historia zakupów / przepisy / domownicy), logowanie, rejestracja, kuchnie, zaproszenia, zapasy, przepisy (lista w układzie editorialnym jak blog kulinarny: tytuł nad kwadratowym zdjęciem, pasek meta na dole, siatka 3 kolumny; tworzenie z domyślną 1 porcją, auto-jednostką i zdjęciem produktu z katalogu oraz zdjęciami kroków już przy create, import „Z linku” / „Wklej tekst” → podgląd w edytorze → zapis prywatny ze źródłem; szczegóły w układzie editorialnym: hero, sticky składniki, narracyjne kroki, kopiowanie składników, print CSS, dostępność oraz koszt i makro, edycja); lista zakupów i historia z miniaturami produktów; zdjęcia produktów, okładek i kroków przepisu przez magazyn mediów (`media-upload.ts` + `MediaImageField`), wartości odżywcze produktu w tworzeniu i edycji katalogu (OFF po EAN); względne `/api/*` przez serwerowy proxy do `API_ORIGIN`,
 - `apps/mobile` — ekran kontrolny health z `EXPO_PUBLIC_API_URL` (bez zmian funkcjonalnych w tym etapie),
 - lokalny PostgreSQL 18 przez `docker-compose.yml`,
 - GitHub Actions: Postgres 18, migracje, OpenAPI, lint, typecheck, unit, e2e API, black-box Next, build, mobile,
@@ -33,7 +33,7 @@ Nie wymagamy identycznego patcha `18.6` lokalnie ani w CI — tylko major 18.
 
 - auth i zapasy na mobile / Expo Secure Store,
 - interfejs mobilny dla zdjęć, wartości odżywczych i szacunku kosztu,
-- przepisy (publiczne linki, szersze źródła importu poza JSON-LD), dziennik żywienia, statystyki i budżety zakupów,
+- przepisy (publiczne linki, szersze źródła importu poza obsługiwanymi parserami HTML/tekstu), dziennik żywienia, statystyki i budżety zakupów,
 - preview Vercel z osobnym trusted origin.
 
 ## Następny sugerowany etap

@@ -27,12 +27,16 @@ import {
 import { cn } from "@/lib/utils";
 
 type Preview = components["schemas"]["RecipeImportPreviewDto"];
+type ImportMode = "url" | "text";
 
 export default function ImportRecipePage() {
   const params = useParams<{ id: string }>();
   const kitchenId = params.id;
   const router = useRouter();
+  const [mode, setMode] = useState<ImportMode>("url");
   const [url, setUrl] = useState("");
+  const [text, setText] = useState("");
+  const [textSourceUrl, setTextSourceUrl] = useState("");
   const [preview, setPreview] = useState<Preview | null>(null);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [review, setReview] = useState<ImportReviewState | null>(null);
@@ -53,13 +57,23 @@ export default function ImportRecipePage() {
   });
 
   const previewMutation = useMutation({
-    mutationFn: async (sourceUrl: string) => {
+    mutationFn: async () => {
       const client = createWebApiClient();
+      const body =
+        mode === "url"
+          ? { mode: "url" as const, url: url.trim() }
+          : {
+              mode: "text" as const,
+              text,
+              ...(textSourceUrl.trim()
+                ? { sourceUrl: textSourceUrl.trim() }
+                : {}),
+            };
       const { data, error, response } = await client.POST(
         "/api/kitchens/{kitchenId}/recipes/import/preview",
         {
           params: { path: { kitchenId } },
-          body: { url: sourceUrl },
+          body,
         },
       );
       if (response.status === 401) {
@@ -67,7 +81,7 @@ export default function ImportRecipePage() {
       }
       if (error || !data) {
         throw new Error(
-          readApiError(error, "Nie udało się odczytać przepisu z linku."),
+          readApiError(error, "Nie udało się odczytać przepisu."),
         );
       }
       return data;
@@ -76,6 +90,11 @@ export default function ImportRecipePage() {
       setPreview(data);
       setSelectedIndex(0);
       setReview(null);
+      if (data.suggestPasteCaption && data.candidates.length === 0) {
+        setMode("text");
+        setTextSourceUrl(data.sourceUrl ?? url.trim());
+        return;
+      }
       if (data.candidates.length === 1) {
         setReview({
           sourceUrl: data.sourceUrl,
@@ -83,6 +102,8 @@ export default function ImportRecipePage() {
           importedAt: data.importedAt,
           candidate: data.candidates[0]!,
           existingFromSameSource: data.existingFromSameSource,
+          extractionMethod: data.extractionMethod,
+          fromUrlFetch: data.fromUrlFetch,
         });
       }
     },
@@ -145,17 +166,21 @@ export default function ImportRecipePage() {
     [kitchenId, review],
   );
 
+  const canSubmitPreview =
+    mode === "url" ? Boolean(url.trim()) : Boolean(text.trim());
+
   return (
     <AppShell kitchenId={kitchenId}>
       <div className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6">
         <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-              Importuj z linku
+              Importuj przepis
             </h1>
             <p className="mt-1 text-sm text-gray-500">
-              Odczytujemy dane Recipe z JSON-LD. Podgląd nic nie zapisuje —
-              przepis powstaje dopiero po „Zapisz przepis”.
+              Z linku (JSON-LD, microdata, HTML) albo z wklejonego tekstu.
+              Podgląd nic nie zapisuje — przepis powstaje dopiero po „Zapisz
+              przepis”.
             </p>
           </div>
           <Link href={`/kitchens/${kitchenId}/recipes`}>
@@ -164,28 +189,96 @@ export default function ImportRecipePage() {
         </header>
 
         <section className="space-y-4 rounded-3xl border border-gray-100 bg-white p-5 shadow-sm">
-          <div className="space-y-2">
-            <Label htmlFor="import-url">Adres HTTPS przepisu</Label>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Input
-                id="import-url"
-                value={url}
-                onChange={(event) => setUrl(event.target.value)}
-                placeholder="https://…"
-                className="flex-1"
-              />
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant={mode === "url" ? "default" : "outline"}
+              onClick={() => setMode("url")}
+            >
+              Z linku
+            </Button>
+            <Button
+              type="button"
+              variant={mode === "text" ? "default" : "outline"}
+              onClick={() => setMode("text")}
+            >
+              Wklej tekst
+            </Button>
+          </div>
+
+          {mode === "url" ? (
+            <div className="space-y-2">
+              <Label htmlFor="import-url">Adres HTTPS przepisu</Label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  id="import-url"
+                  value={url}
+                  onChange={(event) => setUrl(event.target.value)}
+                  placeholder="https://…"
+                  className="flex-1"
+                />
+                <Button
+                  type="button"
+                  disabled={previewMutation.isPending || !canSubmitPreview}
+                  onClick={() => previewMutation.mutate()}
+                >
+                  {previewMutation.isPending
+                    ? "Pobieranie…"
+                    : "Odczytaj przepis"}
+                </Button>
+              </div>
+              <p className="text-xs text-gray-500">
+                Instagram i TikTok: jeśli automatyczny odczyt nie wystarczy,
+                użyj „Wklej tekst” z opisem posta.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="import-text">Tekst przepisu lub opis posta</Label>
+                <textarea
+                  id="import-text"
+                  value={text}
+                  onChange={(event) => setText(event.target.value)}
+                  rows={12}
+                  className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+                  placeholder={"Tytuł\n\nSkładniki\n…\n\nPrzygotowanie\n…"}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="import-text-source">
+                  Adres źródła (opcjonalnie)
+                </Label>
+                <Input
+                  id="import-text-source"
+                  value={textSourceUrl}
+                  onChange={(event) => setTextSourceUrl(event.target.value)}
+                  placeholder="https://…"
+                />
+              </div>
               <Button
                 type="button"
-                disabled={previewMutation.isPending || !url.trim()}
-                onClick={() => previewMutation.mutate(url.trim())}
+                disabled={previewMutation.isPending || !canSubmitPreview}
+                onClick={() => previewMutation.mutate()}
               >
-                {previewMutation.isPending ? "Pobieranie…" : "Odczytaj przepis"}
+                {previewMutation.isPending
+                  ? "Analizowanie…"
+                  : "Odczytaj z tekstu"}
               </Button>
             </div>
-          </div>
+          )}
+
           {previewMutation.isError ? (
             <p className="text-sm text-red-600" role="alert">
               {readApiError(previewMutation.error)}
+            </p>
+          ) : null}
+
+          {preview?.suggestPasteCaption && preview.candidates.length === 0 ? (
+            <p className="text-sm text-amber-800" role="status">
+              Nie udało się automatycznie odczytać pełnego przepisu z tego linku
+              (Instagram/TikTok). Wklej opis posta poniżej — adres źródła został
+              zachowany.
             </p>
           ) : null}
         </section>
@@ -233,6 +326,8 @@ export default function ImportRecipePage() {
                   importedAt: preview.importedAt,
                   candidate,
                   existingFromSameSource: preview.existingFromSameSource,
+                  extractionMethod: preview.extractionMethod,
+                  fromUrlFetch: preview.fromUrlFetch,
                 });
               }}
             >
@@ -243,6 +338,13 @@ export default function ImportRecipePage() {
 
         {review && initialRecipe && productsQuery.isSuccess ? (
           <div className="space-y-4">
+            <p className="text-sm text-gray-500">
+              Metoda: {review.extractionMethod ?? "—"}
+              {review.fromUrlFetch
+                ? " · automatyczny import z linku"
+                : " · tekst wklejony przez użytkownika"}
+            </p>
+
             {review.existingFromSameSource.length > 0 ? (
               <div
                 className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"
@@ -270,20 +372,38 @@ export default function ImportRecipePage() {
               </div>
             ) : null}
 
-            <p className="text-sm text-gray-500">
-              Źródło:{" "}
-              <a
-                href={review.sourceUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="text-emerald-700 underline"
+            {(review.candidate.unassignedFragments?.length ?? 0) > 0 ? (
+              <div
+                className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-800"
+                role="status"
               >
-                {review.sourceUrl}
-              </a>
-              {review.candidate.sourceAuthor
-                ? ` · Autor źródła: ${review.candidate.sourceAuthor}`
-                : null}
-            </p>
+                <p className="font-semibold">
+                  Fragmenty do ręcznego opracowania
+                </p>
+                <ul className="mt-2 list-disc space-y-1 pl-5">
+                  {review.candidate.unassignedFragments!.map((fragment) => (
+                    <li key={fragment.slice(0, 80)}>{fragment}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {review.sourceUrl ? (
+              <p className="text-sm text-gray-500">
+                Źródło:{" "}
+                <a
+                  href={review.sourceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-emerald-700 underline"
+                >
+                  {review.sourceUrl}
+                </a>
+                {review.candidate.sourceAuthor
+                  ? ` · Autor źródła: ${review.candidate.sourceAuthor}`
+                  : null}
+              </p>
+            ) : null}
 
             <RecipeForm
               key={`${review.importIdempotencyKey}-${review.candidate.index}`}

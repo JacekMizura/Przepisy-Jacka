@@ -145,11 +145,15 @@ Brak danych nigdy nie oznacza zera. Gdy żaden składnik nie ma danych, sumy są
 
 Publiczne linki i planowanie posiłków — poza tym etapem.
 
-### Import przepisu z linku
+### Import przepisu
 
-Członek kuchni może wkleić publiczny adres HTTPS. API (wyłącznie NestJS) pobiera stronę w trybie SSRF-safe i odczytuje dane strukturalne `Recipe` z JSON-LD (obiekt, tablica, `@graph`, wielowartościowe `@type`). Podgląd wypełnia istniejący edytor przepisu; **nie tworzy** przepisów, produktów ani kategorii. Użytkownik poprawia treść, zatwierdza kategorie i powiązania produktów, a dopiero „Zapisz przepis” tworzy prywatny przepis z `sourceUrl`, opcjonalnym `sourceAuthor`, `importedAt` oraz `importIdempotencyKey` (ponowne wysłanie tego samego zapisu nie tworzy duplikatu).
+Członek kuchni może wybrać **Importuj przepis** w trybie **Z linku** albo **Wklej tekst**. Całe rozpoznawanie i normalizacja odbywa się w NestJS; web korzysta z wygenerowanego klienta OpenAPI. Podgląd wypełnia istniejący edytor; **nie tworzy** przepisów, produktów ani kategorii. Zapis jest jawny (prywatny przepis z `sourceUrl`, opcjonalnym `sourceAuthor`, `importedAt`, `importIdempotencyKey`).
 
-Brakujących pól nie zgadujemy (brak czasu ≠ 0; niejednoznaczne „2 słoiki” zostaje do ustalenia). Ilości/jednostki rozpoznajemy tylko gdy są jednoznaczne — bez podstawiania `1` ani `szt.`. Produkty i kategorie są tylko podpowiadane z aktualnej kuchni. Koszt i makro nadal liczy API z produktów i zakupów; wartości odżywcze ze strony źródłowej są ignorowane. Zewnętrznych zdjęć nie pobieramy — pozostaje własny upload do R2.
+**Z linku (jedna bezpieczna odpowiedź HTTPS, bez ponownego pobierania):** kolejno JSON-LD `Recipe`, microdata/RDFa `Recipe`, parser witryny (obecnie Ania Gotuje dla `aniagotuje.pl`), ogólny parser HTML (wyraźne sekcje składników i przygotowania; pomija nawigację, reklamy, komentarze, FAQ, polecane). Sam tytuł lub `og:description` nie wystarcza. Przy niepełnym wyniku API zwraca odczytane pola oraz `gaps`/`warnings` — bez zgadywania brakującej treści i bez mieszania kilku przepisów.
+
+**Wklej tekst:** użytkownik wkleja przepis lub opis posta oraz opcjonalny adres źródła. API rozpoznaje jednoznaczne sekcje; nierozpoznane fragmenty wracają w `unassignedFragments` do ręcznego opracowania. Dla Instagrama/TikToka nie obiecujemy odczytu z filmu; gdy automatyczny import z linku nie daje przepisu, API sugeruje wklejenie opisu (`suggestPasteCaption`) z zachowaniem linku. Bez kluczy społecznościowych, pobierania filmów, OCR, AI i wykonywania JS strony.
+
+Brakujących pól nie zgadujemy (brak czasu ≠ 0; „2 słoiki” nie staje się 2 porcjami; alternatywy typu „360 g — 2 sztuki” zostają do sprawdzenia). Ilości/jednostki tylko gdy jednoznaczne. Produkty i kategorie są podpowiadane z kuchni. Koszt i makro nadal z produktów/zakupów. Zewnętrznych zdjęć nie pobieramy — własny upload.
 
 ## Uwierzytelnianie
 

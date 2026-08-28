@@ -234,7 +234,7 @@ function RecipesPageContent() {
             </Button>
             <Link href={`/kitchens/${kitchenId}/recipes/import`}>
               <Button type="button" variant="outline">
-                Importuj z linku
+                Importuj przepis
               </Button>
             </Link>
             <Link href={`/kitchens/${kitchenId}/recipes/new`}>

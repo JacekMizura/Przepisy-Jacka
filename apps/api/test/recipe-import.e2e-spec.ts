@@ -13,22 +13,32 @@ const WEB_ORIGIN = 'http://127.0.0.1:3010';
 
 type KitchenRef = { id: string };
 type Preview = {
-  sourceUrl: string;
+  sourceUrl: string | null;
   importIdempotencyKey: string;
   importedAt: string;
+  extractionMethod: string | null;
+  fromUrlFetch: boolean;
+  suggestPasteCaption: boolean;
   candidates: Array<{
     name: string;
+    description?: string | null;
     servings: number | null;
     servingsAmbiguous: boolean;
+    servingsRaw: string | null;
+    steps: Array<{ tip: string | null; instruction: string }>;
     ingredients: Array<{
       rawText: string;
       name: string;
       quantity: string | null;
       unit: string | null;
       suggestedProductId: string | null;
+      confidence: string;
     }>;
     suggestedCategoryIds: string[];
     unmatchedSourceCategories: string[];
+    unassignedFragments?: string[];
+    gaps: string[];
+    warnings: string[];
   }>;
   existingFromSameSource: Array<{ id: string; name: string }>;
 };
@@ -259,5 +269,165 @@ describe('Recipe URL import (e2e)', () => {
       },
     );
     expect(anon.status).toBe(401);
+  });
+
+  it('previews Ania Gotuje HTML fixture with tips and ambiguous jar yield', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+    const kitchen = await createKitchen(owner, 'Import Ania');
+
+    const previewRes = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/import/preview`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { mode: 'url', url: 'https://recipe-import.test/ania-sos' },
+      },
+    );
+    expect(previewRes.status).toBe(200);
+    const preview = previewRes.body as Preview;
+    expect(preview.fromUrlFetch).toBe(true);
+    expect(preview.extractionMethod).toBe('site:aniagotuje');
+    expect(preview.sourceUrl).toContain('aniagotuje.pl');
+    expect(preview.candidates[0]?.servingsAmbiguous).toBe(true);
+    expect(preview.candidates[0]?.servingsRaw).toMatch(/słoiki/i);
+    expect(preview.candidates[0]?.steps.some((step) => Boolean(step.tip))).toBe(
+      true,
+    );
+    expect(
+      preview.candidates[0]?.ingredients.some(
+        (item) =>
+          item.confidence === 'ambiguous' && /360|sztuk/i.test(item.rawText),
+      ),
+    ).toBe(true);
+  });
+
+  it('previews Ania prose instructions (no HowToStep) as one editable step', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+    const kitchen = await createKitchen(owner, 'Import Ania prose');
+
+    const previewRes = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/import/preview`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          mode: 'url',
+          url: 'https://recipe-import.test/ania-ketchup-prose',
+        },
+      },
+    );
+    expect(previewRes.status).toBe(200);
+    const preview = previewRes.body as Preview;
+    expect(preview.extractionMethod).toBe('site:aniagotuje');
+    expect(preview.candidates[0]?.steps).toHaveLength(1);
+    expect(preview.candidates[0]?.steps[0]?.instruction).toMatch(/cukinie/i);
+    expect(preview.candidates[0]?.steps[0]?.instruction).not.toMatch(
+      /Zapraszam/i,
+    );
+    expect(preview.candidates[0]?.description ?? '').toMatch(/250\s*ml/i);
+    expect(preview.candidates[0]?.description ?? '').toMatch(/ważone/i);
+    expect(
+      preview.candidates[0]?.warnings.some((w) =>
+        /jeden edytowalny krok/i.test(w),
+      ),
+    ).toBe(true);
+  });
+
+  it('previews generic HTML and pasted text; suggests paste for Instagram fixture', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+    const kitchen = await createKitchen(owner, 'Import HTML text');
+
+    const generic = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/import/preview`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { url: 'https://recipe-import.test/generic-html' },
+      },
+    );
+    expect(generic.status).toBe(200);
+    const genericPreview = generic.body as Preview;
+    expect(genericPreview.extractionMethod).toBe('html');
+    expect(genericPreview.candidates[0]?.name).toMatch(/sałatka/i);
+
+    const pasted = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/import/preview`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          mode: 'text',
+          text: `Pasta testowa
+
+Składniki
+200 g makaronu
+sól do smaku
+
+Przygotowanie
+Krok 1: Gotuj
+Ugotuj makaron.
+Porada: Al dente.
+
+Krok 2: Podaj
+Podaj od razu.
+
+#obiad notatka zbędna
+`,
+          sourceUrl: 'https://www.instagram.com/p/example/',
+        },
+      },
+    );
+    expect(pasted.status).toBe(200);
+    const pastedPreview = pasted.body as Preview;
+    expect(pastedPreview.fromUrlFetch).toBe(false);
+    expect(pastedPreview.extractionMethod).toBe('pasted_text');
+    expect(pastedPreview.sourceUrl).toContain('instagram.com');
+    expect(
+      pastedPreview.candidates[0]?.unassignedFragments?.length,
+    ).toBeGreaterThan(0);
+    expect(pastedPreview.candidates[0]?.steps[0]?.tip).toMatch(/al dente/i);
+
+    const social = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/import/preview`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { url: 'https://recipe-import.test/instagram-empty' },
+      },
+    );
+    expect(social.status).toBe(200);
+    const socialPreview = social.body as Preview;
+    expect(socialPreview.suggestPasteCaption).toBe(true);
+    expect(socialPreview.candidates).toHaveLength(0);
+  });
+
+  it('previews microdata fixture', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+    const kitchen = await createKitchen(owner, 'Import microdata');
+
+    const previewRes = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/import/preview`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { url: 'https://recipe-import.test/microdata' },
+      },
+    );
+    expect(previewRes.status).toBe(200);
+    const preview = previewRes.body as Preview;
+    expect(preview.extractionMethod).toBe('microdata');
+    expect(preview.candidates[0]?.name).toMatch(/microdata/i);
   });
 });

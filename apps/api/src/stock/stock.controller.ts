@@ -331,6 +331,20 @@ export class StockController {
     );
   }
 
+  @Get('stock-consumptions')
+  @ApiOperation({ summary: 'Historia zużyć zapasów w kuchni' })
+  @ApiQuery({ name: 'productId', required: false })
+  @ApiOkResponse({ type: [StockConsumptionResultDto] })
+  listConsumptions(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Query('productId') productId?: string,
+  ): Promise<StockConsumptionResultDto[]> {
+    return this.stockService.listConsumptions(session.user.id, kitchenId, {
+      productId,
+    });
+  }
+
   @Post('stock-consumptions/:consumptionId/reverse')
   @ApiOperation({ summary: 'Cofnięcie wcześniejszego zużycia' })
   @ApiOkResponse({ type: StockConsumptionResultDto })

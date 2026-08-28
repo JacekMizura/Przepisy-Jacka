@@ -58,7 +58,6 @@ import {
 } from './dto/stock-summary.dto';
 import {
   allocateConsumption,
-  buildFingerprint,
   unitPriceMinor,
   type StockBatchRow,
 } from './stock-consume';
@@ -623,19 +622,17 @@ export class StockService {
         orderBy: [{ expiresAt: 'asc' }, { createdAt: 'asc' }],
       });
       const batches: StockBatchRow[] = batchRows.map(toStockBatchRow);
-      const fingerprint = buildFingerprint(batches);
-      if (fingerprint !== dto.previewFingerprint) {
-        throw new ConflictException(
-          'Stan partii zmienił się od podglądu — odśwież propozycję i zatwierdź ponownie.',
-        );
-      }
-
       const allocation = allocateConsumption(
         batches,
         requested,
         new Date(),
         manualLines,
       );
+      if (allocation.fingerprint !== dto.previewFingerprint) {
+        throw new ConflictException(
+          'Stan partii zmienił się od podglądu — odśwież propozycję i zatwierdź ponownie.',
+        );
+      }
       if (allocation.insufficientQuantity) {
         throw new BadRequestException(
           `Niewystarczający stan — brakuje ${formatQuantity(allocation.insufficientQuantity)}.`,
@@ -762,6 +759,52 @@ export class StockService {
     return toStockConsumptionResultDto(result);
   }
 
+  async listConsumptions(
+    userId: string,
+    kitchenId: string,
+    filters: { productId?: string; limit?: number },
+  ): Promise<StockConsumptionResultDto[]> {
+    await requireKitchenMember(this.prisma, kitchenId, userId);
+    const limit = Math.min(Math.max(filters.limit ?? 30, 1), 100);
+    const rows = await this.prisma.stockConsumption.findMany({
+      where: {
+        kitchenId,
+        productId: filters.productId,
+      },
+      include: {
+        lines: {
+          include: {
+            stockItem: {
+              include: {
+                purchaseLineItem: {
+                  include: {
+                    purchase: { select: { storeName: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
+        product: { select: { name: true } },
+        reversalOf: { select: { id: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+    });
+    return rows.map((row) => ({
+      ...toStockConsumptionResultDto(row, {
+        productName: row.product.name,
+        isReversed: Boolean(row.reversalOf),
+      }),
+      lines: row.lines.map((line) => ({
+        stockItemId: line.stockItemId,
+        quantity: formatQuantity(line.quantity),
+        costMinor: line.costMinor,
+        storeName: line.stockItem.purchaseLineItem?.purchase.storeName ?? null,
+      })),
+    }));
+  }
+
   private async loadProductBatches(
     kitchenId: string,
     productId: string,
@@ -786,12 +829,23 @@ export class StockService {
 
     const lines: ConsumeAllocationLineDto[] = allocation.lines.map((line) => {
       const meta = metaById.get(line.stockItemId);
+      const batch = batches.find((b) => b.id === line.stockItemId);
+      const isExpired =
+        batch?.expiresAt !== null &&
+        batch?.expiresAt !== undefined &&
+        batch.expiresAt <= new Date();
       return {
         stockItemId: line.stockItemId,
         quantity: formatQuantity(line.quantity),
         costMinor: line.costMinor,
         storeName: meta?.purchaseLineItem?.purchase.storeName ?? null,
         expiresAt: meta?.expiresAt?.toISOString() ?? null,
+        purchasedAt: meta?.purchasedAt?.toISOString() ?? null,
+        remainingQuantity: batch
+          ? formatQuantity(batch.quantity)
+          : formatQuantity(new Prisma.Decimal(0)),
+        purchasePriceMinor: batch?.purchasePriceMinor ?? null,
+        isExpired,
       };
     });
 
@@ -1254,10 +1308,12 @@ function toStockBatchDetailDto(
 
 function toStockConsumptionResultDto(
   consumption: Prisma.StockConsumptionGetPayload<{ include: { lines: true } }>,
+  extras?: { productName?: string; isReversed?: boolean },
 ): StockConsumptionResultDto {
   return {
     id: consumption.id,
     productId: consumption.productId,
+    productName: extras?.productName,
     totalQuantity: formatQuantity(consumption.totalQuantity),
     totalCostMinor: consumption.totalCostMinor,
     costComplete: consumption.costComplete,
@@ -1265,8 +1321,12 @@ function toStockConsumptionResultDto(
       stockItemId: line.stockItemId,
       quantity: formatQuantity(line.quantity),
       costMinor: line.costMinor,
+      storeName: null,
     })),
     createdAt: consumption.createdAt.toISOString(),
+    reversesConsumptionId: consumption.reversesConsumptionId,
+    isReversal: consumption.reversesConsumptionId !== null,
+    isReversed: extras?.isReversed ?? false,
   };
 }
 

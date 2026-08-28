@@ -481,6 +481,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/kitchens/{kitchenId}/stock-consumptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Historia zużyć zapasów w kuchni */
+        get: operations["StockController_listConsumptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/kitchens/{kitchenId}/stock-consumptions/{consumptionId}/reverse": {
         parameters: {
             query?: never;
@@ -1198,6 +1215,11 @@ export interface components {
             storeName?: string | null;
             /** Format: date-time */
             expiresAt?: string | null;
+            /** Format: date-time */
+            purchasedAt?: string | null;
+            remainingQuantity?: string;
+            purchasePriceMinor?: number | null;
+            isExpired?: boolean;
         };
         ConsumeStockPreviewResultDto: {
             quantity: string;
@@ -1222,16 +1244,22 @@ export interface components {
             stockItemId: string;
             quantity: string;
             costMinor?: number | null;
+            storeName?: string | null;
         };
         StockConsumptionResultDto: {
             id: string;
             productId: string;
+            productName?: string;
             totalQuantity: string;
             totalCostMinor?: number | null;
             costComplete: boolean;
             lines: components["schemas"]["StockConsumptionLineDto"][];
             /** Format: date-time */
             createdAt: string;
+            /** Format: uuid */
+            reversesConsumptionId?: string | null;
+            isReversal: boolean;
+            isReversed: boolean;
         };
         ReverseConsumptionDto: {
             idempotencyKey: string;
@@ -2831,6 +2859,29 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StockConsumptionResultDto"];
+                };
+            };
+        };
+    };
+    StockController_listConsumptions: {
+        parameters: {
+            query?: {
+                productId?: string;
+            };
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockConsumptionResultDto"][];
                 };
             };
         };

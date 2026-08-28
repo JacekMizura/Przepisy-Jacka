@@ -111,4 +111,44 @@ describe('recipe-availability', () => {
 
     expect(result.ingredients[0]?.status).toBe('missing');
   });
+
+  it('sums multiple non-expired batches without double-counting', () => {
+    const result = computeRecipeAvailability({
+      recipeId: 'recipe-1',
+      baseServings: 1,
+      servings: 1,
+      ingredients: [
+        {
+          ...baseIngredient,
+          quantity: new Prisma.Decimal('1200.000'),
+          unit: RecipeIngredientUnit.gram,
+          product: {
+            ...baseIngredient.product,
+            defaultUnit: ProductUnit.gram,
+          },
+        },
+      ],
+      stockItems: [
+        {
+          productId: 'prod-1',
+          quantity: new Prisma.Decimal('500.000'),
+          expiresAt: new Date('2026-09-01T00:00:00.000Z'),
+        },
+        {
+          productId: 'prod-1',
+          quantity: new Prisma.Decimal('1000.000'),
+          expiresAt: null,
+        },
+        {
+          productId: 'prod-1',
+          quantity: new Prisma.Decimal('400.000'),
+          expiresAt: new Date('2020-01-01T00:00:00.000Z'),
+        },
+      ],
+      now: new Date('2026-08-25T12:00:00.000Z'),
+    });
+
+    expect(result.ingredients[0]?.status).toBe('available');
+    expect(result.ingredients[0]?.availableQuantity).toBe('1500.000');
+  });
 });

@@ -60,6 +60,72 @@ describe('stock-consume', () => {
     });
   });
 
+  it('3 sztuki za 100 groszy → trzy zużycia po 1 sumują się do 100', () => {
+    let remaining = batch('p', '3', '3', 100);
+    const costs: number[] = [];
+
+    for (let i = 0; i < 3; i += 1) {
+      const take = new Prisma.Decimal('1');
+      const cost = batchLineCostMinor(remaining, take);
+      expect(cost).not.toBeNull();
+      costs.push(cost!);
+      remaining = {
+        ...remaining,
+        quantity: remaining.quantity.sub(take),
+      };
+    }
+
+    expect(costs.reduce((a, b) => a + b, 0)).toBe(100);
+    expect(new Set(costs).size).toBeGreaterThan(1);
+  });
+
+  it('cofnięcie i ponowne zużycie zachowują sumę groszy partii', () => {
+    let remaining = batch('p', '3', '3', 100);
+    const first = allocateConsumption(
+      [remaining],
+      new Prisma.Decimal('1'),
+      now,
+    );
+    remaining = {
+      ...remaining,
+      quantity: remaining.quantity.sub(first.lines[0]!.quantity),
+    };
+    const second = allocateConsumption(
+      [remaining],
+      new Prisma.Decimal('1'),
+      now,
+    );
+    remaining = {
+      ...remaining,
+      quantity: remaining.quantity.sub(second.lines[0]!.quantity),
+    };
+    // cofnięcie drugiego
+    remaining = {
+      ...remaining,
+      quantity: remaining.quantity.add(second.lines[0]!.quantity),
+    };
+    const secondAgain = allocateConsumption(
+      [remaining],
+      new Prisma.Decimal('1'),
+      now,
+    );
+    remaining = {
+      ...remaining,
+      quantity: remaining.quantity.sub(secondAgain.lines[0]!.quantity),
+    };
+    const third = allocateConsumption(
+      [remaining],
+      new Prisma.Decimal('1'),
+      now,
+    );
+
+    const total =
+      (first.totalCostMinor ?? 0) +
+      (secondAgain.totalCostMinor ?? 0) +
+      (third.totalCostMinor ?? 0);
+    expect(total).toBe(100);
+  });
+
   it('pomija przeterminowane partie w automatycznym doborze', () => {
     const expired = batch('e', '100', '100', 100, {
       expiresAt: '2026-08-01T00:00:00.000Z',
@@ -69,6 +135,20 @@ describe('stock-consume', () => {
     });
     const sorted = sortBatchesForConsumption([expired, fresh], now);
     expect(sorted.map((b) => b.id)).toEqual(['f']);
+  });
+
+  it('ręczne zużycie może odpisać przeterminowaną partię', () => {
+    const expired = batch('e', '50', '50', 200, {
+      expiresAt: '2026-08-01T00:00:00.000Z',
+    });
+    const result = allocateConsumption(
+      [expired],
+      new Prisma.Decimal('50'),
+      now,
+      [{ stockItemId: 'e', quantity: new Prisma.Decimal('50') }],
+    );
+    expect(result.insufficientQuantity).toBeNull();
+    expect(result.totalCostMinor).toBe(200);
   });
 
   it('partie bez terminu idą po terminowych, od najstarszego przyjęcia', () => {
@@ -113,5 +193,15 @@ describe('stock-consume', () => {
   it('prawdziwe zero ceny to zero kosztu', () => {
     const free = batch('z', '100', '100', 0);
     expect(batchLineCostMinor(free, new Prisma.Decimal('10'))).toBe(0);
+  });
+
+  it('zmiana ręcznego podziału zmienia fingerprint', () => {
+    const a = batch('a', '100', '100', 100);
+    const b = batch('b', '100', '100', 100);
+    const auto = allocateConsumption([a, b], new Prisma.Decimal('50'), now);
+    const manual = allocateConsumption([a, b], new Prisma.Decimal('50'), now, [
+      { stockItemId: 'b', quantity: new Prisma.Decimal('50') },
+    ]);
+    expect(auto.fingerprint).not.toBe(manual.fingerprint);
   });
 });

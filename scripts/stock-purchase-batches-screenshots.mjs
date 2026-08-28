@@ -1,5 +1,5 @@
 /**
- * Screenshots for stock purchase batches UI.
+ * Screenshots for stock purchase batches UI (manual consume + history).
  * Requires web on :3000 and API on :3001.
  */
 import { chromium } from "playwright";
@@ -83,51 +83,70 @@ async function main() {
 
   const stockUrl = `/kitchens/${kitchenId}/stock`;
 
+  async function openManualConsume() {
+    await page.goto(stockUrl);
+    await page
+      .getByRole("button", { name: /^Zużyj$/ })
+      .first()
+      .waitFor({ timeout: 20000 });
+    await page.getByRole("button", { name: /^Zużyj$/ }).first().click();
+    await page.getByRole("heading", { name: /Zużyj:/i }).waitFor({
+      timeout: 10000,
+    });
+    await page.getByRole("button", { name: /Wybierz partie/i }).click();
+    await page.getByLabel("Ilość do zużycia").fill("600");
+    const inputs = page.locator('input[aria-label^="Ilość z partii"]');
+    await inputs.nth(0).fill("500");
+    await inputs.nth(1).fill("100");
+    await page.getByRole("button", { name: /Podgląd podziału/i }).click();
+    await page.getByText("Łączny koszt").waitFor({ timeout: 10000 });
+  }
+
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto(stockUrl);
-  await page.getByText("Pomidory malinowe").waitFor({ timeout: 20000 });
+  await openManualConsume();
   await page.screenshot({
-    path: path.join(OUT, "stock-summary-desktop.png"),
-    fullPage: true,
-  });
-
-  await page.getByRole("button", { name: /Partie/i }).first().click();
-  await page.getByText("Ręczne dodanie").first().waitFor({ timeout: 10000 });
-  await page.screenshot({
-    path: path.join(OUT, "stock-batches-expanded-desktop.png"),
-    fullPage: true,
-  });
-
-  await page.getByRole("button", { name: /^Zużyj$/ }).first().click();
-  await page.getByLabel("Ilość do zużycia").fill("600");
-  await page.getByRole("button", { name: /Podgląd podziału/i }).click();
-  await page.getByText("Łączny koszt").waitFor({ timeout: 10000 });
-  await page.screenshot({
-    path: path.join(OUT, "stock-consume-desktop.png"),
+    path: path.join(OUT, "stock-consume-manual-desktop.png"),
     fullPage: false,
+  });
+  await page.getByRole("button", { name: /Zatwierdź zużycie/i }).click();
+  await page
+    .getByRole("heading", { name: /Zużyj:/i })
+    .waitFor({ state: "hidden", timeout: 15000 })
+    .catch(() => undefined);
+  await page.getByRole("button", { name: /^Zużyj$/ }).first().waitFor({
+    timeout: 15000,
+  });
+
+  await page.getByRole("button", { name: /Historia zużyć/i }).click();
+  await page.getByRole("button", { name: /^Cofnij$/ }).first().waitFor({
+    timeout: 15000,
+  });
+  await page.screenshot({
+    path: path.join(OUT, "stock-consume-history-desktop.png"),
+    fullPage: true,
   });
 
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(stockUrl);
-  await page.getByText("Pomidory malinowe").waitFor({ timeout: 20000 });
-  await page.screenshot({
-    path: path.join(OUT, "stock-summary-mobile.png"),
-    fullPage: true,
-  });
+  await page.getByRole("button", { name: /^Cofnij$/ }).first().click();
+  await page.waitForTimeout(1000);
 
-  await page.getByRole("button", { name: /Partie/i }).first().click();
+  await openManualConsume();
   await page.screenshot({
-    path: path.join(OUT, "stock-batches-expanded-mobile.png"),
-    fullPage: true,
-  });
-
-  await page.getByRole("button", { name: /^Zużyj$/ }).first().click();
-  await page.getByLabel("Ilość do zużycia").fill("600");
-  await page.getByRole("button", { name: /Podgląd podziału/i }).click();
-  await page.getByText("Łączny koszt").waitFor({ timeout: 10000 });
-  await page.screenshot({
-    path: path.join(OUT, "stock-consume-mobile.png"),
+    path: path.join(OUT, "stock-consume-manual-mobile.png"),
     fullPage: false,
+  });
+  await page.getByRole("button", { name: /Zatwierdź zużycie/i }).click();
+  await page
+    .getByRole("heading", { name: /Zużyj:/i })
+    .waitFor({ state: "hidden", timeout: 15000 })
+    .catch(() => undefined);
+  await page.getByRole("button", { name: /Historia zużyć/i }).click();
+  await page.getByRole("button", { name: /^Cofnij$/ }).first().waitFor({
+    timeout: 15000,
+  });
+  await page.screenshot({
+    path: path.join(OUT, "stock-consume-history-mobile.png"),
+    fullPage: true,
   });
 
   await browser.close();

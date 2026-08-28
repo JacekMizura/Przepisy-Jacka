@@ -57,12 +57,17 @@ export function sortBatchesForConsumption(
 }
 
 /**
- * Koszt części partii: oryginalna cena / oryginalna ilość × zużyta ilość.
- * Zaokrąglenie do pełnych groszy (half-up).
+ * Koszt części partii z rozliczeniem narastającym:
+ * round(P × takenAfter / Q) − round(P × takenBefore / Q),
+ * gdzie takenBefore = initialQuantity − remainingBeforeTake.
+ * Dzięki temu kolejne częściowe zużycia sumują się dokładnie do ceny zakupu.
  */
 export function batchLineCostMinor(
-  batch: Pick<StockBatchRow, 'initialQuantity' | 'purchasePriceMinor'>,
-  quantity: Prisma.Decimal,
+  batch: Pick<
+    StockBatchRow,
+    'initialQuantity' | 'purchasePriceMinor' | 'quantity'
+  >,
+  takeQuantity: Prisma.Decimal,
 ): number | null {
   if (
     batch.purchasePriceMinor === null ||
@@ -70,11 +75,41 @@ export function batchLineCostMinor(
   ) {
     return null;
   }
-  if (batch.initialQuantity.lte(0)) {
+  if (batch.initialQuantity.lte(0) || takeQuantity.lte(0)) {
     return null;
   }
-  const raw = quantity.mul(batch.purchasePriceMinor).div(batch.initialQuantity);
-  return raw.toDecimalPlaces(0, Prisma.Decimal.ROUND_HALF_UP).toNumber();
+  const takenBefore = batch.initialQuantity.sub(batch.quantity);
+  const takenAfter = takenBefore.add(takeQuantity);
+  const costAfter = new Prisma.Decimal(batch.purchasePriceMinor)
+    .mul(takenAfter)
+    .div(batch.initialQuantity)
+    .toDecimalPlaces(0, Prisma.Decimal.ROUND_HALF_UP)
+    .toNumber();
+  const costBefore = new Prisma.Decimal(batch.purchasePriceMinor)
+    .mul(takenBefore)
+    .div(batch.initialQuantity)
+    .toDecimalPlaces(0, Prisma.Decimal.ROUND_HALF_UP)
+    .toNumber();
+  return costAfter - costBefore;
+}
+
+function mergeManualLines(
+  manualLines: Array<{ stockItemId: string; quantity: Prisma.Decimal }>,
+): Array<{ stockItemId: string; quantity: Prisma.Decimal }> {
+  const merged = new Map<string, Prisma.Decimal>();
+  for (const line of manualLines) {
+    if (line.quantity.lte(0)) {
+      throw new BadRequestException(
+        'Każda ręczna linia zużycia musi mieć ilość większą od zera.',
+      );
+    }
+    const prev = merged.get(line.stockItemId) ?? new Prisma.Decimal(0);
+    merged.set(line.stockItemId, prev.add(line.quantity));
+  }
+  return Array.from(merged.entries()).map(([stockItemId, quantity]) => ({
+    stockItemId,
+    quantity,
+  }));
 }
 
 export function allocateConsumption(
@@ -87,37 +122,38 @@ export function allocateConsumption(
     throw new BadRequestException('Ilość do zużycia musi być większa od zera.');
   }
 
-  const batchById = new Map(batches.map((b) => [b.id, b]));
+  const working = new Map(
+    batches.map((b) => [
+      b.id,
+      {
+        ...b,
+        quantity: new Prisma.Decimal(b.quantity),
+      },
+    ]),
+  );
   const lines: ConsumeAllocationLine[] = [];
 
   if (manualLines && manualLines.length > 0) {
+    const merged = mergeManualLines(manualLines);
     let manualTotal = new Prisma.Decimal(0);
-    for (const manual of manualLines) {
-      if (manual.quantity.lte(0)) {
-        throw new BadRequestException(
-          'Każda ręczna linia zużycia musi mieć ilość większą od zera.',
-        );
-      }
-      const batch = batchById.get(manual.stockItemId);
+    for (const manual of merged) {
+      const batch = working.get(manual.stockItemId);
       if (!batch) {
         throw new BadRequestException('Nie znaleziono partii w tej kuchni.');
       }
       if (batch.quantity.lt(manual.quantity)) {
         throw new BadRequestException(
-          `Niewystarczająca ilość w partii ${manual.stockItemId}.`,
+          'Niewystarczająca ilość w wybranej partii.',
         );
       }
-      if (batch.expiresAt !== null && batch.expiresAt <= now) {
-        throw new BadRequestException(
-          'Przeterminowane partie nie mogą być użyte w ręcznym podziale.',
-        );
-      }
+      // Przeterminowane dozwolone wyłącznie w ręcznym wyborze (jawny odpis).
       manualTotal = manualTotal.add(manual.quantity);
       lines.push({
         stockItemId: manual.stockItemId,
         quantity: manual.quantity,
         costMinor: batchLineCostMinor(batch, manual.quantity),
       });
+      batch.quantity = batch.quantity.sub(manual.quantity);
     }
     if (!manualTotal.eq(requestedQuantity)) {
       throw new BadRequestException(
@@ -127,8 +163,10 @@ export function allocateConsumption(
   } else {
     const sorted = sortBatchesForConsumption(batches, now);
     let remaining = requestedQuantity;
-    for (const batch of sorted) {
+    for (const sortedBatch of sorted) {
       if (remaining.lte(0)) break;
+      const batch = working.get(sortedBatch.id);
+      if (!batch) continue;
       const take = Prisma.Decimal.min(batch.quantity, remaining);
       if (take.lte(0)) continue;
       lines.push({
@@ -136,6 +174,7 @@ export function allocateConsumption(
         quantity: take,
         costMinor: batchLineCostMinor(batch, take),
       });
+      batch.quantity = batch.quantity.sub(take);
       remaining = remaining.sub(take);
     }
     if (remaining.gt(0)) {
@@ -144,7 +183,7 @@ export function allocateConsumption(
         totalQuantity: new Prisma.Decimal(0),
         totalCostMinor: null,
         costComplete: false,
-        fingerprint: buildFingerprint(batches),
+        fingerprint: buildPreviewFingerprint(batches, []),
         insufficientQuantity: remaining,
       };
     }
@@ -170,17 +209,33 @@ export function allocateConsumption(
     totalQuantity,
     totalCostMinor: costComplete ? totalCostMinor : null,
     costComplete,
-    fingerprint: buildFingerprint(batches),
+    fingerprint: buildPreviewFingerprint(batches, lines),
     insufficientQuantity: null,
   };
 }
 
-export function buildFingerprint(batches: StockBatchRow[]): string {
-  const payload = [...batches]
+/** Odcisk stanu partii + zaproponowanego podziału (zmiana wyboru wymaga odświeżenia). */
+export function buildPreviewFingerprint(
+  batches: StockBatchRow[],
+  lines: Array<{ stockItemId: string; quantity: Prisma.Decimal }>,
+): string {
+  const batchPart = [...batches]
     .sort((a, b) => a.id.localeCompare(b.id))
     .map((b) => `${b.id}:${b.quantity.toFixed(3)}`)
     .join('|');
-  return createHash('sha256').update(payload).digest('hex').slice(0, 16);
+  const linePart = [...lines]
+    .sort((a, b) => a.stockItemId.localeCompare(b.stockItemId))
+    .map((l) => `${l.stockItemId}:${l.quantity.toFixed(3)}`)
+    .join('|');
+  return createHash('sha256')
+    .update(`${batchPart}##${linePart}`)
+    .digest('hex')
+    .slice(0, 16);
+}
+
+/** @deprecated Użyj buildPreviewFingerprint — zachowane dla kompatybilności wywołań. */
+export function buildFingerprint(batches: StockBatchRow[]): string {
+  return buildPreviewFingerprint(batches, []);
 }
 
 export function unitPriceMinor(

@@ -478,4 +478,205 @@ describe('Stock purchase batches and consumption (e2e)', () => {
     expect(summaries[0]?.batches[0]?.storeName).toBe('Biedronka');
     expect(summaries[0]?.batches[0]?.purchaseId).toBeTruthy();
   });
+
+  it('supports manual batch selection and rejects commit with swapped lines', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+    const { kitchen, product } = await createKitchenWithTomatoes(owner.cookies);
+    const a = await createBatch(kitchen.id, owner.cookies, {
+      productId: product.id,
+      quantity: '300.000',
+      purchasePriceMinor: 300,
+      expiresAt: '2026-09-01T00:00:00.000Z',
+    });
+    const b = await createBatch(kitchen.id, owner.cookies, {
+      productId: product.id,
+      quantity: '300.000',
+      purchasePriceMinor: 600,
+      expiresAt: '2026-09-10T00:00:00.000Z',
+    });
+
+    const preview = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/products/${product.id}/consume/preview`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          quantity: '100.000',
+          manualLines: [{ stockItemId: b.id, quantity: '100.000' }],
+        },
+      },
+    );
+    expect(preview.status).toBe(201);
+    const previewBody = preview.body as ConsumePreview;
+    expect(previewBody.lines).toHaveLength(1);
+    expect(previewBody.lines[0]?.stockItemId).toBe(b.id);
+    expect(previewBody.totalCostMinor).toBe(200);
+
+    const swappedCommit = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/products/${product.id}/consume`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          quantity: '100.000',
+          idempotencyKey: `swap-${crypto.randomUUID()}`,
+          previewFingerprint: previewBody.previewFingerprint,
+          manualLines: [{ stockItemId: a.id, quantity: '100.000' }],
+        },
+      },
+    );
+    expect(swappedCommit.status).toBe(409);
+
+    const commit = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/products/${product.id}/consume`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          quantity: '100.000',
+          idempotencyKey: `manual-${crypto.randomUUID()}`,
+          previewFingerprint: previewBody.previewFingerprint,
+          manualLines: [{ stockItemId: b.id, quantity: '100.000' }],
+        },
+      },
+    );
+    expect(commit.status).toBe(201);
+  });
+
+  it('lists consumptions and reverses to restore stock', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+    const { kitchen, product } = await createKitchenWithTomatoes(owner.cookies);
+    await createBatch(kitchen.id, owner.cookies, {
+      productId: product.id,
+      quantity: '100.000',
+      purchasePriceMinor: 100,
+    });
+
+    const preview = (
+      await apiFetch(
+        api.origin,
+        `/api/kitchens/${kitchen.id}/products/${product.id}/consume/preview`,
+        {
+          method: 'POST',
+          webOrigin: WEB_ORIGIN,
+          cookies: owner.cookies,
+          body: { quantity: '40.000' },
+        },
+      )
+    ).body as ConsumePreview;
+
+    const commit = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/products/${product.id}/consume`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          quantity: '40.000',
+          idempotencyKey: `hist-${crypto.randomUUID()}`,
+          previewFingerprint: preview.previewFingerprint,
+        },
+      },
+    );
+    const consumption = commit.body as ConsumptionResult;
+
+    const listed = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/stock-consumptions?productId=${product.id}`,
+      { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
+    );
+    expect(listed.status).toBe(200);
+    const history = listed.body as Array<{
+      id: string;
+      isReversed: boolean;
+      isReversal: boolean;
+    }>;
+    expect(history.some((h) => h.id === consumption.id)).toBe(true);
+
+    const reverse = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/stock-consumptions/${consumption.id}/reverse`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { idempotencyKey: `rev-hist-${crypto.randomUUID()}` },
+      },
+    );
+    expect(reverse.status).toBe(201);
+
+    const summary = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/stock-summary`,
+      { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
+    );
+    expect((summary.body as StockSummary[])[0]?.totalQuantity).toBe('100.000');
+  });
+
+  it('assigns exactly 100 groszy across three piece consumptions', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+    const kitchenRes = await apiFetch(api.origin, '/api/kitchens', {
+      method: 'POST',
+      webOrigin: WEB_ORIGIN,
+      cookies: owner.cookies,
+      body: { name: 'Grosze' },
+    });
+    const kitchen = kitchenRes.body as { id: string };
+    const productRes = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/products`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { name: 'Jajka', defaultUnit: 'piece' },
+      },
+    );
+    const product = productRes.body as { id: string };
+    await createBatch(kitchen.id, owner.cookies, {
+      productId: product.id,
+      quantity: '3.000',
+      purchasePriceMinor: 100,
+    });
+
+    let totalCost = 0;
+    for (let i = 0; i < 3; i += 1) {
+      const preview = (
+        await apiFetch(
+          api.origin,
+          `/api/kitchens/${kitchen.id}/products/${product.id}/consume/preview`,
+          {
+            method: 'POST',
+            webOrigin: WEB_ORIGIN,
+            cookies: owner.cookies,
+            body: { quantity: '1.000' },
+          },
+        )
+      ).body as ConsumePreview;
+      const commit = await apiFetch(
+        api.origin,
+        `/api/kitchens/${kitchen.id}/products/${product.id}/consume`,
+        {
+          method: 'POST',
+          webOrigin: WEB_ORIGIN,
+          cookies: owner.cookies,
+          body: {
+            quantity: '1.000',
+            idempotencyKey: `piece-${i}-${crypto.randomUUID()}`,
+            previewFingerprint: preview.previewFingerprint,
+          },
+        },
+      );
+      expect(commit.status).toBe(201);
+      totalCost += (commit.body as ConsumptionResult).totalCostMinor ?? 0;
+    }
+    expect(totalCost).toBe(100);
+  });
 });

@@ -123,6 +123,11 @@ export default function StockPage() {
   const [consumeProduct, setConsumeProduct] = useState<StockSummary | null>(
     null,
   );
+  const [consumePreferManual, setConsumePreferManual] = useState(false);
+  const [consumeInitialBatchId, setConsumeInitialBatchId] = useState<
+    string | undefined
+  >();
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [productFormOpen, setProductFormOpen] = useState(false);
   const [stockFormOpen, setStockFormOpen] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
@@ -199,6 +204,49 @@ export default function StockPage() {
         throw new Error(readApiError(error, "Nie udało się pobrać zapasów."));
       }
       return data ?? [];
+    },
+  });
+
+  const consumptionsQuery = useQuery({
+    queryKey: ["stock-consumptions", kitchenId],
+    queryFn: async () => {
+      const client = createWebApiClient();
+      const { data, error } = await client.GET(
+        "/api/kitchens/{kitchenId}/stock-consumptions",
+        { params: { path: { kitchenId } } },
+      );
+      if (error) {
+        throw new Error(
+          readApiError(error, "Nie udało się pobrać historii zużyć."),
+        );
+      }
+      return data ?? [];
+    },
+    enabled: historyOpen,
+  });
+
+  const reverseConsumption = useMutation({
+    mutationFn: async (consumptionId: string) => {
+      const client = createWebApiClient();
+      const { error } = await client.POST(
+        "/api/kitchens/{kitchenId}/stock-consumptions/{consumptionId}/reverse",
+        {
+          params: { path: { kitchenId, consumptionId } },
+          body: { idempotencyKey: crypto.randomUUID() },
+        },
+      );
+      if (error) {
+        throw new Error(readApiError(error, "Nie udało się cofnąć zużycia."));
+      }
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["stock-summary", kitchenId],
+      });
+      await queryClient.invalidateQueries({ queryKey: ["stock", kitchenId] });
+      await queryClient.invalidateQueries({
+        queryKey: ["stock-consumptions", kitchenId],
+      });
     },
   });
 
@@ -1205,7 +1253,11 @@ export default function StockPage() {
                                 type="button"
                                 size="sm"
                                 variant="amber"
-                                onClick={() => setConsumeProduct(summary)}
+                                onClick={() => {
+                                  setConsumePreferManual(false);
+                                  setConsumeInitialBatchId(undefined);
+                                  setConsumeProduct(summary);
+                                }}
                               >
                                 Zużyj
                               </Button>
@@ -1277,16 +1329,32 @@ export default function StockPage() {
                                         </Link>
                                       ) : null}
                                     </div>
-                                    <Button
-                                      type="button"
-                                      size="sm"
-                                      variant="destructive"
-                                      onClick={() =>
-                                        deleteStock.mutate(batch.id)
-                                      }
-                                    >
-                                      Usuń partię
-                                    </Button>
+                                    <div className="flex flex-wrap gap-2">
+                                      {batch.isExpired ? (
+                                        <Button
+                                          type="button"
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={() => {
+                                            setConsumePreferManual(true);
+                                            setConsumeInitialBatchId(batch.id);
+                                            setConsumeProduct(summary);
+                                          }}
+                                        >
+                                          Odpisz
+                                        </Button>
+                                      ) : null}
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="destructive"
+                                        onClick={() =>
+                                          deleteStock.mutate(batch.id)
+                                        }
+                                      >
+                                        Usuń partię
+                                      </Button>
+                                    </div>
                                   </div>
                                 </li>
                               ))}
@@ -1300,6 +1368,123 @@ export default function StockPage() {
               </ul>
             ) : null}
           </div>
+        </section>
+
+        <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
+          <button
+            type="button"
+            onClick={() => setHistoryOpen((open) => !open)}
+            className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left hover:bg-gray-50/80"
+            aria-expanded={historyOpen}
+          >
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">
+                Historia zużyć
+              </h2>
+              <p className="mt-0.5 text-sm text-gray-500">
+                Podgląd zatwierdzonych odpisań i cofnięć — bez kasowania historii.
+              </p>
+            </div>
+            <ChevronDown
+              size={20}
+              className={cn(
+                "shrink-0 text-gray-400 transition-transform",
+                historyOpen && "rotate-180",
+              )}
+            />
+          </button>
+          {historyOpen ? (
+            <div className="border-t border-gray-100">
+              {consumptionsQuery.isPending ? (
+                <p className="p-6 text-sm text-gray-500">Ładowanie historii…</p>
+              ) : null}
+              {consumptionsQuery.isError ? (
+                <p className="p-6 text-sm text-red-600" role="alert">
+                  {readApiError(consumptionsQuery.error)}
+                </p>
+              ) : null}
+              {!consumptionsQuery.isPending &&
+              (consumptionsQuery.data?.length ?? 0) === 0 ? (
+                <p className="p-6 text-sm text-gray-500">
+                  Brak zapisanych zużyć. Użyj „Zużyj” lub „Odpisz”, aby skorygować
+                  stan partii.
+                </p>
+              ) : null}
+              {(consumptionsQuery.data ?? []).length > 0 ? (
+                <ul className="divide-y divide-gray-50">
+                  {(consumptionsQuery.data ?? []).map((entry) => (
+                    <li key={entry.id} className="px-4 py-3 text-sm">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="space-y-1">
+                          <p className="font-medium text-gray-900">
+                            {entry.productName ?? entry.productId}
+                            {entry.isReversal ? (
+                              <span className="ml-2 text-xs font-semibold text-amber-800">
+                                Cofnięcie
+                              </span>
+                            ) : null}
+                            {entry.isReversed ? (
+                              <span className="ml-2 text-xs font-semibold text-gray-500">
+                                Cofnięte
+                              </span>
+                            ) : null}
+                          </p>
+                          <p className="text-gray-600">
+                            {formatQuantityWithUnit(
+                              entry.totalQuantity,
+                              productsQuery.data?.find(
+                                (p) => p.id === entry.productId,
+                              )?.defaultUnit,
+                            )}
+                            {" · "}
+                            {entry.costComplete && entry.totalCostMinor != null
+                              ? `${zlotyFromMinor(entry.totalCostMinor)} zł`
+                              : "koszt niekompletny"}
+                            {" · "}
+                            {new Date(entry.createdAt).toLocaleString("pl-PL")}
+                          </p>
+                          <ul className="text-xs text-gray-500">
+                            {entry.lines.map((line) => (
+                              <li key={`${entry.id}-${line.stockItemId}`}>
+                                {formatQuantityWithUnit(
+                                  line.quantity,
+                                  productsQuery.data?.find(
+                                    (p) => p.id === entry.productId,
+                                  )?.defaultUnit,
+                                )}
+                                {line.storeName ? ` · ${line.storeName}` : ""}
+                                {line.costMinor != null
+                                  ? ` · ${zlotyFromMinor(line.costMinor)} zł`
+                                  : ""}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                        {!entry.isReversal && !entry.isReversed ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={reverseConsumption.isPending}
+                            onClick={() =>
+                              reverseConsumption.mutate(entry.id)
+                            }
+                          >
+                            Cofnij
+                          </Button>
+                        ) : null}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {reverseConsumption.isError ? (
+                <p className="border-t border-gray-50 px-4 py-3 text-sm text-red-600">
+                  {readApiError(reverseConsumption.error)}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
         </section>
 
         <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
@@ -1528,13 +1713,22 @@ export default function StockPage() {
             "gram"
           }
           open={Boolean(consumeProduct)}
-          onClose={() => setConsumeProduct(null)}
+          preferManual={consumePreferManual}
+          initialBatchId={consumeInitialBatchId}
+          onClose={() => {
+            setConsumeProduct(null);
+            setConsumePreferManual(false);
+            setConsumeInitialBatchId(undefined);
+          }}
           onSuccess={async () => {
             await queryClient.invalidateQueries({
               queryKey: ["stock-summary", kitchenId],
             });
             await queryClient.invalidateQueries({
               queryKey: ["stock", kitchenId],
+            });
+            await queryClient.invalidateQueries({
+              queryKey: ["stock-consumptions", kitchenId],
             });
           }}
         />

@@ -64,6 +64,18 @@ export class ConsumeAllocationLineDto {
 
   @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
   expiresAt!: string | null;
+
+  @ApiPropertyOptional({ type: String, format: 'date-time', nullable: true })
+  purchasedAt!: string | null;
+
+  @ApiPropertyOptional({ type: String })
+  remainingQuantity!: string;
+
+  @ApiPropertyOptional({ type: Number, nullable: true })
+  purchasePriceMinor!: number | null;
+
+  @ApiPropertyOptional()
+  isExpired!: boolean;
 }
 
 export class ConsumeStockPreviewResultDto {
@@ -101,6 +113,9 @@ export class StockConsumptionLineDto {
 
   @ApiPropertyOptional({ type: Number, nullable: true })
   costMinor!: number | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  storeName!: string | null;
 }
 
 export class StockConsumptionResultDto {
@@ -109,6 +124,9 @@ export class StockConsumptionResultDto {
 
   @ApiProperty()
   productId!: string;
+
+  @ApiPropertyOptional({ type: String })
+  productName?: string;
 
   @ApiProperty({ type: String })
   totalQuantity!: string;
@@ -124,6 +142,15 @@ export class StockConsumptionResultDto {
 
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;
+
+  @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
+  reversesConsumptionId!: string | null;
+
+  @ApiProperty()
+  isReversal!: boolean;
+
+  @ApiProperty()
+  isReversed!: boolean;
 }
 
 export class ReverseConsumptionDto {

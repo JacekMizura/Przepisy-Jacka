@@ -1660,6 +1660,48 @@
         ]
       }
     },
+    "/api/kitchens/{kitchenId}/stock-consumptions": {
+      "get": {
+        "operationId": "StockController_listConsumptions",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StockConsumptionResultDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Historia zużyć zapasów w kuchni",
+        "tags": [
+          "stock"
+        ]
+      }
+    },
     "/api/kitchens/{kitchenId}/stock-consumptions/{consumptionId}/reverse": {
       "post": {
         "operationId": "StockController_reverseConsumption",
@@ -4023,6 +4065,21 @@
             "type": "string",
             "format": "date-time",
             "nullable": true
+          },
+          "purchasedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "remainingQuantity": {
+            "type": "string"
+          },
+          "purchasePriceMinor": {
+            "type": "number",
+            "nullable": true
+          },
+          "isExpired": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -4112,6 +4169,10 @@
           "costMinor": {
             "type": "number",
             "nullable": true
+          },
+          "storeName": {
+            "type": "string",
+            "nullable": true
           }
         },
         "required": [
@@ -4126,6 +4187,9 @@
             "type": "string"
           },
           "productId": {
+            "type": "string"
+          },
+          "productName": {
             "type": "string"
           },
           "totalQuantity": {
@@ -4147,6 +4211,17 @@
           "createdAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "reversesConsumptionId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "isReversal": {
+            "type": "boolean"
+          },
+          "isReversed": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -4155,7 +4230,9 @@
           "totalQuantity",
           "costComplete",
           "lines",
-          "createdAt"
+          "createdAt",
+          "isReversal",
+          "isReversed"
         ]
       },
       "ReverseConsumptionDto": {

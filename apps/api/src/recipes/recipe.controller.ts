@@ -48,16 +48,35 @@ export class RecipeController {
     required: false,
     enum: ['all', 'mine', 'kitchen'],
   })
+  @ApiQuery({
+    name: 'categoryIds',
+    required: false,
+    isArray: true,
+    type: String,
+    description:
+      'Przepisy należące do dowolnej z podanych kategorii (OR). Ignorowane przy uncategorized=true.',
+  })
+  @ApiQuery({
+    name: 'uncategorized',
+    required: false,
+    type: Boolean,
+    description:
+      'Wyłącznie przepisy bez kategorii (wyłączne względem categoryIds).',
+  })
   @ApiOkResponse({ type: [RecipeSummaryDto] })
   list(
     @Session() session: UserSession,
     @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
     @Query('search') search?: string,
     @Query('filter') filter?: RecipeListFilter,
+    @Query('categoryIds') categoryIds?: string | string[],
+    @Query('uncategorized') uncategorized?: string,
   ): Promise<RecipeSummaryDto[]> {
     return this.recipeService.listRecipes(session.user.id, kitchenId, {
       search,
       filter,
+      categoryIds: normalizeCategoryIdsQuery(categoryIds),
+      uncategorized: parseBooleanQuery(uncategorized),
     });
   }
 
@@ -166,4 +185,26 @@ export class RecipeController {
       body,
     );
   }
+}
+
+function normalizeCategoryIdsQuery(
+  value: string | string[] | undefined,
+): string[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  const raw = Array.isArray(value) ? value : value.split(',');
+  const ids = raw
+    .flatMap((item) => item.split(','))
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
+  return ids.length > 0 ? [...new Set(ids)] : undefined;
+}
+
+function parseBooleanQuery(value: string | undefined): boolean {
+  if (value === undefined) {
+    return false;
+  }
+  const normalized = value.trim().toLowerCase();
+  return normalized === '1' || normalized === 'true' || normalized === 'yes';
 }

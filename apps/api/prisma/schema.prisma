@@ -174,6 +174,7 @@ model Kitchen {
   shoppingList    ShoppingList?
   purchases       Purchase[]
   recipes         Recipe[]
+  recipeCategories RecipeCategory[]
   mediaAssets     MediaAsset[]
 }
 
@@ -423,10 +424,36 @@ model Recipe {
   steps             RecipeStep[]
   gapAdditions      RecipeGapAddition[]
   shoppingListItems ShoppingListItem[]
+  categoryLinks     RecipeCategoryAssignment[]
 
   @@index([kitchenId])
   @@index([kitchenId, authorUserId])
   @@index([kitchenId, visibility])
+}
+
+model RecipeCategory {
+  id             String                     @id @default(uuid())
+  kitchenId      String
+  name           String
+  normalizedName String
+  sortOrder      Int                        @default(0)
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+  kitchen        Kitchen                    @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+  recipes        RecipeCategoryAssignment[]
+
+  @@unique([kitchenId, normalizedName])
+  @@index([kitchenId, sortOrder])
+}
+
+model RecipeCategoryAssignment {
+  recipeId   String
+  categoryId String
+  recipe     Recipe         @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  category   RecipeCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([recipeId, categoryId])
+  @@index([categoryId])
 }
 
 model RecipeIngredientGroup {

@@ -104,9 +104,10 @@ Cookies sesji:
 - `StockItem` (`initialQuantity`, `quantity`, `purchasePriceMinor`, `currency`, miejsce, daty, opcjonalne `ean` / `imageUrl`). Ilości: `DECIMAL(12,3)`.
 - `ShoppingList` (jedna na kuchnię), `ShoppingListItem` (status `pending` / `bought` / `skipped`, planowana ilość/opakowania, wymagana ilość z przepisu, źródło przepisu, `resolvedAt` po rozliczeniu),
 - `Purchase` (`storeName`, `purchasedAt`, `currency`, `totalPriceMinor`, unikalny `idempotencyKey`), `PurchaseLineItem` (powiązanie z produktem, opcjonalnie `stockItemId` i `shoppingListItemId`; do zapasu trafia zawartość opakowań).
-- `Recipe`, `RecipeIngredient`, `RecipeIngredientGroup`, `RecipeStep` (opcjonalny tytuł, wskazówka i czas etapu), `RecipeGapAddition` (idempotencja dodawania braków do listy).
+- `Recipe`, `RecipeIngredient`, `RecipeIngredientGroup`, `RecipeStep` (opcjonalny tytuł, wskazówka i czas etapu), `RecipeGapAddition` (idempotencja dodawania braków do listy),
+- `RecipeCategory` (wspólne kategorie kuchni, unikalność `(kitchenId, normalizedName)`) oraz `RecipeCategoryAssignment` (wiele kategorii na przepis; usunięcie kategorii kasuje tylko przypisania). Kategorie startowe dodaje migracja dla istniejących kuchni oraz transakcja tworzenia nowej kuchni; runtime API ich nie odtwarza po świadomym usunięciu.
 
-Endpointy listy, zakupów i przepisów pod `kitchens/:kitchenId`. Każda operacja wymaga członkostwa w kuchni; prywatne przepisy tylko dla autora. Lookup wartości odżywczych: `GET …/nutrition-lookups/by-ean` (Open Food Facts przez NestJS; timeout, cache, obsługa 429/503; testy CI używają lokalnego mocka HTTP).
+Endpointy listy, zakupów i przepisów pod `kitchens/:kitchenId`. Kategorie: `…/recipe-categories`. Lista przepisów filtruje w API (`categoryIds` OR, `uncategorized`, `search`) przy zachowaniu reguł widoczności. Każda operacja wymaga członkostwa w kuchni; prywatne przepisy tylko dla autora. Lookup wartości odżywczych: `GET …/nutrition-lookups/by-ean` (Open Food Facts przez NestJS; timeout, cache, obsługa 429/503; testy CI używają lokalnego mocka HTTP).
 
 Migracje wykonuje wyłącznie Prisma. Seed demo działa tylko gdy `NODE_ENV !== "production"` oraz `ALLOW_DEMO_SEED=true`. Seed nie jest częścią startu ani pre-deploy Railway.
 

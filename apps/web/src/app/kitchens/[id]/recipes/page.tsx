@@ -6,15 +6,18 @@ import {
   Clock3,
   Plus,
   Search,
+  Settings2,
   Signal,
   Users,
 } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useMemo, useState, type ReactNode } from "react";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useMemo, useState, type ReactNode, Suspense } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { AppShell } from "@/components/app-shell";
+import { RecipeCategoriesDialog } from "@/components/recipe-categories-dialog";
+import { RecipeCategoryLabels } from "@/components/recipe-category-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createWebApiClient } from "@/lib/api";
@@ -37,14 +40,140 @@ const FILTER_OPTIONS: Array<{ value: RecipeFilter; label: string }> = [
   { value: "kitchen", label: "Udostępnione kuchni" },
 ];
 
+function parseRecipeFilter(value: string | null): RecipeFilter {
+  if (value === "mine" || value === "kitchen" || value === "all") {
+    return value;
+  }
+  return "all";
+}
+
+function parseCategoryIds(value: string | null): string[] {
+  if (!value) {
+    return [];
+  }
+  return [
+    ...new Set(
+      value
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
 export default function RecipesPage() {
+  return (
+    <Suspense
+      fallback={
+        <AppShell>
+          <div className="px-4 py-16 text-center text-sm text-gray-500">
+            Ładowanie przepisów…
+          </div>
+        </AppShell>
+      }
+    >
+      <RecipesPageContent />
+    </Suspense>
+  );
+}
+
+function RecipesPageContent() {
   const params = useParams<{ id: string }>();
   const kitchenId = params.id;
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<RecipeFilter>("all");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const search = searchParams.get("q") ?? "";
+  const filter = parseRecipeFilter(searchParams.get("filter"));
+  const uncategorized = searchParams.get("uncategorized") === "1";
+  const categoriesParam = searchParams.get("categories");
+  const selectedCategoryIds = useMemo(
+    () => (uncategorized ? [] : parseCategoryIds(categoriesParam)),
+    [categoriesParam, uncategorized],
+  );
+  const [manageOpen, setManageOpen] = useState(false);
+
+  const replaceQuery = useCallback(
+    (patch: {
+      q?: string;
+      filter?: RecipeFilter;
+      categories?: string[];
+      uncategorized?: boolean;
+    }) => {
+      const next = new URLSearchParams(searchParams.toString());
+
+      const nextQ = patch.q !== undefined ? patch.q : search;
+      const nextFilter = patch.filter !== undefined ? patch.filter : filter;
+      const nextUncategorized =
+        patch.uncategorized !== undefined ? patch.uncategorized : uncategorized;
+      const nextCategories =
+        patch.categories !== undefined ? patch.categories : selectedCategoryIds;
+
+      if (nextQ.trim()) {
+        next.set("q", nextQ.trim());
+      } else {
+        next.delete("q");
+      }
+
+      if (nextFilter !== "all") {
+        next.set("filter", nextFilter);
+      } else {
+        next.delete("filter");
+      }
+
+      if (nextUncategorized) {
+        next.set("uncategorized", "1");
+        next.delete("categories");
+      } else {
+        next.delete("uncategorized");
+        if (nextCategories.length > 0) {
+          next.set("categories", nextCategories.join(","));
+        } else {
+          next.delete("categories");
+        }
+      }
+
+      const query = next.toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, {
+        scroll: false,
+      });
+    },
+    [
+      filter,
+      pathname,
+      router,
+      search,
+      searchParams,
+      selectedCategoryIds,
+      uncategorized,
+    ],
+  );
+
+  const categoriesQuery = useQuery({
+    queryKey: ["recipe-categories", kitchenId],
+    queryFn: async () => {
+      const client = createWebApiClient();
+      const { data, error } = await client.GET(
+        "/api/kitchens/{kitchenId}/recipe-categories",
+        { params: { path: { kitchenId } } },
+      );
+      if (error) {
+        throw new Error(readApiError(error, "Nie udało się pobrać kategorii."));
+      }
+      return data ?? [];
+    },
+  });
 
   const recipesQuery = useQuery({
-    queryKey: ["recipes", kitchenId, filter, search.trim()],
+    queryKey: [
+      "recipes",
+      kitchenId,
+      filter,
+      search.trim(),
+      selectedCategoryIds.join(","),
+      uncategorized,
+    ],
     queryFn: async () => {
       const client = createWebApiClient();
       const { data, error, response } = await client.GET(
@@ -55,6 +184,10 @@ export default function RecipesPage() {
             query: {
               filter,
               ...(search.trim() ? { search: search.trim() } : {}),
+              ...(uncategorized ? { uncategorized: true } : {}),
+              ...(!uncategorized && selectedCategoryIds.length > 0
+                ? { categoryIds: selectedCategoryIds }
+                : {}),
             },
           },
         },
@@ -69,16 +202,19 @@ export default function RecipesPage() {
     },
   });
 
-  const filteredRecipes = useMemo(() => {
-    const needle = search.trim().toLowerCase();
-    const items = recipesQuery.data ?? [];
-    if (!needle) {
-      return items;
+  const recipes = recipesQuery.data ?? [];
+  const hasActiveCategoryFilter =
+    uncategorized || selectedCategoryIds.length > 0;
+  const hasActiveFilters =
+    search.trim().length > 0 || filter !== "all" || hasActiveCategoryFilter;
+
+  const categoryNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const category of categoriesQuery.data ?? []) {
+      map.set(category.id, category.name);
     }
-    return items.filter((recipe) =>
-      recipe.name.toLowerCase().includes(needle),
-    );
-  }, [recipesQuery.data, search]);
+    return map;
+  }, [categoriesQuery.data]);
 
   return (
     <AppShell kitchenId={kitchenId}>
@@ -87,15 +223,22 @@ export default function RecipesPage() {
           <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
             Przepisy
           </h1>
-          <Link
-            href={`/kitchens/${kitchenId}/recipes/new`}
-            className="mt-4 inline-flex sm:absolute sm:top-0 sm:right-0 sm:mt-0"
-          >
-            <Button>
-              <Plus size={16} className="mr-1" />
-              Nowy przepis
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2 sm:absolute sm:top-0 sm:right-0 sm:mt-0 sm:justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setManageOpen(true)}
+            >
+              <Settings2 size={16} className="mr-1" />
+              Zarządzaj kategoriami
             </Button>
-          </Link>
+            <Link href={`/kitchens/${kitchenId}/recipes/new`}>
+              <Button>
+                <Plus size={16} className="mr-1" />
+                Nowy przepis
+              </Button>
+            </Link>
+          </div>
         </header>
 
         <section className="space-y-5">
@@ -107,7 +250,7 @@ export default function RecipesPage() {
             <Input
               aria-label="Szukaj przepisów"
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => replaceQuery({ q: event.target.value })}
               placeholder="Szukaj po nazwie…"
               className="pl-10"
             />
@@ -122,7 +265,7 @@ export default function RecipesPage() {
                 <button
                   key={option.value}
                   type="button"
-                  onClick={() => setFilter(option.value)}
+                  onClick={() => replaceQuery({ filter: option.value })}
                   className={cn(
                     "rounded-full px-3 py-1 text-sm font-medium transition-colors",
                     filter === option.value
@@ -134,6 +277,83 @@ export default function RecipesPage() {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <span className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+                Kategorie:
+              </span>
+              <button
+                type="button"
+                onClick={() =>
+                  replaceQuery({ categories: [], uncategorized: false })
+                }
+                className={cn(
+                  "rounded-full px-3 py-1 text-sm font-medium transition-colors",
+                  !hasActiveCategoryFilter
+                    ? "bg-emerald-600 text-white"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200",
+                )}
+              >
+                Wszystkie
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  replaceQuery({ categories: [], uncategorized: true })
+                }
+                className={cn(
+                  "rounded-full px-3 py-1 text-sm font-medium transition-colors",
+                  uncategorized
+                    ? "bg-emerald-600 text-white"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200",
+                )}
+              >
+                Bez kategorii
+              </button>
+              {(categoriesQuery.data ?? []).map((category) => {
+                const isSelected = selectedCategoryIds.includes(category.id);
+                return (
+                  <button
+                    key={category.id}
+                    type="button"
+                    onClick={() => {
+                      if (isSelected) {
+                        replaceQuery({
+                          uncategorized: false,
+                          categories: selectedCategoryIds.filter(
+                            (id) => id !== category.id,
+                          ),
+                        });
+                        return;
+                      }
+                      replaceQuery({
+                        uncategorized: false,
+                        categories: [...selectedCategoryIds, category.id],
+                      });
+                    }}
+                    className={cn(
+                      "rounded-full px-3 py-1 text-sm font-medium transition-colors",
+                      isSelected
+                        ? "bg-emerald-600 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200",
+                    )}
+                  >
+                    {category.name}
+                  </button>
+                );
+              })}
+            </div>
+            {hasActiveCategoryFilter ? (
+              <p className="text-center text-xs text-gray-500">
+                {uncategorized
+                  ? "Wyświetlane są tylko przepisy bez kategorii."
+                  : `Filtr OR: ${selectedCategoryIds
+                      .map((id) => categoryNameById.get(id) ?? id)
+                      .join(", ")}`}
+              </p>
+            ) : null}
           </div>
 
           {recipesQuery.isPending ? (
@@ -150,37 +370,53 @@ export default function RecipesPage() {
 
           {!recipesQuery.isPending &&
           !recipesQuery.isError &&
-          filteredRecipes.length === 0 ? (
+          recipes.length === 0 ? (
             <div className="px-6 py-16 text-center">
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
                 <BookOpen size={32} />
               </div>
               <p className="text-lg font-semibold text-gray-900">
-                {search.trim() || filter !== "all"
+                {hasActiveFilters
                   ? "Brak pasujących przepisów"
                   : "Nie masz jeszcze przepisów"}
               </p>
               <p className="mx-auto mt-2 max-w-md text-sm text-gray-500">
-                {search.trim() || filter !== "all"
-                  ? "Spróbuj zmienić filtr albo wyszukiwanie."
+                {hasActiveFilters
+                  ? "Zmień wyszukiwanie lub filtry kategorii, albo wyczyść je i pokaż wszystkie przepisy."
                   : "Utwórz pierwszy przepis, aby śledzić składniki i gotować z zapasów."}
               </p>
-              {!search.trim() && filter === "all" ? (
+              {hasActiveFilters ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="mt-6"
+                  onClick={() =>
+                    replaceQuery({
+                      q: "",
+                      filter: "all",
+                      categories: [],
+                      uncategorized: false,
+                    })
+                  }
+                >
+                  Wyczyść filtry
+                </Button>
+              ) : (
                 <Link
                   href={`/kitchens/${kitchenId}/recipes/new`}
                   className="mt-6 inline-block"
                 >
                   <Button>Dodaj przepis</Button>
                 </Link>
-              ) : null}
+              )}
             </div>
           ) : null}
 
           {!recipesQuery.isPending &&
           !recipesQuery.isError &&
-          filteredRecipes.length > 0 ? (
+          recipes.length > 0 ? (
             <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {filteredRecipes.map((recipe) => (
+              {recipes.map((recipe) => (
                 <RecipeTile
                   key={recipe.id}
                   kitchenId={kitchenId}
@@ -191,6 +427,12 @@ export default function RecipesPage() {
           ) : null}
         </section>
       </div>
+
+      <RecipeCategoriesDialog
+        kitchenId={kitchenId}
+        open={manageOpen}
+        onClose={() => setManageOpen(false)}
+      />
     </AppShell>
   );
 }
@@ -220,6 +462,7 @@ function RecipeTile({
           <p className="line-clamp-2 text-base font-bold leading-snug text-gray-900 sm:text-[1.05rem]">
             {recipe.name}
           </p>
+          <RecipeCategoryLabels categories={recipe.categories ?? []} />
           <p className="text-xs text-gray-500">
             {RECIPE_VISIBILITY_LABELS[recipe.visibility]}
             <span className="mx-1.5 text-gray-300" aria-hidden>

@@ -3,9 +3,11 @@
 import type { components } from "@moja-kuchnia/api-client";
 import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { type FormEvent, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import { PendingImageField } from "@/components/media-image-field";
 import { ProductThumb } from "@/components/product-thumb";
+import { RecipeCategoryPicker } from "@/components/recipe-category-picker";
 import {
   RecipeCoverField,
   RecipeStepImageField,
@@ -13,7 +15,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { UNIT_LABELS } from "@/lib/errors";
+import { createWebApiClient } from "@/lib/api";
+import { UNIT_LABELS, readApiError } from "@/lib/errors";
 import { formatQuantityNumber, toApiQuantityString } from "@/lib/format-quantity";
 import type { MediaImage } from "@/lib/media-upload";
 import { productImageUrls } from "@/lib/product-image";
@@ -125,6 +128,7 @@ function recipeToDraft(recipe: RecipeDetail): {
   difficulty: CreateRecipeDto["difficulty"];
   tags: string;
   visibility: CreateRecipeDto["visibility"];
+  categoryIds: string[];
   ingredientGroups: IngredientGroupDraft[];
   ingredients: IngredientDraft[];
   steps: StepDraft[];
@@ -145,6 +149,7 @@ function recipeToDraft(recipe: RecipeDetail): {
     difficulty: recipe.difficulty,
     tags: recipe.tags.join(", "),
     visibility: recipe.visibility,
+    categoryIds: (recipe.categories ?? []).map((category) => category.id),
     ingredientGroups: groups.map((group) =>
       createGroupDraft({ id: group.id, name: group.name }),
     ),
@@ -224,6 +229,7 @@ export function RecipeForm({
             difficulty: "easy" as const,
             tags: "",
             visibility: "private" as const,
+            categoryIds: [] as string[],
             ingredientGroups: [] as IngredientGroupDraft[],
             ingredients: [createIngredientDraft()],
             steps: [createStepDraft()],
@@ -241,6 +247,7 @@ export function RecipeForm({
   const [tags, setTags] = useState(initial.tags);
   const [visibility, setVisibility] =
     useState<NonNullable<CreateRecipeDto["visibility"]>>(initial.visibility);
+  const [categoryIds, setCategoryIds] = useState(initial.categoryIds);
   const [ingredientGroups, setIngredientGroups] = useState(
     initial.ingredientGroups,
   );
@@ -251,6 +258,21 @@ export function RecipeForm({
 
   const recipeId = initialRecipe?.id;
   const hasStepImages = steps.some((step) => step.image);
+
+  const categoriesQuery = useQuery({
+    queryKey: ["recipe-categories", kitchenId],
+    queryFn: async () => {
+      const client = createWebApiClient();
+      const { data, error } = await client.GET(
+        "/api/kitchens/{kitchenId}/recipe-categories",
+        { params: { path: { kitchenId } } },
+      );
+      if (error) {
+        throw new Error(readApiError(error, "Nie udało się pobrać kategorii."));
+      }
+      return data ?? [];
+    },
+  });
 
   function updateIngredient(
     key: string,
@@ -432,6 +454,7 @@ export function RecipeForm({
         difficulty,
         tags: tagList,
         visibility,
+        categoryIds,
         ingredientGroups: normalizedGroups,
         ingredients: normalizedIngredients,
         steps: normalizedSteps,
@@ -563,6 +586,12 @@ export function RecipeForm({
               </select>
             </div>
           </div>
+          <RecipeCategoryPicker
+            categories={categoriesQuery.data ?? []}
+            selectedIds={categoryIds}
+            onChange={setCategoryIds}
+            disabled={categoriesQuery.isPending}
+          />
         </div>
       </section>
 

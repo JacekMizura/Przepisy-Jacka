@@ -11,6 +11,10 @@ import { type AppEnv } from '../config/env';
 import { KitchenRole, Prisma } from '../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
+  DEFAULT_RECIPE_CATEGORIES,
+  normalizeRecipeCategoryName,
+} from '../recipes/default-recipe-categories';
+import {
   InviteCreatedDto,
   KitchenDetailsDto,
   KitchenInviteDto,
@@ -54,6 +58,14 @@ export class KitchensService {
           userId,
           role: KitchenRole.owner,
         },
+      });
+      await tx.recipeCategory.createMany({
+        data: DEFAULT_RECIPE_CATEGORIES.map((categoryName, sortOrder) => ({
+          kitchenId: created.id,
+          name: categoryName,
+          normalizedName: normalizeRecipeCategoryName(categoryName),
+          sortOrder,
+        })),
       });
       return tx.kitchen.findUniqueOrThrow({
         where: { id: created.id },

@@ -71,6 +71,9 @@ type RecipeWithRelations = Recipe & {
   ingredients: RecipeIngredient[];
   steps: RecipeStepWithMedia[];
   coverMedia?: MediaAsset | null;
+  categoryLinks: Array<{
+    category: { id: string; name: string; sortOrder: number };
+  }>;
 };
 
 type StoredGapAdditionResult = AddRecipeGapsResultDto & {
@@ -113,7 +116,12 @@ export class RecipeService {
   async listRecipes(
     userId: string,
     kitchenId: string,
-    filters: { search?: string; filter?: RecipeListFilter },
+    filters: {
+      search?: string;
+      filter?: RecipeListFilter;
+      categoryIds?: string[];
+      uncategorized?: boolean;
+    },
   ): Promise<RecipeSummaryDto[]> {
     await requireKitchenMember(this.prisma, kitchenId, userId);
 
@@ -122,11 +130,18 @@ export class RecipeService {
       filters.filter ?? 'all',
     );
     const search = filters.search?.trim();
+    const categoryFilter = await buildCategoryFilter(
+      this.prisma,
+      kitchenId,
+      filters.categoryIds,
+      filters.uncategorized === true,
+    );
 
     const recipes = await this.prisma.recipe.findMany({
       where: {
         kitchenId,
         ...visibilityFilter,
+        ...categoryFilter,
         ...(search
           ? { name: { contains: search, mode: 'insensitive' as const } }
           : {}),
@@ -134,6 +149,10 @@ export class RecipeService {
       include: {
         author: { select: { id: true, name: true } },
         coverMedia: true,
+        categoryLinks: {
+          include: { category: true },
+          orderBy: { category: { sortOrder: 'asc' } },
+        },
       },
       orderBy: [{ updatedAt: 'desc' }, { name: 'asc' }],
     });
@@ -157,6 +176,11 @@ export class RecipeService {
     const groups = dto.ingredientGroups ?? [];
     validateRecipeStructure(groups, dto.ingredients, dto.steps);
     await validateIngredientProducts(this.prisma, kitchenId, dto.ingredients);
+    const categoryIds = await resolveKitchenCategoryIds(
+      this.prisma,
+      kitchenId,
+      dto.categoryIds ?? [],
+    );
 
     const recipe = await this.prisma.$transaction(async (tx) => {
       const created = await tx.recipe.create({
@@ -183,6 +207,13 @@ export class RecipeService {
           steps: {
             create: dto.steps.map((step) => toStepCreateData(step)),
           },
+          ...(categoryIds.length > 0
+            ? {
+                categoryLinks: {
+                  create: categoryIds.map((categoryId) => ({ categoryId })),
+                },
+              }
+            : {}),
         },
         include: recipeInclude,
       });
@@ -232,6 +263,15 @@ export class RecipeService {
     if (dto.ingredients !== undefined) {
       await validateIngredientProducts(this.prisma, kitchenId, dto.ingredients);
     }
+
+    const nextCategoryIds =
+      dto.categoryIds === undefined
+        ? undefined
+        : await resolveKitchenCategoryIds(
+            this.prisma,
+            kitchenId,
+            dto.categoryIds,
+          );
 
     const existingStepById = new Map(
       existing.steps.map((step) => [step.id, step]),
@@ -298,6 +338,18 @@ export class RecipeService {
         });
 
         await tx.recipeStep.createMany({ data: stepCreates });
+      }
+
+      if (nextCategoryIds !== undefined) {
+        await tx.recipeCategoryAssignment.deleteMany({ where: { recipeId } });
+        if (nextCategoryIds.length > 0) {
+          await tx.recipeCategoryAssignment.createMany({
+            data: nextCategoryIds.map((categoryId) => ({
+              recipeId,
+              categoryId,
+            })),
+          });
+        }
       }
 
       return tx.recipe.update({
@@ -789,7 +841,62 @@ const recipeInclude = {
     include: { imageMedia: true },
   },
   coverMedia: true,
+  categoryLinks: {
+    include: { category: true },
+    orderBy: { category: { sortOrder: 'asc' as const } },
+  },
 };
+
+async function buildCategoryFilter(
+  prisma: PrismaService,
+  kitchenId: string,
+  categoryIds: string[] | undefined,
+  uncategorized: boolean,
+): Promise<Prisma.RecipeWhereInput> {
+  if (uncategorized) {
+    return { categoryLinks: { none: {} } };
+  }
+  if (!categoryIds || categoryIds.length === 0) {
+    return {};
+  }
+
+  const valid = await prisma.recipeCategory.findMany({
+    where: { kitchenId, id: { in: categoryIds } },
+    select: { id: true },
+  });
+  if (valid.length !== new Set(categoryIds).size) {
+    throw new BadRequestException(
+      'Jedna lub więcej kategorii nie należy do tej kuchni.',
+    );
+  }
+
+  return {
+    categoryLinks: {
+      some: { categoryId: { in: valid.map((item) => item.id) } },
+    },
+  };
+}
+
+async function resolveKitchenCategoryIds(
+  prisma: PrismaService,
+  kitchenId: string,
+  categoryIds: string[],
+): Promise<string[]> {
+  const uniqueIds = [...new Set(categoryIds)];
+  if (uniqueIds.length === 0) {
+    return [];
+  }
+  const found = await prisma.recipeCategory.findMany({
+    where: { kitchenId, id: { in: uniqueIds } },
+    select: { id: true },
+  });
+  if (found.length !== uniqueIds.length) {
+    throw new BadRequestException(
+      'Jedna lub więcej kategorii nie należy do tej kuchni.',
+    );
+  }
+  return uniqueIds;
+}
 
 function buildVisibilityFilter(
   userId: string,
@@ -1300,9 +1407,19 @@ function toStepInputFromEntity(step: RecipeStep): RecipeStepInputDto {
 }
 
 function toRecipeSummaryDto(
-  recipe: Recipe & { author: Pick<User, 'id' | 'name'> },
+  recipe: Recipe & {
+    author: Pick<User, 'id' | 'name'>;
+    categoryLinks?: Array<{
+      category: { id: string; name: string; sortOrder: number };
+    }>;
+  },
   coverImage: MediaImageDto | null,
 ): RecipeSummaryDto {
+  const categories = [...(recipe.categoryLinks ?? [])]
+    .map((link) => link.category)
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name))
+    .map((category) => ({ id: category.id, name: category.name }));
+
   return {
     coverImage,
     id: recipe.id,
@@ -1314,6 +1431,7 @@ function toRecipeSummaryDto(
     cookTimeMinutes: recipe.cookTimeMinutes,
     difficulty: recipe.difficulty,
     tags: recipe.tags,
+    categories,
     visibility: recipe.visibility,
     author: {
       id: recipe.author.id,

@@ -129,7 +129,7 @@ Przepis należy do kuchni i ma autora. Widoczność:
 
 Domyślnie nowy przepis jest prywatny. Tylko autor może edytować, usuwać i zmieniać widoczność.
 
-Przepis zawiera składniki (z opcjonalnym powiązaniem z `Product`) i kroki w ustalonej kolejności. Jednostki przepisu (`RecipeIngredientUnit`) są oddzielne od jednostek produktu i listy zakupów. Składniki mogą być opcjonalnie pogrupowane (np. ciasto / nadzienie); przepisy bez grup pozostają płaską listą. Każdy krok może mieć opcjonalną wskazówkę autora (`tip`) pod instrukcją.
+Przepis zawiera składniki (z opcjonalnym powiązaniem z `Product`) i kroki w ustalonej kolejności. Jednostki przepisu (`RecipeIngredientUnit`) są oddzielne od jednostek produktu i listy zakupów. Składniki mogą być opcjonalnie pogrupowane (np. ciasto / nadzienie); przepisy bez grup pozostają płaską listą. Każdy krok może mieć opcjonalną wskazówkę autora (`tip`) pod instrukcją. Przepis może należeć do wielu kategorii kuchni albo do żadnej; kategorie są wspólne dla kuchni (członkowie zarządzają nazwami), a filtrowanie listy działa po stronie API (OR / bez kategorii) razem z wyszukiwaniem.
 
 API zwraca dostępność składników względem zapasów (`available`, `partial`, `missing`, `unknown`) z bezpiecznym skalowaniem porcji oraz przeliczeniami g/kg i ml/l. Dla braków proponuje pełne opakowania (`ceil(brak / zawartość)`). Braki można dodać do istniejącej listy zakupów z wyborem wariantu i idempotencją. Etapy przepisu mogą mieć opcjonalny tytuł, wskazówkę i czas trwania.
 

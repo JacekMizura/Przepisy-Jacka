@@ -622,6 +622,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/kitchens/{kitchenId}/recipe-categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lista kategorii przepisów kuchni */
+        get: operations["RecipeCategoryController_list"];
+        put?: never;
+        /** Utworzenie kategorii przepisów */
+        post: operations["RecipeCategoryController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/recipe-categories/{categoryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Usunięcie kategorii (usuwa tylko przypisania, nie przepisy) */
+        delete: operations["RecipeCategoryController_remove"];
+        options?: never;
+        head?: never;
+        /** Zmiana nazwy kategorii przepisów */
+        patch: operations["RecipeCategoryController_update"];
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1200,6 +1236,10 @@ export interface components {
             previewProducts: components["schemas"]["PurchasePreviewProductDto"][];
             receiptImage: components["schemas"]["MediaImageDto"] | null;
         };
+        RecipeCategoryRefDto: {
+            id: string;
+            name: string;
+        };
         RecipeAuthorDto: {
             id: string;
             name: string;
@@ -1215,6 +1255,7 @@ export interface components {
             /** @enum {string} */
             difficulty: "easy" | "medium" | "hard";
             tags: string[];
+            categories: components["schemas"]["RecipeCategoryRefDto"][];
             /** @enum {string} */
             visibility: "private" | "kitchen";
             author: components["schemas"]["RecipeAuthorDto"];
@@ -1301,6 +1342,8 @@ export interface components {
              * @enum {string}
              */
             visibility: "private" | "kitchen";
+            /** @description Opcjonalne kategorie kuchni przypisane do przepisu. */
+            categoryIds?: string[];
             sourceUrl?: string | null;
             /** @description Opcjonalne grupy składników. Pusty przepis nie wymaga grup. */
             ingredientGroups?: components["schemas"]["RecipeIngredientGroupInputDto"][];
@@ -1345,6 +1388,7 @@ export interface components {
             /** @enum {string} */
             difficulty: "easy" | "medium" | "hard";
             tags: string[];
+            categories: components["schemas"]["RecipeCategoryRefDto"][];
             /** @enum {string} */
             visibility: "private" | "kitchen";
             author: components["schemas"]["RecipeAuthorDto"];
@@ -1372,6 +1416,8 @@ export interface components {
             tags?: string[];
             /** @enum {string} */
             visibility?: "private" | "kitchen";
+            /** @description Pełna lista kategorii przepisu. Pusta tablica usuwa wszystkie przypisania. Brak pola = bez zmian. */
+            categoryIds?: string[];
             sourceUrl?: string | null;
             ingredientGroups?: components["schemas"]["RecipeIngredientGroupInputDto"][];
             ingredients?: components["schemas"]["RecipeIngredientInputDto"][];
@@ -1527,6 +1573,24 @@ export interface components {
             skipped: components["schemas"]["SkippedRecipeGapItemDto"][];
             /** Format: date-time */
             createdAt: string;
+        };
+        RecipeCategoryDto: {
+            id: string;
+            kitchenId: string;
+            name: string;
+            sortOrder: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        CreateRecipeCategoryDto: {
+            /** @example Śniadania */
+            name: string;
+        };
+        UpdateRecipeCategoryDto: {
+            /** @example Dania główne */
+            name?: string;
         };
     };
     responses: never;
@@ -2619,6 +2683,10 @@ export interface operations {
             query?: {
                 search?: string;
                 filter?: "all" | "mine" | "kitchen";
+                /** @description Wyłącznie przepisy bez kategorii (wyłączne względem categoryIds). */
+                uncategorized?: boolean;
+                /** @description Przepisy należące do dowolnej z podanych kategorii (OR). Ignorowane przy uncategorized=true. */
+                categoryIds?: string[];
             };
             header?: never;
             path: {
@@ -2801,6 +2869,98 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AddRecipeGapsResultDto"];
+                };
+            };
+        };
+    };
+    RecipeCategoryController_list: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeCategoryDto"][];
+                };
+            };
+        };
+    };
+    RecipeCategoryController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateRecipeCategoryDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeCategoryDto"];
+                };
+            };
+        };
+    };
+    RecipeCategoryController_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                categoryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    RecipeCategoryController_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                categoryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateRecipeCategoryDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeCategoryDto"];
                 };
             };
         };

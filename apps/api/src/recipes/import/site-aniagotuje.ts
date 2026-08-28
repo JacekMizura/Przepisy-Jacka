@@ -39,7 +39,7 @@ export function extractAniaGotujeRecipes(
       article.find('meta[itemprop="name"]').attr('content') ?? '',
     );
 
-  const description =
+  let description =
     collapseWhitespace(
       article.find('meta[itemprop="description"]').attr('content') ?? '',
     ) ||
@@ -172,6 +172,12 @@ export function extractAniaGotujeRecipes(
     if (prose) {
       steps.push(prose.step);
       warnings.push(...prose.warnings);
+      if (prose.authorNotes.length > 0) {
+        const notesBlock = prose.authorNotes.join('\n\n');
+        description = description
+          ? `${description}\n\n${notesBlock}`
+          : notesBlock;
+      }
     }
   }
 
@@ -203,8 +209,16 @@ export function extractAniaGotujeRecipes(
 const ANIA_PROSE_NOISE =
   /^(czas przygotowania|czas pasteryzacji|czas gotowania|czas pieczenia|liczba porcji|wartość energetyczna|dieta:|składniki\s*:|kopiuj|ukryj zdjęcia|średnia\s+\d)/i;
 
+/** Istotne uwagi autora (miary / waga) — poza głównymi instrukcjami. */
+const ANIA_AUTHOR_NOTE = /szklanka ma u mnie|warzywa ważone były/i;
+
+/** Meta / kalorie / marketing korpusu — pomijane. */
 const ANIA_PROSE_META =
-  /szklanka ma u mnie|warzywa ważone były|kalorie policzone|orientacyjna ilość kalorii|użyte słoiki\s*:|nie trzeba jednak stosować się do wytycznych|wagi podawane są po to/i;
+  /kalorie policzone|orientacyjna ilość kalorii|użyte słoiki\s*:|nie trzeba jednak stosować się do wytycznych|wagi podawane są po to/i;
+
+function isAniaAuthorNote(text: string): boolean {
+  return ANIA_AUTHOR_NOTE.test(text.trim());
+}
 
 function isAniaProseNoise(text: string): boolean {
   const trimmed = text.trim();
@@ -238,7 +252,11 @@ function shouldStopAniaProseWalk(node: cheerio.Cheerio<DomElement>): boolean {
 function extractAniaProsePreparation(
   $: cheerio.CheerioAPI,
   article: cheerio.Cheerio<DomElement>,
-): { step: ExtractedRecipeStep; warnings: string[] } | null {
+): {
+  step: ExtractedRecipeStep;
+  warnings: string[];
+  authorNotes: string[];
+} | null {
   const start = article.find('.post-ingredients').first();
   if (!start.length) {
     return null;
@@ -246,6 +264,7 @@ function extractAniaProsePreparation(
 
   const paragraphs: string[] = [];
   const tipParts: string[] = [];
+  const authorNotes: string[] = [];
 
   start.nextAll().each((_, el) => {
     const node = $(el);
@@ -268,11 +287,18 @@ function extractAniaProsePreparation(
           /^(Porada(?:\s*\d+)?|Tip|Wskazówka)\s*:\s*/i,
           '',
         );
-        if (tip && !isAniaProseNoise(tip)) tipParts.push(tip);
+        if (tip && !isAniaProseNoise(tip) && !isAniaAuthorNote(tip)) {
+          tipParts.push(tip);
+        }
         return;
       }
       const text = collapseWhitespace(tipNode.text());
-      if (!text || isAniaProseNoise(text)) return;
+      if (!text) return;
+      if (isAniaAuthorNote(text)) {
+        authorNotes.push(text);
+        return;
+      }
+      if (isAniaProseNoise(text)) return;
       if (/^(porada|tip|wskazówka)\s*:/i.test(text)) {
         tipParts.push(
           text.replace(/^(Porada(?:\s*\d+)?|Tip|Wskazówka)\s*:\s*/i, ''),
@@ -285,7 +311,12 @@ function extractAniaProsePreparation(
     if (!blocks.length && node.is('ol, ul')) {
       node.find('li').each((__, li) => {
         const text = collapseWhitespace($(li).text());
-        if (text && !isAniaProseNoise(text)) paragraphs.push(text);
+        if (!text) return;
+        if (isAniaAuthorNote(text)) {
+          authorNotes.push(text);
+          return;
+        }
+        if (!isAniaProseNoise(text)) paragraphs.push(text);
       });
     }
   });
@@ -304,5 +335,6 @@ function extractAniaProsePreparation(
     warnings: [
       'Źródło nie wydziela osobnych kroków przygotowania — treść zapisano jako jeden edytowalny krok (akapity zachowane).',
     ],
+    authorNotes,
   };
 }

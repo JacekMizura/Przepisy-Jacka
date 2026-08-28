@@ -148,6 +148,13 @@ Hashtag #obiad i luźna notatka na koniec.
     expect(recipe?.steps[0]?.instruction).not.toMatch(/podobne przepisy/i);
     expect(recipe?.steps[0]?.instruction).not.toMatch(/Komentarz/i);
     expect(recipe?.steps[0]?.instruction).not.toMatch(/Szklanka ma u mnie/i);
+    expect(recipe?.steps[0]?.instruction).not.toMatch(/Warzywa ważone/i);
+    expect(recipe?.steps[0]?.instruction).not.toMatch(/Kalorie policzone/i);
+    expect(recipe?.description).toMatch(/250\s*ml/i);
+    expect(recipe?.description).toMatch(
+      /ważone.*obraniem|obraniem\/przygotowaniem/i,
+    );
+    expect(recipe?.description).not.toMatch(/Kalorie policzone/i);
     expect(recipe?.steps[0]?.tip).toMatch(/lodówki/i);
     expect(recipe?.warnings.some((w) => /jeden edytowalny krok/i.test(w))).toBe(
       true,

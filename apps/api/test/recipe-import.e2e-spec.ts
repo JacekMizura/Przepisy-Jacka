@@ -21,6 +21,7 @@ type Preview = {
   suggestPasteCaption: boolean;
   candidates: Array<{
     name: string;
+    description?: string | null;
     servings: number | null;
     servingsAmbiguous: boolean;
     servingsRaw: string | null;
@@ -327,6 +328,8 @@ describe('Recipe URL import (e2e)', () => {
     expect(preview.candidates[0]?.steps[0]?.instruction).not.toMatch(
       /Zapraszam/i,
     );
+    expect(preview.candidates[0]?.description ?? '').toMatch(/250\s*ml/i);
+    expect(preview.candidates[0]?.description ?? '').toMatch(/ważone/i);
     expect(
       preview.candidates[0]?.warnings.some((w) =>
         /jeden edytowalny krok/i.test(w),

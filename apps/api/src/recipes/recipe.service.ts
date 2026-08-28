@@ -182,6 +182,26 @@ export class RecipeService {
       dto.categoryIds ?? [],
     );
 
+    if (dto.importIdempotencyKey) {
+      const existing = await this.prisma.recipe.findUnique({
+        where: { importIdempotencyKey: dto.importIdempotencyKey },
+        include: recipeInclude,
+      });
+      if (existing) {
+        if (
+          existing.kitchenId !== kitchenId ||
+          existing.authorUserId !== userId
+        ) {
+          throw new ConflictException(
+            'Ten klucz importu jest już użyty przez inny przepis.',
+          );
+        }
+        return this.toRecipeDetailDtoWithMedia(existing);
+      }
+    }
+
+    const importedAt = parseOptionalDate(dto.importedAt);
+
     const recipe = await this.prisma.$transaction(async (tx) => {
       const created = await tx.recipe.create({
         data: {
@@ -196,6 +216,9 @@ export class RecipeService {
           tags: normalizeTags(dto.tags),
           visibility: dto.visibility ?? RecipeVisibility.private,
           sourceUrl: normalizeOptionalText(dto.sourceUrl),
+          sourceAuthor: normalizeOptionalText(dto.sourceAuthor),
+          importedAt,
+          importIdempotencyKey: dto.importIdempotencyKey ?? null,
           ingredientGroups: {
             create: groups.map((group) => toGroupCreateData(group)),
           },
@@ -372,6 +395,10 @@ export class RecipeService {
             dto.sourceUrl === undefined
               ? undefined
               : normalizeOptionalText(dto.sourceUrl),
+          sourceAuthor:
+            dto.sourceAuthor === undefined
+              ? undefined
+              : normalizeOptionalText(dto.sourceAuthor),
         },
         include: recipeInclude,
       });
@@ -1450,6 +1477,8 @@ function toRecipeDetailDto(
   return {
     ...toRecipeSummaryDto(recipe, coverImage),
     sourceUrl: recipe.sourceUrl,
+    sourceAuthor: recipe.sourceAuthor,
+    importedAt: recipe.importedAt ? recipe.importedAt.toISOString() : null,
     ingredientGroups: recipe.ingredientGroups.map((group) => ({
       id: group.id,
       name: group.name,
@@ -1478,4 +1507,15 @@ function toRecipeDetailDto(
       image: stepImages.get(step.id) ?? null,
     })),
   };
+}
+
+function parseOptionalDate(value: string | null | undefined): Date | null {
+  if (value === undefined || value === null || value.trim() === '') {
+    return null;
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new BadRequestException('Niepoprawna data importu.');
+  }
+  return parsed;
 }

@@ -534,6 +534,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/kitchens/{kitchenId}/recipes/import/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pobiera stronę HTTPS i zwraca podgląd przepisu z JSON-LD (bez zapisu). */
+        post: operations["RecipeImportController_preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/kitchens/{kitchenId}/recipes": {
         parameters: {
             query?: never;
@@ -1236,6 +1253,58 @@ export interface components {
             previewProducts: components["schemas"]["PurchasePreviewProductDto"][];
             receiptImage: components["schemas"]["MediaImageDto"] | null;
         };
+        PreviewRecipeImportDto: {
+            /** @example https://example.com/przepis */
+            url: string;
+        };
+        ImportedIngredientPreviewDto: {
+            rawText: string;
+            name: string;
+            quantity: string | null;
+            /** @enum {string|null} */
+            unit: "piece" | "gram" | "kilogram" | "milliliter" | "liter" | "teaspoon" | "tablespoon" | "cup" | "pinch" | "package" | "to_taste" | null;
+            /** @enum {string} */
+            confidence: "exact" | "ambiguous" | "none";
+            suggestedProductId: string | null;
+            suggestedProductName: string | null;
+            warnings: string[];
+        };
+        ImportedStepPreviewDto: {
+            title: string | null;
+            instruction: string;
+            tip: string | null;
+            sortOrder: number;
+        };
+        ImportedRecipeCandidateDto: {
+            index: number;
+            name: string;
+            description: string | null;
+            servings: number | null;
+            servingsRaw: string | null;
+            servingsAmbiguous: boolean;
+            prepTimeMinutes: number | null;
+            cookTimeMinutes: number | null;
+            sourceAuthor: string | null;
+            sourceCategories: string[];
+            suggestedCategoryIds: string[];
+            unmatchedSourceCategories: string[];
+            ingredients: components["schemas"]["ImportedIngredientPreviewDto"][];
+            steps: components["schemas"]["ImportedStepPreviewDto"][];
+            warnings: string[];
+            gaps: string[];
+        };
+        ExistingSourceRecipeDto: {
+            id: string;
+            name: string;
+        };
+        RecipeImportPreviewDto: {
+            sourceUrl: string;
+            importIdempotencyKey: string;
+            /** Format: date-time */
+            importedAt: string;
+            candidates: components["schemas"]["ImportedRecipeCandidateDto"][];
+            existingFromSameSource: components["schemas"]["ExistingSourceRecipeDto"][];
+        };
         RecipeCategoryRefDto: {
             id: string;
             name: string;
@@ -1345,6 +1414,18 @@ export interface components {
             /** @description Opcjonalne kategorie kuchni przypisane do przepisu. */
             categoryIds?: string[];
             sourceUrl?: string | null;
+            /** @description Autor przepisu ze źródła (oddzielony od użytkownika aplikacji). */
+            sourceAuthor?: string | null;
+            /**
+             * Format: date-time
+             * @description Data importu ze źródła zewnętrznego.
+             */
+            importedAt?: string | null;
+            /**
+             * Format: uuid
+             * @description Klucz idempotencji zapisu importu — ponowne wysłanie zwraca ten sam przepis.
+             */
+            importIdempotencyKey?: string;
             /** @description Opcjonalne grupy składników. Pusty przepis nie wymaga grup. */
             ingredientGroups?: components["schemas"]["RecipeIngredientGroupInputDto"][];
             ingredients: components["schemas"]["RecipeIngredientInputDto"][];
@@ -1399,6 +1480,13 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
             sourceUrl: string | null;
+            /** @description Autor ze źródła zewnętrznego (nie użytkownik Mojej Kuchni). */
+            sourceAuthor: string | null;
+            /**
+             * Format: date-time
+             * @description Kiedy przepis zaimportowano ze źródła.
+             */
+            importedAt: string | null;
             ingredientGroups: components["schemas"]["RecipeIngredientGroupDto"][];
             ingredients: components["schemas"]["RecipeIngredientDto"][];
             steps: components["schemas"]["RecipeStepDto"][];
@@ -1419,6 +1507,7 @@ export interface components {
             /** @description Pełna lista kategorii przepisu. Pusta tablica usuwa wszystkie przypisania. Brak pola = bez zmian. */
             categoryIds?: string[];
             sourceUrl?: string | null;
+            sourceAuthor?: string | null;
             ingredientGroups?: components["schemas"]["RecipeIngredientGroupInputDto"][];
             ingredients?: components["schemas"]["RecipeIngredientInputDto"][];
             steps?: components["schemas"]["RecipeStepInputDto"][];
@@ -2674,6 +2763,31 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PurchaseDetailDto"];
+                };
+            };
+        };
+    };
+    RecipeImportController_preview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreviewRecipeImportDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecipeImportPreviewDto"];
                 };
             };
         };

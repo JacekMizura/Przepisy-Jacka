@@ -413,6 +413,9 @@ model Recipe {
   tags            String[]           @default([])
   visibility      RecipeVisibility   @default(private)
   sourceUrl       String?
+  sourceAuthor    String?
+  importedAt      DateTime?
+  importIdempotencyKey String?       @unique
   coverMediaId    String?            @unique
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
@@ -429,6 +432,7 @@ model Recipe {
   @@index([kitchenId])
   @@index([kitchenId, authorUserId])
   @@index([kitchenId, visibility])
+  @@index([kitchenId, sourceUrl])
 }
 
 model RecipeCategory {

@@ -26,6 +26,11 @@ export function applyTestEnv(overrides?: Record<string, string>): void {
     'MojaKuchnia-Test/0.1 (ci@localhost)';
   process.env.OPEN_FOOD_FACTS_TIMEOUT_MS = '2000';
   process.env.OPEN_FOOD_FACTS_CACHE_TTL_SECONDS = '3600';
+  process.env.RECIPE_IMPORT_TIMEOUT_MS = '3000';
+  process.env.RECIPE_IMPORT_MAX_BYTES = '200000';
+  process.env.RECIPE_IMPORT_MAX_REDIRECTS = '3';
+  process.env.RECIPE_IMPORT_RATE_LIMIT_PER_HOUR = '50';
+  process.env.RECIPE_IMPORT_USER_AGENT = 'MojaKuchnia-Test/0.1';
 
   if (overrides) {
     for (const [key, value] of Object.entries(overrides)) {

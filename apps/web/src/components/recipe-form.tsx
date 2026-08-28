@@ -74,6 +74,8 @@ type RecipeFormProps = {
   kitchenId: string;
   products: Product[];
   initialRecipe?: RecipeDetail;
+  /** Import / nowy przepis — nie traktuj initialRecipe.id jako istniejącego zapisu. */
+  forceCreateMode?: boolean;
   submitLabel: string;
   pending?: boolean;
   onSubmit: (body: RecipeFormValues, media: RecipeFormMedia) => void;
@@ -212,6 +214,7 @@ export function RecipeForm({
   kitchenId,
   products,
   initialRecipe,
+  forceCreateMode = false,
   submitLabel,
   pending,
   onSubmit,
@@ -256,7 +259,7 @@ export function RecipeForm({
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const recipeId = initialRecipe?.id;
+  const recipeId = forceCreateMode ? undefined : initialRecipe?.id;
   const hasStepImages = steps.some((step) => step.image);
 
   const categoriesQuery = useQuery({
@@ -349,7 +352,7 @@ export function RecipeForm({
           ? ingredient.groupId
           : null;
       normalizedIngredients.push({
-        ...(ingredient.id ? { id: ingredient.id } : {}),
+        ...(ingredient.id && !forceCreateMode ? { id: ingredient.id } : {}),
         groupId,
         name: ingredient.name.trim(),
         quantity: ingredient.quantity.trim()
@@ -400,7 +403,7 @@ export function RecipeForm({
       }
       const tipTrimmed = step.showTip ? step.tip.trim() : "";
       normalizedSteps.push({
-        ...(step.stepId ? { id: step.stepId } : {}),
+        ...(step.stepId && !forceCreateMode ? { id: step.stepId } : {}),
         title: step.title.trim() || undefined,
         instruction: step.instruction.trim(),
         tip: tipTrimmed ? tipTrimmed : null,

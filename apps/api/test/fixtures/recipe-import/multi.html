@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="pl">
+  <head>
+    <meta charset="utf-8" />
+    <title>Wiele przepisów</title>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Recipe",
+            "name": "Zupa pomidorowa",
+            "recipeYield": "4",
+            "recipeIngredient": ["400 g pomidorów"],
+            "recipeInstructions": "Gotuj i blenduj."
+          },
+          {
+            "@type": ["Recipe", "WebPage"],
+            "name": "Sałatka grecka",
+            "recipeYield": "2 słoiki",
+            "recipeIngredient": ["200 g ogórka"],
+            "recipeInstructions": {
+              "@type": "HowToStep",
+              "text": "Pokrój warzywa."
+            }
+          }
+        ]
+      }
+    </script>
+  </head>
+  <body></body>
+</html>

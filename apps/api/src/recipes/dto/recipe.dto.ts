@@ -232,6 +232,39 @@ export class CreateRecipeDto {
   sourceUrl?: string | null;
 
   @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description:
+      'Autor przepisu ze źródła (oddzielony od użytkownika aplikacji).',
+  })
+  @IsOptional()
+  @ValidateIf(isPresentOptional)
+  @IsString()
+  @MaxLength(200)
+  sourceAuthor?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: 'Data importu ze źródła zewnętrznego.',
+  })
+  @IsOptional()
+  @ValidateIf(isPresentOptional)
+  @IsString()
+  importedAt?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    description:
+      'Klucz idempotencji zapisu importu — ponowne wysłanie zwraca ten sam przepis.',
+  })
+  @IsOptional()
+  @IsUUID()
+  importIdempotencyKey?: string;
+
+  @ApiPropertyOptional({
     type: [RecipeIngredientGroupInputDto],
     description: 'Opcjonalne grupy składników. Pusty przepis nie wymaga grup.',
   })
@@ -327,6 +360,13 @@ export class UpdateRecipeDto {
   @IsUrl({ require_protocol: true })
   @MaxLength(2048)
   sourceUrl?: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  @IsOptional()
+  @ValidateIf(isPresentOptional)
+  @IsString()
+  @MaxLength(200)
+  sourceAuthor?: string | null;
 
   @ApiPropertyOptional({ type: [RecipeIngredientGroupInputDto] })
   @IsOptional()
@@ -478,6 +518,21 @@ export class RecipeSummaryDto {
 export class RecipeDetailDto extends RecipeSummaryDto {
   @ApiProperty({ type: String, nullable: true })
   sourceUrl!: string | null;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+    description: 'Autor ze źródła zewnętrznego (nie użytkownik Mojej Kuchni).',
+  })
+  sourceAuthor!: string | null;
+
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: 'Kiedy przepis zaimportowano ze źródła.',
+  })
+  importedAt!: string | null;
 
   @ApiProperty({ type: [RecipeIngredientGroupDto] })
   ingredientGroups!: RecipeIngredientGroupDto[];

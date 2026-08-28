@@ -6,11 +6,13 @@ type RecipeDetail = components["schemas"]["RecipeDetailDto"];
 type CreateRecipeDto = components["schemas"]["CreateRecipeDto"];
 
 export type ImportReviewState = {
-  sourceUrl: string;
+  sourceUrl: string | null;
   importIdempotencyKey: string;
   importedAt: string;
   candidate: Candidate;
   existingFromSameSource: Preview["existingFromSameSource"];
+  extractionMethod: string | null;
+  fromUrlFetch: boolean;
 };
 
 /** Buduje sztuczny RecipeDetail do wypełnienia istniejącego RecipeForm. */
@@ -114,6 +116,11 @@ export function collectImportWarnings(candidate: Candidate): string[] {
   if (candidate.unmatchedSourceCategories.length > 0) {
     items.push(
       `Nie dopasowano kategorii źródła: ${candidate.unmatchedSourceCategories.join(", ")}. Nie utworzono nowych nazw.`,
+    );
+  }
+  if ((candidate.unassignedFragments?.length ?? 0) > 0) {
+    items.push(
+      `Pozostawiono ${candidate.unassignedFragments!.length} fragment(ów) do ręcznego opracowania.`,
     );
   }
   return [...new Set(items)];

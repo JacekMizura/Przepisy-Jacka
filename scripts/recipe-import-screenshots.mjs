@@ -217,9 +217,9 @@ async function main() {
     await shot(page, `recipe-import-list-${label}.png`);
 
     await page.goto(importUrl, { waitUntil: "networkidle" });
-    await page.getByRole("heading", { name: "Importuj z linku" }).waitFor();
+    await page.getByRole("heading", { name: "Importuj przepis" }).waitFor();
     await page.getByLabel("Adres HTTPS przepisu").fill(
-      "https://recipe-import.test/basic",
+      "https://recipe-import.test/ania-sos",
     );
     await shot(page, `recipe-import-url-${label}.png`);
 
@@ -227,7 +227,38 @@ async function main() {
     await page.getByRole("button", { name: "Zapisz przepis" }).waitFor({
       timeout: 30_000,
     });
+    await shot(page, `recipe-import-preview-html-${label}.png`);
     await shot(page, `recipe-import-preview-${label}.png`);
+
+    await page.goto(importUrl, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: "Wklej tekst" }).click();
+    await page.getByLabel("Tekst przepisu lub opis posta").fill(
+      `Omlet zrzutowy
+
+Składniki
+2 jajka
+sól do smaku
+
+Przygotowanie
+Krok 1: Ubij
+Ubij jajka.
+Porada: Delikatnie.
+
+Krok 2: Smaż
+Smaż na patelni.
+
+#obiad notatka
+`,
+    );
+    await page.getByLabel("Adres źródła (opcjonalnie)").fill(
+      "https://www.instagram.com/p/example/",
+    );
+    await shot(page, `recipe-import-text-${label}.png`);
+    await page.getByRole("button", { name: "Odczytaj z tekstu" }).click();
+    await page.getByRole("button", { name: "Zapisz przepis" }).waitFor({
+      timeout: 30_000,
+    });
+    await shot(page, `recipe-import-preview-text-${label}.png`);
 
     if (label === "desktop") {
       await page.getByRole("button", { name: "Zapisz przepis" }).click();

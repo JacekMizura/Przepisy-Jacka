@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pl">
+  <head><title>Placek testowy</title></head>
+  <body>
+    <article itemscope itemtype="https://schema.org/Recipe">
+      <div itemprop="author" itemscope itemtype="https://schema.org/Person">
+        <meta itemprop="name" content="Ania Gotuje" />
+      </div>
+      <meta itemprop="description" content="Prosty placek testowy." />
+      <meta itemprop="prepTime" content="PT20M" />
+      <meta itemprop="cookTime" content="PT30M" />
+      <meta itemprop="recipeYield" content="8 kawałków" />
+      <meta itemprop="recipeCategory" content="desery" />
+      <h1 itemprop="name">Placek testowy drożdżowy</h1>
+      <ul class="recipe-ing-list">
+        <li>
+          <span itemprop="recipeIngredient" class="ingredient-text">
+            <span class="ingredient ingredient-name">mąka</span
+            ><span class="qty ingredient-qty"> 500 g</span>
+          </span>
+        </li>
+        <li>
+          <span itemprop="recipeIngredient" class="ingredient-text">
+            <span class="ingredient ingredient-name">mleko</span
+            ><span class="qty ingredient-qty"> 250 ml</span>
+          </span>
+        </li>
+      </ul>
+      <div
+        class="step"
+        itemprop="recipeInstructions"
+        itemscope
+        itemtype="https://schema.org/HowToStep"
+      >
+        <div class="step-name">
+          Krok 1: <span itemprop="name">Zagnieć ciasto</span>
+        </div>
+        <div class="step-text" itemprop="text">
+          <p>Wymieszaj składniki i zagnieć.</p>
+          <p class="recipe-tip">Porada: Mąka powinna być przesianą.</p>
+        </div>
+      </div>
+      <div
+        class="step"
+        itemprop="recipeInstructions"
+        itemscope
+        itemtype="https://schema.org/HowToStep"
+      >
+        <div class="step-name">
+          Krok 2: <span itemprop="name">Upiecz</span>
+        </div>
+        <div class="step-text" itemprop="text">
+          <p>Piecz 30 minut w 180°C.</p>
+        </div>
+      </div>
+    </article>
+  </body>
+</html>

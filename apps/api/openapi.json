@@ -4312,14 +4312,30 @@
       "PreviewRecipeImportDto": {
         "type": "object",
         "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "url",
+              "text"
+            ],
+            "default": "url",
+            "description": "Tryb importu: link albo wklejony tekst."
+          },
           "url": {
             "type": "string",
             "example": "https://example.com/przepis"
+          },
+          "text": {
+            "type": "string",
+            "description": "Wklejony tekst przepisu (tryb text)."
+          },
+          "sourceUrl": {
+            "type": "string",
+            "description": "Opcjonalny adres źródła przy imporcie tekstu.",
+            "nullable": true,
+            "example": "https://www.instagram.com/p/example/"
           }
-        },
-        "required": [
-          "url"
-        ]
+        }
       },
       "ImportedIngredientPreviewDto": {
         "type": "object",
@@ -4487,6 +4503,13 @@
             "items": {
               "type": "string"
             }
+          },
+          "unassignedFragments": {
+            "description": "Fragmenty tekstu nierozpoznane jako składniki/kroki — do ręcznego opracowania.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
           }
         },
         "required": [
@@ -4527,7 +4550,8 @@
         "type": "object",
         "properties": {
           "sourceUrl": {
-            "type": "string"
+            "type": "string",
+            "nullable": true
           },
           "importIdempotencyKey": {
             "type": "string"
@@ -4535,6 +4559,26 @@
           "importedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "extractionMethod": {
+            "type": "string",
+            "enum": [
+              "jsonld",
+              "microdata",
+              "rdfa",
+              "site:aniagotuje",
+              "html",
+              "pasted_text"
+            ],
+            "nullable": true
+          },
+          "fromUrlFetch": {
+            "type": "boolean",
+            "description": "true = automatyczny import z linku; false = tekst wklejony przez użytkownika."
+          },
+          "suggestPasteCaption": {
+            "type": "boolean",
+            "description": "Gdy automatyczny odczyt z Instagrama/TikToka nie wystarczył — zaproponuj wklejenie opisu."
           },
           "candidates": {
             "type": "array",
@@ -4553,6 +4597,8 @@
           "sourceUrl",
           "importIdempotencyKey",
           "importedAt",
+          "extractionMethod",
+          "fromUrlFetch",
           "candidates",
           "existingFromSameSource"
         ]

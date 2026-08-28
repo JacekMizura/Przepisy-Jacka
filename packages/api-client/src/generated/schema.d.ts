@@ -1254,8 +1254,21 @@ export interface components {
             receiptImage: components["schemas"]["MediaImageDto"] | null;
         };
         PreviewRecipeImportDto: {
+            /**
+             * @description Tryb importu: link albo wklejony tekst.
+             * @default url
+             * @enum {string}
+             */
+            mode: "url" | "text";
             /** @example https://example.com/przepis */
-            url: string;
+            url?: string;
+            /** @description Wklejony tekst przepisu (tryb text). */
+            text?: string;
+            /**
+             * @description Opcjonalny adres źródła przy imporcie tekstu.
+             * @example https://www.instagram.com/p/example/
+             */
+            sourceUrl?: string | null;
         };
         ImportedIngredientPreviewDto: {
             rawText: string;
@@ -1292,16 +1305,24 @@ export interface components {
             steps: components["schemas"]["ImportedStepPreviewDto"][];
             warnings: string[];
             gaps: string[];
+            /** @description Fragmenty tekstu nierozpoznane jako składniki/kroki — do ręcznego opracowania. */
+            unassignedFragments?: string[];
         };
         ExistingSourceRecipeDto: {
             id: string;
             name: string;
         };
         RecipeImportPreviewDto: {
-            sourceUrl: string;
+            sourceUrl: string | null;
             importIdempotencyKey: string;
             /** Format: date-time */
             importedAt: string;
+            /** @enum {string|null} */
+            extractionMethod: "jsonld" | "microdata" | "rdfa" | "site:aniagotuje" | "html" | "pasted_text" | null;
+            /** @description true = automatyczny import z linku; false = tekst wklejony przez użytkownika. */
+            fromUrlFetch: boolean;
+            /** @description Gdy automatyczny odczyt z Instagrama/TikToka nie wystarczył — zaproponuj wklejenie opisu. */
+            suggestPasteCaption?: boolean;
             candidates: components["schemas"]["ImportedRecipeCandidateDto"][];
             existingFromSameSource: components["schemas"]["ExistingSourceRecipeDto"][];
         };

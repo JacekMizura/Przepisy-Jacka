@@ -153,6 +153,45 @@ describe('Recipe categories (e2e)', () => {
     expect(again).toHaveLength(8);
   });
 
+  it('does not recreate a deliberately deleted default category', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+    const kitchen = await createKitchen(owner, 'Usunięta startowa');
+    const categories = await listCategories(owner, kitchen.id);
+    const breakfast = categories.find((item) => item.name === 'Śniadania');
+    expect(breakfast).toBeDefined();
+
+    const removed = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipe-categories/${breakfast!.id}`,
+      {
+        method: 'DELETE',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+      },
+    );
+    expect(removed.status).toBe(204);
+
+    const afterList = await listCategories(owner, kitchen.id);
+    expect(afterList.map((item) => item.name)).not.toContain('Śniadania');
+    expect(afterList).toHaveLength(7);
+
+    const afterCreate = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipe-categories`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { name: 'Grill' },
+      },
+    );
+    expect(afterCreate.status).toBe(201);
+
+    const finalList = await listCategories(owner, kitchen.id);
+    expect(finalList.map((item) => item.name)).not.toContain('Śniadania');
+    expect(finalList.map((item) => item.name)).toContain('Grill');
+  });
+
   it('lets kitchen members manage categories and rejects duplicates', async () => {
     const owner = await signUpUser(api.origin, WEB_ORIGIN);
     const member = await signUpUser(api.origin, WEB_ORIGIN);

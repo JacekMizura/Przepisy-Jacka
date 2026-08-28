@@ -8,10 +8,7 @@ import { Prisma } from '../generated/prisma/client';
 
 import { requireKitchenMember } from '../kitchens/kitchen-access';
 import { PrismaService } from '../prisma/prisma.service';
-import {
-  DEFAULT_RECIPE_CATEGORIES,
-  normalizeRecipeCategoryName,
-} from './default-recipe-categories';
+import { normalizeRecipeCategoryName } from './default-recipe-categories';
 import {
   CreateRecipeCategoryDto,
   RecipeCategoryDto,
@@ -24,7 +21,6 @@ export class RecipeCategoryService {
 
   async list(userId: string, kitchenId: string): Promise<RecipeCategoryDto[]> {
     await requireKitchenMember(this.prisma, kitchenId, userId);
-    await this.ensureDefaultCategories(kitchenId);
 
     const categories = await this.prisma.recipeCategory.findMany({
       where: { kitchenId },
@@ -39,7 +35,6 @@ export class RecipeCategoryService {
     dto: CreateRecipeCategoryDto,
   ): Promise<RecipeCategoryDto> {
     await requireKitchenMember(this.prisma, kitchenId, userId);
-    await this.ensureDefaultCategories(kitchenId);
 
     const name = dto.name.trim().replace(/\s+/g, ' ');
     const normalizedName = normalizeRecipeCategoryName(name);
@@ -105,33 +100,6 @@ export class RecipeCategoryService {
     await requireKitchenMember(this.prisma, kitchenId, userId);
     await this.requireCategoryInKitchen(kitchenId, categoryId);
     await this.prisma.recipeCategory.delete({ where: { id: categoryId } });
-  }
-
-  async ensureDefaultCategories(kitchenId: string): Promise<void> {
-    const existing = await this.prisma.recipeCategory.findMany({
-      where: { kitchenId },
-      select: { normalizedName: true },
-    });
-    const known = new Set(existing.map((item) => item.normalizedName));
-    const missing = DEFAULT_RECIPE_CATEGORIES.filter(
-      (name) => !known.has(normalizeRecipeCategoryName(name)),
-    );
-    if (missing.length === 0) {
-      return;
-    }
-
-    await this.prisma.recipeCategory.createMany({
-      data: missing.map((name, index) => ({
-        kitchenId,
-        name,
-        normalizedName: normalizeRecipeCategoryName(name),
-        sortOrder:
-          DEFAULT_RECIPE_CATEGORIES.indexOf(name) >= 0
-            ? DEFAULT_RECIPE_CATEGORIES.indexOf(name)
-            : existing.length + index,
-      })),
-      skipDuplicates: true,
-    });
   }
 
   private async requireCategoryInKitchen(

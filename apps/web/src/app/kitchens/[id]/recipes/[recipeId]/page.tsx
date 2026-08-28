@@ -356,6 +356,7 @@ export default function RecipeDetailPage() {
               <RecipeIngredientsPanel
                 ingredients={recipe.ingredients}
                 ingredientGroups={recipe.ingredientGroups}
+                steps={recipe.steps}
                 availabilityByIngredientId={availabilityByIngredientId}
                 checkedIngredientIds={checkedIngredients}
                 availabilityPending={availabilityQuery.isPending}

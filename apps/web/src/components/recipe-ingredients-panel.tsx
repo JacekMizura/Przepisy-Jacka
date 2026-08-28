@@ -8,6 +8,11 @@ import { availabilityBadgeClass } from "@/components/add-recipe-gaps-dialog";
 import { Button } from "@/components/ui/button";
 import { formatQuantityWithUnit } from "@/lib/format-quantity";
 import {
+  buildIngredientClipboardSections,
+  formatRecipeClipboardText,
+  type RecipeClipboardIngredient,
+} from "@/lib/recipe-clipboard";
+import {
   AVAILABILITY_STATUS_LABELS,
   formatRecipeIngredientQuantity,
 } from "@/lib/recipe-labels";
@@ -15,18 +20,14 @@ import { cn } from "@/lib/utils";
 
 type Ingredient = components["schemas"]["RecipeIngredientDto"];
 type IngredientGroup = components["schemas"]["RecipeIngredientGroupDto"];
+type Step = components["schemas"]["RecipeStepDto"];
 type Availability =
   components["schemas"]["RecipeIngredientAvailabilityDto"];
-
-type IngredientSection = {
-  key: string;
-  title: string | null;
-  ingredients: Ingredient[];
-};
 
 type RecipeIngredientsPanelProps = {
   ingredients: Ingredient[];
   ingredientGroups?: IngredientGroup[];
+  steps?: Step[];
   availabilityByIngredientId: Map<string, Availability>;
   checkedIngredientIds: Set<string>;
   availabilityPending: boolean;
@@ -37,6 +38,7 @@ type RecipeIngredientsPanelProps = {
 export function RecipeIngredientsPanel({
   ingredients,
   ingredientGroups = [],
+  steps = [],
   availabilityByIngredientId,
   checkedIngredientIds,
   availabilityPending,
@@ -53,71 +55,31 @@ export function RecipeIngredientsPanel({
     [ingredients],
   );
 
-  const sections = useMemo((): IngredientSection[] => {
-    const groups = ingredientGroups
-      .slice()
-      .sort((left, right) => left.sortOrder - right.sortOrder);
+  const sections = useMemo(
+    () =>
+      buildIngredientClipboardSections(sortedIngredients, ingredientGroups),
+    [ingredientGroups, sortedIngredients],
+  );
 
-    if (groups.length === 0) {
-      return [
-        {
-          key: "all",
-          title: null,
-          ingredients: sortedIngredients,
-        },
-      ];
-    }
-
-    const result: IngredientSection[] = [];
-    for (const group of groups) {
-      const groupIngredients = sortedIngredients.filter(
-        (ingredient) => ingredient.groupId === group.id,
-      );
-      if (groupIngredients.length === 0) {
-        continue;
-      }
-      result.push({
-        key: group.id,
-        title: group.name,
-        ingredients: groupIngredients,
-      });
-    }
-
-    const ungrouped = sortedIngredients.filter(
-      (ingredient) =>
-        !ingredient.groupId ||
-        !groups.some((group) => group.id === ingredient.groupId),
-    );
-    if (ungrouped.length > 0) {
-      result.push({
-        key: "ungrouped",
-        title: "Pozostałe",
-        ingredients: ungrouped,
-      });
-    }
-
-    return result;
-  }, [ingredientGroups, sortedIngredients]);
-
-  async function copyIngredients() {
-    const lines: string[] = [];
-    for (const section of sections) {
-      if (section.title) {
-        lines.push(`${section.title}:`);
-      }
-      for (const ingredient of section.ingredients) {
+  async function copyRecipe() {
+    const clipboardIngredients: RecipeClipboardIngredient[] =
+      sortedIngredients.map((ingredient) => {
         const availability = availabilityByIngredientId.get(ingredient.id);
-        const quantity =
-          availability?.scaledQuantity ?? ingredient.quantity;
-        const unit = availability?.unit ?? ingredient.unit;
-        const name = ingredientDisplayName(ingredient, availability);
-        const qty = formatRecipeIngredientQuantity(quantity, unit);
-        const note = ingredient.note ? ` (${ingredient.note})` : "";
-        lines.push(`• ${name} — ${qty}${note}`);
-      }
-    }
+        return {
+          ...ingredient,
+          displayQuantity:
+            availability?.scaledQuantity ?? ingredient.quantity,
+          displayUnit: availability?.unit ?? ingredient.unit,
+          displayName: ingredientDisplayName(ingredient, availability),
+        };
+      });
+    const text = formatRecipeClipboardText({
+      ingredients: clipboardIngredients,
+      ingredientGroups,
+      steps,
+    });
     try {
-      await navigator.clipboard.writeText(lines.join("\n"));
+      await navigator.clipboard.writeText(text);
       setCopied(true);
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
@@ -126,7 +88,7 @@ export function RecipeIngredientsPanel({
   }
 
   return (
-    <section className="lg:sticky lg:top-6 lg:self-start">
+    <section className="recipe-ingredients-panel lg:sticky lg:top-6 lg:self-start">
       <div className="mb-4 flex items-end justify-between gap-3">
         <div>
           <h2 className="font-serif text-2xl tracking-tight text-stone-900">
@@ -141,7 +103,8 @@ export function RecipeIngredientsPanel({
           size="sm"
           variant="outline"
           className="recipe-print-hide shrink-0"
-          onClick={() => void copyIngredients()}
+          onClick={() => void copyRecipe()}
+          aria-label="Kopiuj przepis (składniki i kroki)"
         >
           {copied ? <Check size={14} className="mr-1.5" /> : <Copy size={14} className="mr-1.5" />}
           {copied ? "Skopiowano" : "Kopiuj"}

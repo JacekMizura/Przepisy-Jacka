@@ -22,6 +22,7 @@ model User {
   memberships   KitchenMember[]
   createdInvites KitchenInvite[] @relation("InviteCreator")
   createdPurchases Purchase[]
+  stockConsumptions StockConsumption[]
   authoredRecipes Recipe[] @relation("RecipeAuthor")
   recipeGapAdditions RecipeGapAddition[]
   mediaAssets   MediaAsset[]
@@ -173,6 +174,7 @@ model Kitchen {
   products        Product[]
   shoppingList    ShoppingList?
   purchases       Purchase[]
+  stockConsumptions StockConsumption[]
   recipes         Recipe[]
   recipeCategories RecipeCategory[]
   mediaAssets     MediaAsset[]
@@ -253,6 +255,7 @@ model Product {
   stockItems         StockItem[]
   shoppingListItems  ShoppingListItem[]
   purchaseLineItems  PurchaseLineItem[]
+  stockConsumptions  StockConsumption[]
   recipeIngredients  RecipeIngredient[]
   purchaseOptions    ProductPurchaseOption[]
 
@@ -314,7 +317,8 @@ model StockItem {
   location           StorageLocation
   expiresAt          DateTime?
   purchasedAt        DateTime?
-  purchasePriceMinor Int
+  /// Oryginalna cena całej partii w groszach; null = nieznana.
+  purchasePriceMinor Int?
   currency           String          @default("PLN") @db.VarChar(3)
   ean                String?         @db.VarChar(14)
   imageUrl           String?
@@ -322,9 +326,47 @@ model StockItem {
   updatedAt          DateTime        @updatedAt
   product            Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
   purchaseLineItem   PurchaseLineItem?
+  consumptionLines   StockConsumptionLine[]
 
   @@index([productId])
   @@index([location])
+}
+
+/// Zatwierdzone zużycie zapasu (może obejmować wiele partii).
+model StockConsumption {
+  id                    String                 @id @default(uuid())
+  kitchenId             String
+  productId             String
+  idempotencyKey        String                 @unique
+  totalQuantity         Decimal                @db.Decimal(12, 3)
+  totalCostMinor        Int?
+  costComplete          Boolean                @default(false)
+  previewFingerprint    String
+  createdByUserId       String
+  createdAt             DateTime               @default(now())
+  /// Cofnięcie innego zużycia (dodaje ilości z powrotem).
+  reversesConsumptionId String?                @unique
+  kitchen               Kitchen                @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+  product               Product                @relation(fields: [productId], references: [id], onDelete: Cascade)
+  createdBy             User                   @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+  lines                 StockConsumptionLine[]
+  reversedBy            StockConsumption?      @relation("ConsumptionReversal", fields: [reversesConsumptionId], references: [id], onDelete: SetNull)
+  reversalOf            StockConsumption?      @relation("ConsumptionReversal")
+
+  @@index([kitchenId, productId, createdAt])
+}
+
+model StockConsumptionLine {
+  id             String           @id @default(uuid())
+  consumptionId  String
+  stockItemId    String
+  quantity       Decimal          @db.Decimal(12, 3)
+  costMinor      Int?
+  consumption    StockConsumption @relation(fields: [consumptionId], references: [id], onDelete: Cascade)
+  stockItem      StockItem        @relation(fields: [stockItemId], references: [id], onDelete: Restrict)
+
+  @@index([consumptionId])
+  @@index([stockItemId])
 }
 
 model ShoppingList {

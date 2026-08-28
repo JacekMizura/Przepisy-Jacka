@@ -49,13 +49,16 @@ export class CreateStockItemDto {
   @IsISO8601()
   purchasedAt?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 599,
-    description: 'Łączna cena zakupu początkowej partii w groszach.',
+    nullable: true,
+    description:
+      'Łączna cena zakupu początkowej partii w groszach; pominięcie = nieznana cena.',
   })
+  @IsOptional()
   @IsInt()
   @Min(0)
-  purchasePriceMinor!: number;
+  purchasePriceMinor?: number | null;
 
   @ApiPropertyOptional({ example: 'PLN' })
   @IsOptional()
@@ -93,12 +96,6 @@ export class CreateStockItemDto {
 }
 
 export class UpdateStockItemDto {
-  @ApiPropertyOptional({ type: String, example: '200.000' })
-  @IsOptional()
-  @IsString()
-  @MinLength(1)
-  quantity?: string;
-
   @ApiPropertyOptional({ enum: StorageLocation })
   @IsOptional()
   @IsEnum(StorageLocation)
@@ -162,8 +159,8 @@ export class StockItemDto {
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   purchasedAt!: string | null;
 
-  @ApiProperty({ example: 599 })
-  purchasePriceMinor!: number;
+  @ApiPropertyOptional({ example: 599, nullable: true })
+  purchasePriceMinor!: number | null;
 
   @ApiProperty({ example: 'PLN' })
   currency!: string;

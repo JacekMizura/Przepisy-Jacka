@@ -430,6 +430,74 @@ export interface paths {
         patch: operations["StockController_updateStock"];
         trace?: never;
     };
+    "/api/kitchens/{kitchenId}/stock-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Zbiorczy widok zapasów pogrupowany po produkcie (z partiami) */
+        get: operations["StockController_listStockSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/products/{productId}/consume/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Podgląd zużycia zapasu (FIFO, bez zapisu) */
+        post: operations["StockController_previewConsume"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/products/{productId}/consume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Zatwierdzenie zużycia zapasu (idempotentne) */
+        post: operations["StockController_commitConsume"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/stock-consumptions/{consumptionId}/reverse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cofnięcie wcześniejszego zużycia */
+        post: operations["StockController_reverseConsumption"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/kitchens/{kitchenId}/shopping-list/items": {
         parameters: {
             query?: never;
@@ -1027,7 +1095,7 @@ export interface components {
             /** Format: date-time */
             purchasedAt: string | null;
             /** @example 599 */
-            purchasePriceMinor: number;
+            purchasePriceMinor?: Record<string, never> | null;
             /** @example PLN */
             currency: string;
             ean: string | null;
@@ -1051,10 +1119,10 @@ export interface components {
             /** Format: date-time */
             purchasedAt?: string;
             /**
-             * @description Łączna cena zakupu początkowej partii w groszach.
+             * @description Łączna cena zakupu początkowej partii w groszach; pominięcie = nieznana cena.
              * @example 599
              */
-            purchasePriceMinor: number;
+            purchasePriceMinor?: Record<string, never> | null;
             /** @example PLN */
             currency?: string;
             /**
@@ -1066,8 +1134,6 @@ export interface components {
             imageUrl?: string | null;
         };
         UpdateStockItemDto: {
-            /** @example 200.000 */
-            quantity?: string;
             /** @enum {string} */
             location?: "pantry" | "fridge" | "freezer" | "other";
             /** Format: date-time */
@@ -1078,6 +1144,97 @@ export interface components {
             purchasePriceMinor?: number;
             ean?: string | null;
             imageUrl?: string | null;
+        };
+        StockBatchDetailDto: {
+            id: string;
+            quantity: string;
+            initialQuantity: string;
+            /** @enum {string} */
+            location: "pantry" | "fridge" | "freezer" | "other";
+            /** Format: date-time */
+            expiresAt?: string | null;
+            /** Format: date-time */
+            purchasedAt?: string | null;
+            purchasePriceMinor?: number | null;
+            /** @example PLN */
+            currency: string;
+            unitPriceMinor?: number | null;
+            storeName?: string | null;
+            /** Format: uuid */
+            purchaseId?: string | null;
+            /** Format: uuid */
+            receiptMediaId?: string | null;
+            isExpired: boolean;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        StockProductSummaryDto: {
+            productId: string;
+            productName: string;
+            /** @enum {string} */
+            defaultUnit: "piece" | "gram" | "milliliter";
+            category?: string | null;
+            totalQuantity: string;
+            batchCount: number;
+            expiringBatchCount: number;
+            /** Format: date-time */
+            nearestExpiry?: string | null;
+            batches: components["schemas"]["StockBatchDetailDto"][];
+        };
+        ManualConsumeLineDto: {
+            stockItemId: string;
+            /** @example 100.000 */
+            quantity: string;
+        };
+        ConsumeStockPreviewDto: {
+            /** @example 600.000 */
+            quantity: string;
+            manualLines?: components["schemas"]["ManualConsumeLineDto"][];
+        };
+        ConsumeAllocationLineDto: {
+            stockItemId: string;
+            quantity: string;
+            costMinor?: number | null;
+            storeName?: string | null;
+            /** Format: date-time */
+            expiresAt?: string | null;
+        };
+        ConsumeStockPreviewResultDto: {
+            quantity: string;
+            lines: components["schemas"]["ConsumeAllocationLineDto"][];
+            totalQuantity: string;
+            totalCostMinor?: number | null;
+            costComplete: boolean;
+            previewFingerprint: string;
+            insufficientQuantity?: string | null;
+            disclaimer: string;
+        };
+        ConsumeStockCommitDto: {
+            /** @example 600.000 */
+            quantity: string;
+            manualLines?: components["schemas"]["ManualConsumeLineDto"][];
+            /** @description Klucz idempotencji żądania zużycia. */
+            idempotencyKey: string;
+            /** @description Odcisk partii z podglądu — wymagany przy zatwierdzeniu propozycji FIFO. */
+            previewFingerprint: string;
+        };
+        StockConsumptionLineDto: {
+            stockItemId: string;
+            quantity: string;
+            costMinor?: number | null;
+        };
+        StockConsumptionResultDto: {
+            id: string;
+            productId: string;
+            totalQuantity: string;
+            totalCostMinor?: number | null;
+            costComplete: boolean;
+            lines: components["schemas"]["StockConsumptionLineDto"][];
+            /** Format: date-time */
+            createdAt: string;
+        };
+        ReverseConsumptionDto: {
+            idempotencyKey: string;
         };
         ShoppingListItemProductDto: {
             id: string;
@@ -2598,6 +2755,108 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StockItemDto"];
+                };
+            };
+        };
+    };
+    StockController_listStockSummary: {
+        parameters: {
+            query?: {
+                productId?: string;
+                location?: "pantry" | "fridge" | "freezer" | "other";
+            };
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockProductSummaryDto"][];
+                };
+            };
+        };
+    };
+    StockController_previewConsume: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConsumeStockPreviewDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConsumeStockPreviewResultDto"];
+                };
+            };
+        };
+    };
+    StockController_commitConsume: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConsumeStockCommitDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockConsumptionResultDto"];
+                };
+            };
+        };
+    };
+    StockController_reverseConsumption: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                consumptionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReverseConsumptionDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StockConsumptionResultDto"];
                 };
             };
         };

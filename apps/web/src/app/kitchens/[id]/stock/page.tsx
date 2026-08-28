@@ -10,6 +10,7 @@ import {
   Plus,
   ShoppingBasket,
 } from "lucide-react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { type FormEvent, Fragment, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -27,6 +28,7 @@ import {
 import { ProductNutritionSection } from "@/components/product-nutrition-section";
 import { ProductPhotoField } from "@/components/product-photo-field";
 import { ProductPurchaseOptions } from "@/components/product-purchase-options";
+import { StockConsumeDialog } from "@/components/stock-consume-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -35,7 +37,6 @@ import { LOCATION_LABELS, UNIT_LABELS, readApiError } from "@/lib/errors";
 import {
   formatNutritionNumber,
   formatQuantityWithUnit,
-  formatQuantityNumber,
   toApiQuantityString,
 } from "@/lib/format-quantity";
 import {
@@ -58,6 +59,8 @@ import {
 import { cn } from "@/lib/utils";
 
 type Product = components["schemas"]["ProductDto"];
+type CreateStockItemBody = components["schemas"]["CreateStockItemDto"];
+type StockSummary = components["schemas"]["StockProductSummaryDto"];
 type LocationFilter = "" | keyof typeof LOCATION_LABELS;
 type UnitFilter = "" | BaseUnit;
 
@@ -117,8 +120,9 @@ export default function StockPage() {
     name: string;
     hasStock: boolean;
   } | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editQuantity, setEditQuantity] = useState("");
+  const [consumeProduct, setConsumeProduct] = useState<StockSummary | null>(
+    null,
+  );
   const [productFormOpen, setProductFormOpen] = useState(false);
   const [stockFormOpen, setStockFormOpen] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
@@ -128,6 +132,9 @@ export default function StockPage() {
     id: string;
     name: string;
   } | null>(null);
+  const [expandedStockIds, setExpandedStockIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [expandedProductIds, setExpandedProductIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -148,6 +155,28 @@ export default function StockPage() {
       }
       if (error) {
         throw new Error(readApiError(error, "Nie udało się pobrać produktów."));
+      }
+      return data ?? [];
+    },
+  });
+
+  const stockSummaryQuery = useQuery({
+    queryKey: ["stock-summary", kitchenId, locationFilter],
+    queryFn: async () => {
+      const client = createWebApiClient();
+      const { data, error } = await client.GET(
+        "/api/kitchens/{kitchenId}/stock-summary",
+        {
+          params: {
+            path: { kitchenId },
+            query: locationFilter ? { location: locationFilter } : {},
+          },
+        },
+      );
+      if (error) {
+        throw new Error(
+          readApiError(error, "Nie udało się pobrać podsumowania zapasów."),
+        );
       }
       return data ?? [];
     },
@@ -189,32 +218,20 @@ export default function StockPage() {
     return Array.from(fromCatalog).sort((a, b) => a.localeCompare(b, "pl"));
   }, [productsQuery.data]);
 
-  const filteredStock = useMemo(() => {
+  const filteredSummary = useMemo(() => {
     const needle = searchQuery.trim().toLowerCase();
-    return (stockQuery.data ?? []).filter((item) => {
-      const product = productsQuery.data?.find(
-        (entry) => entry.id === item.productId,
-      );
-      if (!product) {
-        return false;
-      }
+    return (stockSummaryQuery.data ?? []).filter((summary) => {
       if (categoryFilter) {
-        const category = product.category?.trim() || UNCATEGORIZED;
+        const category = summary.category?.trim() || UNCATEGORIZED;
         if (category !== categoryFilter) {
           return false;
         }
       }
-      if (unitFilter && product.defaultUnit !== unitFilter) {
+      if (unitFilter && summary.defaultUnit !== unitFilter) {
         return false;
       }
       if (needle) {
-        const haystack = [
-          product.name,
-          product.category ?? "",
-          product.ean ?? "",
-          item.ean ?? "",
-          UNIT_LABELS[product.defaultUnit],
-        ]
+        const haystack = [summary.productName, summary.category ?? ""]
           .join(" ")
           .toLowerCase();
         if (!haystack.includes(needle)) {
@@ -223,35 +240,34 @@ export default function StockPage() {
       }
       return true;
     });
-  }, [
-    categoryFilter,
-    productsQuery.data,
-    searchQuery,
-    stockQuery.data,
-    unitFilter,
-  ]);
+  }, [categoryFilter, searchQuery, stockSummaryQuery.data, unitFilter]);
 
-  const stockByCategory = useMemo(() => {
-    const groups = new Map<string, typeof filteredStock>();
-    for (const item of filteredStock) {
-      const product = productsQuery.data?.find(
-        (entry) => entry.id === item.productId,
-      );
-      const key = product?.category?.trim() || UNCATEGORIZED;
+  const summaryByCategory = useMemo(() => {
+    const groups = new Map<string, StockSummary[]>();
+    for (const summary of filteredSummary) {
+      const key = summary.category?.trim() || UNCATEGORIZED;
       const list = groups.get(key) ?? [];
-      list.push(item);
+      list.push(summary);
       groups.set(key, list);
     }
     return Array.from(groups.entries()).sort(([a], [b]) => {
-      if (a === UNCATEGORIZED) {
-        return 1;
-      }
-      if (b === UNCATEGORIZED) {
-        return -1;
-      }
+      if (a === UNCATEGORIZED) return 1;
+      if (b === UNCATEGORIZED) return -1;
       return a.localeCompare(b, "pl");
     });
-  }, [filteredStock, productsQuery.data]);
+  }, [filteredSummary]);
+
+  const toggleStockExpanded = (productId: string) => {
+    setExpandedStockIds((current) => {
+      const next = new Set(current);
+      if (next.has(productId)) {
+        next.delete(productId);
+      } else {
+        next.add(productId);
+      }
+      return next;
+    });
+  };
 
   const createProduct = useMutation({
     mutationFn: async () => {
@@ -364,9 +380,11 @@ export default function StockPage() {
       if (!converted.ok) {
         throw new Error(converted.message);
       }
-      const purchasePriceMinor = minorFromZloty(price);
-      if (purchasePriceMinor === null) {
-        throw new Error("Podaj cenę w złotych, np. 5,99.");
+      const purchasePriceMinor = price.trim()
+        ? minorFromZloty(price)
+        : null;
+      if (price.trim() && purchasePriceMinor === null) {
+        throw new Error("Podaj cenę w złotych, np. 5,99, albo zostaw puste.");
       }
       const client = createWebApiClient();
       const { data, error } = await client.POST(
@@ -377,14 +395,14 @@ export default function StockPage() {
             productId: selectedProduct.id,
             quantity: converted.quantity,
             location,
-            purchasePriceMinor,
+            ...(purchasePriceMinor !== null ? { purchasePriceMinor } : {}),
             expiresAt: expiresAt ? new Date(expiresAt).toISOString() : undefined,
             purchasedAt: purchasedAt
               ? new Date(purchasedAt).toISOString()
               : undefined,
             ean: stockEan.trim() || null,
             imageUrl: stockImageUrl.trim() || null,
-          },
+          } as CreateStockItemBody,
         },
       );
       if (error) {
@@ -394,6 +412,9 @@ export default function StockPage() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["stock", kitchenId] });
+      await queryClient.invalidateQueries({
+        queryKey: ["stock-summary", kitchenId],
+      });
       await queryClient.invalidateQueries({ queryKey: ["products", kitchenId] });
       setQuantity("");
       setPrice("");
@@ -404,43 +425,6 @@ export default function StockPage() {
     },
     onError: (error) => {
       setFormError(readApiError(error));
-    },
-  });
-
-  const updateStock = useMutation({
-    mutationFn: async (stockItemId: string) => {
-      const product = productsQuery.data?.find((item) => {
-        const stock = stockQuery.data?.find((entry) => entry.id === stockItemId);
-        return stock && item.id === stock.productId;
-      });
-      if (!product) {
-        throw new Error("Nie znaleziono produktu partii.");
-      }
-      const converted = convertToBaseQuantity(
-        editQuantity,
-        product.defaultUnit,
-        product.defaultUnit,
-      );
-      if (!converted.ok) {
-        throw new Error(converted.message);
-      }
-      const client = createWebApiClient();
-      const { error } = await client.PATCH(
-        "/api/kitchens/{kitchenId}/stock-items/{stockItemId}",
-        {
-          params: { path: { kitchenId, stockItemId } },
-          body: { quantity: converted.quantity },
-        },
-      );
-      if (error) {
-        throw new Error(
-          readApiError(error, "Nie udało się zaktualizować partii."),
-        );
-      }
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["stock", kitchenId] });
-      setEditingId(null);
     },
   });
 
@@ -457,6 +441,9 @@ export default function StockPage() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["stock", kitchenId] });
+      await queryClient.invalidateQueries({
+        queryKey: ["stock-summary", kitchenId],
+      });
     },
   });
 
@@ -918,7 +905,7 @@ export default function StockPage() {
                 </div>
                 <div>
                   <Label htmlFor="stock-price">
-                    Cena zakupu za całość (zł)
+                    Cena zakupu za całość (zł, opcjonalnie)
                   </Label>
                   <Input
                     id="stock-price"
@@ -926,7 +913,6 @@ export default function StockPage() {
                     placeholder="0.00"
                     value={price}
                     onChange={(event) => setPrice(event.target.value)}
-                    required
                   />
                 </div>
                 <div>
@@ -1072,19 +1058,19 @@ export default function StockPage() {
           </div>
 
           <div className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
-            {stockQuery.isPending || productsQuery.isPending ? (
+            {stockSummaryQuery.isPending || productsQuery.isPending ? (
               <div className="p-12 text-center text-sm text-gray-500">
                 Ładowanie spiżarni…
               </div>
             ) : null}
-            {stockQuery.isError ? (
+            {stockSummaryQuery.isError ? (
               <div className="p-12 text-center text-sm text-red-600" role="alert">
-                {readApiError(stockQuery.error)}
+                {readApiError(stockSummaryQuery.error)}
               </div>
             ) : null}
-            {!stockQuery.isPending &&
-            !stockQuery.isError &&
-            filteredStock.length === 0 ? (
+            {!stockSummaryQuery.isPending &&
+            !stockSummaryQuery.isError &&
+            filteredSummary.length === 0 ? (
               <div className="px-6 py-14 text-center">
                 <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
                   <ChefHat size={32} />
@@ -1119,192 +1105,199 @@ export default function StockPage() {
                 </div>
               </div>
             ) : null}
-            {filteredStock.length > 0 ? (
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-left text-sm">
-                  <thead className="border-b border-gray-100 bg-emerald-50/50">
-                    <tr>
-                      <th className="px-4 py-3 font-semibold text-gray-700">
-                        Zdjęcie
-                      </th>
-                      <th className="px-4 py-3 font-semibold text-gray-700">
-                        Produkt
-                      </th>
-                      <th className="px-4 py-3 font-semibold text-gray-700">
-                        Jednostka
-                      </th>
-                      <th className="px-4 py-3 font-semibold text-gray-700">
-                        Pozostało / start
-                      </th>
-                      <th className="px-4 py-3 font-semibold text-gray-700">
-                        Miejsce
-                      </th>
-                      <th className="px-4 py-3 font-semibold text-gray-700">
-                        Cena partii
-                      </th>
-                      <th className="px-4 py-3 font-semibold text-gray-700">
-                        Ważność
-                      </th>
-                      <th className="px-4 py-3 font-semibold text-gray-700">
-                        Akcje
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {stockByCategory.map(([category, items]) => (
-                      <Fragment key={category}>
-                        <tr className="bg-emerald-50/40">
-                          <td
-                            colSpan={8}
-                            className="px-4 py-2 text-xs font-semibold tracking-wide text-emerald-800 uppercase"
-                          >
-                            {category}
-                          </td>
-                        </tr>
-                        {items.map((item) => {
-                          const product = productsQuery.data?.find(
-                            (entry) => entry.id === item.productId,
-                          );
-                          const productImages = productImageUrls(product);
-                          const thumbnail =
-                            productImages.thumbnail ??
-                            (isDisplayableUrl(item.imageUrl)
-                              ? item.imageUrl
-                              : null);
-                          const fullSize =
-                            productImages.full ??
-                            (isDisplayableUrl(item.imageUrl)
-                              ? item.imageUrl
-                              : null);
-                          const productLabel = product?.name ?? "Produkt";
-                          return (
-                            <tr
-                              key={item.id}
-                              className="border-b border-gray-50 last:border-0"
-                            >
-                              <td className="px-4 py-3">
-                                {thumbnail && fullSize ? (
-                                  <button
-                                    type="button"
-                                    className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl border border-emerald-50 bg-emerald-50/40 transition-shadow hover:shadow-md"
-                                    onClick={() =>
-                                      setPreview({
-                                        src: fullSize,
-                                        alt: productLabel,
-                                      })
-                                    }
-                                    aria-label={`Powiększ zdjęcie: ${productLabel}`}
-                                  >
-                                    {/* eslint-disable-next-line @next/next/no-img-element -- podpisane URL-e magazynu zdjęć */}
-                                    <img
-                                      src={thumbnail}
-                                      alt=""
-                                      className="h-full w-full object-cover"
-                                    />
-                                  </button>
-                                ) : (
-                                  <div className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl border border-emerald-50 bg-emerald-50/40">
-                                    <Package
-                                      size={18}
-                                      className="text-emerald-300"
-                                    />
-                                  </div>
-                                )}
-                              </td>
-                              <td className="px-4 py-3">
-                                <p className="font-medium text-gray-900">
-                                  {product?.name ?? item.productId}
-                                </p>
-                                {(item.ean || product?.ean) && (
-                                  <p className="text-xs text-gray-400">
-                                    EAN {item.ean || product?.ean}
-                                  </p>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 text-gray-700">
-                                {product
-                                  ? UNIT_LABELS[product.defaultUnit]
-                                  : "—"}
-                              </td>
-                              <td className="px-4 py-3 text-gray-700">
-                                {editingId === item.id ? (
-                                  <form
-                                    className="flex gap-2"
-                                    onSubmit={(event) => {
-                                      event.preventDefault();
-                                      updateStock.mutate(item.id);
-                                    }}
-                                  >
-                                    <Input
-                                      aria-label="Nowa pozostała ilość"
-                                      value={editQuantity}
-                                      onChange={(event) =>
-                                        setEditQuantity(event.target.value)
-                                      }
-                                    />
-                                    <Button type="submit" size="sm">
-                                      Zapisz
-                                    </Button>
-                                  </form>
-                                ) : (
-                                  <>
-                                    {formatQuantityWithUnit(
-                                      item.quantity,
-                                      product?.defaultUnit,
-                                    )}{" "}
-                                    /{" "}
-                                    {formatQuantityWithUnit(
-                                      item.initialQuantity,
-                                      product?.defaultUnit,
-                                    )}
-                                  </>
-                                )}
-                              </td>
-                              <td className="px-4 py-3 text-gray-700">
-                                {LOCATION_LABELS[item.location]}
-                              </td>
-                              <td className="px-4 py-3 text-gray-700">
-                                {zlotyFromMinor(item.purchasePriceMinor)}{" "}
-                                {item.currency}
-                              </td>
-                              <td className="px-4 py-3 text-gray-700">
-                                {item.expiresAt
-                                  ? new Date(item.expiresAt).toLocaleDateString(
-                                      "pl-PL",
-                                    )
-                                  : "—"}
-                              </td>
-                              <td className="px-4 py-3">
-                                <div className="flex flex-wrap gap-2">
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => {
-                                      setEditingId(item.id);
-                                      setEditQuantity(
-                                        formatQuantityNumber(item.quantity),
-                                      );
-                                    }}
-                                  >
-                                    Edytuj
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="destructive"
-                                    onClick={() => deleteStock.mutate(item.id)}
-                                  >
-                                    Usuń
-                                  </Button>
+            {filteredSummary.length > 0 ? (
+              <ul className="divide-y divide-gray-50">
+                {summaryByCategory.map(([category, summaries]) => (
+                  <Fragment key={category}>
+                    <li className="bg-emerald-50/40 px-4 py-2 text-xs font-semibold tracking-wide text-emerald-800 uppercase">
+                      {category}
+                    </li>
+                    {summaries.map((summary) => {
+                      const product = productsQuery.data?.find(
+                        (entry) => entry.id === summary.productId,
+                      );
+                      const productImages = productImageUrls(product);
+                      const thumbnail = productImages.thumbnail;
+                      const fullSize = productImages.full;
+                      const expanded = expandedStockIds.has(summary.productId);
+                      const expiryHint =
+                        summary.expiringBatchCount > 0 && summary.nearestExpiry
+                          ? `${summary.expiringBatchCount} ${
+                              summary.expiringBatchCount === 1
+                                ? "partia"
+                                : "partie"
+                            } kończą ważność ${new Date(
+                              summary.nearestExpiry,
+                            ).toLocaleDateString("pl-PL")}`
+                          : null;
+                      return (
+                        <li key={summary.productId} className="px-4 py-3">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex min-w-0 flex-1 items-start gap-3">
+                              {thumbnail && fullSize ? (
+                                <button
+                                  type="button"
+                                  className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-emerald-50 bg-emerald-50/40 transition-shadow hover:shadow-md"
+                                  onClick={() =>
+                                    setPreview({
+                                      src: fullSize,
+                                      alt: summary.productName,
+                                    })
+                                  }
+                                  aria-label={`Powiększ zdjęcie: ${summary.productName}`}
+                                >
+                                  {/* eslint-disable-next-line @next/next/no-img-element -- podpisane URL-e magazynu zdjęć */}
+                                  <img
+                                    src={thumbnail}
+                                    alt=""
+                                    className="h-full w-full object-cover"
+                                  />
+                                </button>
+                              ) : (
+                                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-emerald-50 bg-emerald-50/40">
+                                  <Package
+                                    size={18}
+                                    className="text-emerald-300"
+                                  />
                                 </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </Fragment>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium text-gray-900">
+                                  {summary.productName}
+                                </p>
+                                <p className="text-sm text-gray-600">
+                                  {formatQuantityWithUnit(
+                                    summary.totalQuantity,
+                                    summary.defaultUnit,
+                                  )}{" "}
+                                  · {summary.batchCount}{" "}
+                                  {summary.batchCount === 1
+                                    ? "partia"
+                                    : "partie"}
+                                </p>
+                                {expiryHint ? (
+                                  <p className="mt-0.5 text-xs text-amber-700">
+                                    {expiryHint}
+                                  </p>
+                                ) : null}
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  toggleStockExpanded(summary.productId)
+                                }
+                                aria-expanded={expanded}
+                              >
+                                <ChevronDown
+                                  size={16}
+                                  className={cn(
+                                    "mr-1 transition-transform",
+                                    expanded && "rotate-180",
+                                  )}
+                                />
+                                {expanded ? "Zwiń" : "Partie"}
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="amber"
+                                onClick={() => setConsumeProduct(summary)}
+                              >
+                                Zużyj
+                              </Button>
+                            </div>
+                          </div>
+                          {expanded ? (
+                            <ul className="mt-3 space-y-2 border-t border-gray-50 pt-3">
+                              {summary.batches.map((batch) => (
+                                <li
+                                  key={batch.id}
+                                  className={cn(
+                                    "rounded-xl border p-3 text-sm",
+                                    batch.isExpired
+                                      ? "border-red-100 bg-red-50/40"
+                                      : "border-gray-100 bg-gray-50/60",
+                                  )}
+                                >
+                                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                    <div className="space-y-1">
+                                      <p className="font-medium text-gray-900">
+                                        {formatQuantityWithUnit(
+                                          batch.quantity,
+                                          summary.defaultUnit,
+                                        )}{" "}
+                                        /{" "}
+                                        {formatQuantityWithUnit(
+                                          batch.initialQuantity,
+                                          summary.defaultUnit,
+                                        )}
+                                        {batch.isExpired ? (
+                                          <span className="ml-2 rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-800">
+                                            Przeterminowane
+                                          </span>
+                                        ) : null}
+                                      </p>
+                                      <p className="text-xs text-gray-500">
+                                        {batch.storeName
+                                          ? batch.storeName
+                                          : "Ręczne dodanie"}
+                                        {batch.purchasedAt
+                                          ? ` · ${new Date(
+                                              batch.purchasedAt,
+                                            ).toLocaleDateString("pl-PL")}`
+                                          : ""}
+                                        {batch.expiresAt
+                                          ? ` · ważne do ${new Date(
+                                              batch.expiresAt,
+                                            ).toLocaleDateString("pl-PL")}`
+                                          : ""}
+                                      </p>
+                                      <p className="text-xs text-gray-500">
+                                        {LOCATION_LABELS[batch.location]}
+                                        {batch.unitPriceMinor != null
+                                          ? ` · ${zlotyFromMinor(
+                                              batch.unitPriceMinor,
+                                            )} ${batch.currency}/${UNIT_LABELS[summary.defaultUnit]}`
+                                          : batch.purchasePriceMinor != null
+                                            ? ` · ${zlotyFromMinor(
+                                                batch.purchasePriceMinor,
+                                              )} ${batch.currency} za partię`
+                                            : " · cena nieznana"}
+                                      </p>
+                                      {batch.purchaseId ? (
+                                        <Link
+                                          href={`/kitchens/${kitchenId}/purchases/${batch.purchaseId}`}
+                                          className="text-xs font-medium text-emerald-700 hover:underline"
+                                        >
+                                          Zobacz zakup / paragon
+                                        </Link>
+                                      ) : null}
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="destructive"
+                                      onClick={() =>
+                                        deleteStock.mutate(batch.id)
+                                      }
+                                    >
+                                      Usuń partię
+                                    </Button>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : null}
+                        </li>
+                      );
+                    })}
+                  </Fragment>
+                ))}
+              </ul>
             ) : null}
           </div>
         </section>
@@ -1523,6 +1516,27 @@ export default function StockPage() {
               mergeQuantity: true,
             })
           }
+        />
+      ) : null}
+
+      {consumeProduct ? (
+        <StockConsumeDialog
+          kitchenId={kitchenId}
+          product={consumeProduct}
+          inputUnit={
+            inputUnitsFor(consumeProduct.defaultUnit as BaseUnit)[0]?.value ??
+            "gram"
+          }
+          open={Boolean(consumeProduct)}
+          onClose={() => setConsumeProduct(null)}
+          onSuccess={async () => {
+            await queryClient.invalidateQueries({
+              queryKey: ["stock-summary", kitchenId],
+            });
+            await queryClient.invalidateQueries({
+              queryKey: ["stock", kitchenId],
+            });
+          }}
         />
       ) : null}
     </AppShell>

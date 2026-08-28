@@ -45,6 +45,41 @@ import {
   StockItemDto,
   UpdateStockItemDto,
 } from './dto/stock-item.dto';
+import {
+  ConsumeStockCommitDto,
+  ConsumeStockPreviewDto,
+  ConsumeStockPreviewResultDto,
+  StockConsumptionResultDto,
+  type ConsumeAllocationLineDto,
+} from './dto/stock-consume.dto';
+import {
+  StockProductSummaryDto,
+  type StockBatchDetailDto,
+} from './dto/stock-summary.dto';
+import {
+  allocateConsumption,
+  buildFingerprint,
+  unitPriceMinor,
+  type StockBatchRow,
+} from './stock-consume';
+
+const stockBatchInclude = {
+  purchaseLineItem: {
+    include: {
+      purchase: {
+        select: {
+          id: true,
+          storeName: true,
+          receiptMediaId: true,
+        },
+      },
+    },
+  },
+} satisfies Prisma.StockItemInclude;
+
+type StockItemWithPurchase = Prisma.StockItemGetPayload<{
+  include: typeof stockBatchInclude;
+}>;
 
 function normalizeOptionalEan(value: string | null | undefined): string | null {
   if (value === undefined || value === null) {
@@ -378,7 +413,9 @@ export class StockService {
     }
     const quantity = parseQuantityString(dto.quantity, 'quantity');
     assertStockQuantities(quantity, quantity);
-    if (dto.purchasePriceMinor < 0) {
+    const priceMinor =
+      dto.purchasePriceMinor === undefined ? null : dto.purchasePriceMinor;
+    if (priceMinor !== null && priceMinor < 0) {
       throw new BadRequestException('Cena nie może być ujemna.');
     }
     const currency = (dto.currency ?? 'PLN').trim().toUpperCase();
@@ -413,7 +450,7 @@ export class StockService {
             location: dto.location,
             expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
             purchasedAt: dto.purchasedAt ? new Date(dto.purchasedAt) : null,
-            purchasePriceMinor: dto.purchasePriceMinor,
+            purchasePriceMinor: priceMinor,
             currency,
             ean,
             imageUrl,
@@ -439,18 +476,16 @@ export class StockService {
     if (!existing) {
       throw new BadRequestException('Nie znaleziono partii.');
     }
-    const quantity =
-      dto.quantity !== undefined
-        ? parseQuantityString(dto.quantity, 'quantity')
-        : existing.quantity;
-    assertStockQuantities(existing.initialQuantity, quantity);
-    if (dto.purchasePriceMinor !== undefined && dto.purchasePriceMinor < 0) {
+    if (
+      dto.purchasePriceMinor !== undefined &&
+      dto.purchasePriceMinor !== null &&
+      dto.purchasePriceMinor < 0
+    ) {
       throw new BadRequestException('Cena nie może być ujemna.');
     }
     const item = await this.prisma.stockItem.update({
       where: { id: existing.id },
       data: {
-        quantity,
         location: dto.location,
         expiresAt:
           dto.expiresAt === undefined ? undefined : new Date(dto.expiresAt),
@@ -465,6 +500,314 @@ export class StockService {
       },
     });
     return toStockItemDto(item);
+  }
+
+  async listStockSummary(
+    userId: string,
+    kitchenId: string,
+    filters: { location?: StorageLocation; productId?: string },
+  ): Promise<StockProductSummaryDto[]> {
+    await requireKitchenMember(this.prisma, kitchenId, userId);
+    const now = new Date();
+    const items = await this.prisma.stockItem.findMany({
+      where: {
+        product: { kitchenId },
+        productId: filters.productId,
+        location: filters.location,
+        quantity: { gt: 0 },
+      },
+      include: {
+        product: true,
+        ...stockBatchInclude,
+      },
+      orderBy: [{ expiresAt: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    const byProduct = new Map<string, StockProductSummaryDto>();
+    for (const item of items) {
+      let summary = byProduct.get(item.productId);
+      if (!summary) {
+        summary = {
+          productId: item.product.id,
+          productName: item.product.name,
+          defaultUnit: item.product.defaultUnit,
+          category: item.product.category,
+          totalQuantity: '0.000',
+          batchCount: 0,
+          expiringBatchCount: 0,
+          nearestExpiry: null,
+          batches: [],
+        };
+        byProduct.set(item.productId, summary);
+      }
+      const batch = toStockBatchDetailDto(item, now);
+      summary.batches.push(batch);
+      summary.batchCount += 1;
+      if (
+        batch.expiresAt &&
+        new Date(batch.expiresAt) <= new Date(now.getTime() + 7 * 86400000)
+      ) {
+        summary.expiringBatchCount += 1;
+      }
+      if (batch.expiresAt) {
+        if (!summary.nearestExpiry || batch.expiresAt < summary.nearestExpiry) {
+          summary.nearestExpiry = batch.expiresAt;
+        }
+      }
+      const total = new Prisma.Decimal(summary.totalQuantity).add(
+        item.quantity,
+      );
+      summary.totalQuantity = formatQuantity(total);
+    }
+
+    return Array.from(byProduct.values()).sort((a, b) =>
+      a.productName.localeCompare(b.productName, 'pl'),
+    );
+  }
+
+  async previewConsumeStock(
+    userId: string,
+    kitchenId: string,
+    productId: string,
+    dto: ConsumeStockPreviewDto,
+  ): Promise<ConsumeStockPreviewResultDto> {
+    await requireKitchenMember(this.prisma, kitchenId, userId);
+    await this.findKitchenProduct(userId, kitchenId, productId);
+    const requested = parseQuantityString(dto.quantity, 'quantity');
+    const batches = await this.loadProductBatches(kitchenId, productId);
+    const manualLines = dto.manualLines?.map((line) => ({
+      stockItemId: line.stockItemId,
+      quantity: parseQuantityString(line.quantity, 'quantity'),
+    }));
+    const allocation = allocateConsumption(
+      batches,
+      requested,
+      new Date(),
+      manualLines,
+    );
+    return this.toConsumePreviewDto(allocation, requested, batches);
+  }
+
+  async commitConsumeStock(
+    userId: string,
+    kitchenId: string,
+    productId: string,
+    dto: ConsumeStockCommitDto,
+  ): Promise<StockConsumptionResultDto> {
+    await requireKitchenMember(this.prisma, kitchenId, userId);
+    await this.findKitchenProduct(userId, kitchenId, productId);
+
+    const existing = await this.prisma.stockConsumption.findUnique({
+      where: { idempotencyKey: dto.idempotencyKey },
+      include: { lines: true },
+    });
+    if (existing) {
+      if (
+        existing.kitchenId !== kitchenId ||
+        existing.productId !== productId
+      ) {
+        throw new ConflictException('Klucz idempotencji jest już użyty.');
+      }
+      return toStockConsumptionResultDto(existing);
+    }
+
+    const requested = parseQuantityString(dto.quantity, 'quantity');
+    const manualLines = dto.manualLines?.map((line) => ({
+      stockItemId: line.stockItemId,
+      quantity: parseQuantityString(line.quantity, 'quantity'),
+    }));
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const batchRows = await tx.stockItem.findMany({
+        where: { productId, product: { kitchenId } },
+        orderBy: [{ expiresAt: 'asc' }, { createdAt: 'asc' }],
+      });
+      const batches: StockBatchRow[] = batchRows.map(toStockBatchRow);
+      const fingerprint = buildFingerprint(batches);
+      if (fingerprint !== dto.previewFingerprint) {
+        throw new ConflictException(
+          'Stan partii zmienił się od podglądu — odśwież propozycję i zatwierdź ponownie.',
+        );
+      }
+
+      const allocation = allocateConsumption(
+        batches,
+        requested,
+        new Date(),
+        manualLines,
+      );
+      if (allocation.insufficientQuantity) {
+        throw new BadRequestException(
+          `Niewystarczający stan — brakuje ${formatQuantity(allocation.insufficientQuantity)}.`,
+        );
+      }
+
+      for (const line of allocation.lines) {
+        const batch = await tx.stockItem.findFirst({
+          where: {
+            id: line.stockItemId,
+            productId,
+            product: { kitchenId },
+          },
+        });
+        if (!batch || batch.quantity.lt(line.quantity)) {
+          throw new ConflictException(
+            'Stan partii zmienił się w trakcie zatwierdzania — odśwież podgląd.',
+          );
+        }
+        const nextQty = batch.quantity.sub(line.quantity);
+        await tx.stockItem.update({
+          where: { id: batch.id },
+          data: { quantity: nextQty },
+        });
+      }
+
+      const consumption = await tx.stockConsumption.create({
+        data: {
+          kitchenId,
+          productId,
+          idempotencyKey: dto.idempotencyKey,
+          totalQuantity: allocation.totalQuantity,
+          totalCostMinor: allocation.totalCostMinor,
+          costComplete: allocation.costComplete,
+          previewFingerprint: dto.previewFingerprint,
+          createdByUserId: userId,
+          lines: {
+            create: allocation.lines.map((line) => ({
+              stockItemId: line.stockItemId,
+              quantity: line.quantity,
+              costMinor: line.costMinor,
+            })),
+          },
+        },
+        include: { lines: true },
+      });
+      return consumption;
+    });
+
+    return toStockConsumptionResultDto(result);
+  }
+
+  async reverseConsumption(
+    userId: string,
+    kitchenId: string,
+    consumptionId: string,
+    idempotencyKey: string,
+  ): Promise<StockConsumptionResultDto> {
+    await requireKitchenMember(this.prisma, kitchenId, userId);
+
+    const existingReversal = await this.prisma.stockConsumption.findUnique({
+      where: { idempotencyKey },
+      include: { lines: true },
+    });
+    if (existingReversal) {
+      return toStockConsumptionResultDto(existingReversal);
+    }
+
+    const original = await this.prisma.stockConsumption.findFirst({
+      where: { id: consumptionId, kitchenId },
+      include: { lines: true, reversalOf: true },
+    });
+    if (!original) {
+      throw new BadRequestException('Nie znaleziono zużycia do cofnięcia.');
+    }
+    if (original.reversesConsumptionId) {
+      throw new BadRequestException(
+        'Nie można cofnąć rekordu będącego cofnięciem innego zużycia.',
+      );
+    }
+    if (original.reversalOf) {
+      throw new BadRequestException('To zużycie zostało już cofnięte.');
+    }
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      for (const line of original.lines) {
+        const batch = await tx.stockItem.findUnique({
+          where: { id: line.stockItemId },
+        });
+        if (!batch) {
+          throw new BadRequestException('Partia zużycia już nie istnieje.');
+        }
+        const nextQty = batch.quantity.add(line.quantity);
+        assertStockQuantities(batch.initialQuantity, nextQty);
+        await tx.stockItem.update({
+          where: { id: batch.id },
+          data: { quantity: nextQty },
+        });
+      }
+
+      return tx.stockConsumption.create({
+        data: {
+          kitchenId,
+          productId: original.productId,
+          idempotencyKey,
+          totalQuantity: original.totalQuantity,
+          totalCostMinor: original.totalCostMinor,
+          costComplete: original.costComplete,
+          previewFingerprint: original.previewFingerprint,
+          createdByUserId: userId,
+          reversesConsumptionId: original.id,
+          lines: {
+            create: original.lines.map((line) => ({
+              stockItemId: line.stockItemId,
+              quantity: line.quantity,
+              costMinor: line.costMinor,
+            })),
+          },
+        },
+        include: { lines: true },
+      });
+    });
+
+    return toStockConsumptionResultDto(result);
+  }
+
+  private async loadProductBatches(
+    kitchenId: string,
+    productId: string,
+  ): Promise<StockBatchRow[]> {
+    const rows = await this.prisma.stockItem.findMany({
+      where: { productId, product: { kitchenId } },
+      orderBy: [{ expiresAt: 'asc' }, { createdAt: 'asc' }],
+    });
+    return rows.map(toStockBatchRow);
+  }
+
+  private async toConsumePreviewDto(
+    allocation: ReturnType<typeof allocateConsumption>,
+    requested: Prisma.Decimal,
+    batches: StockBatchRow[],
+  ): Promise<ConsumeStockPreviewResultDto> {
+    const batchMeta = await this.prisma.stockItem.findMany({
+      where: { id: { in: batches.map((b) => b.id) } },
+      include: stockBatchInclude,
+    });
+    const metaById = new Map(batchMeta.map((b) => [b.id, b]));
+
+    const lines: ConsumeAllocationLineDto[] = allocation.lines.map((line) => {
+      const meta = metaById.get(line.stockItemId);
+      return {
+        stockItemId: line.stockItemId,
+        quantity: formatQuantity(line.quantity),
+        costMinor: line.costMinor,
+        storeName: meta?.purchaseLineItem?.purchase.storeName ?? null,
+        expiresAt: meta?.expiresAt?.toISOString() ?? null,
+      };
+    });
+
+    return {
+      quantity: formatQuantity(requested),
+      lines,
+      totalQuantity: formatQuantity(allocation.totalQuantity),
+      totalCostMinor: allocation.totalCostMinor,
+      costComplete: allocation.costComplete,
+      previewFingerprint: allocation.fingerprint,
+      insufficientQuantity: allocation.insufficientQuantity
+        ? formatQuantity(allocation.insufficientQuantity)
+        : null,
+      disclaimer:
+        'Koszt liczony z oryginalnej ceny partii ÷ oryginalna ilość × zużyta ilość. Brak ceny nie oznacza zera.',
+    };
   }
 
   async listPurchaseOptions(
@@ -869,6 +1212,61 @@ function toPurchaseOptionDto(option: ProductPurchaseOption): PurchaseOptionDto {
     isActive: option.isActive,
     createdAt: option.createdAt.toISOString(),
     updatedAt: option.updatedAt.toISOString(),
+  };
+}
+
+function toStockBatchRow(item: StockItem): StockBatchRow {
+  return {
+    id: item.id,
+    quantity: item.quantity,
+    initialQuantity: item.initialQuantity,
+    purchasePriceMinor: item.purchasePriceMinor,
+    expiresAt: item.expiresAt,
+    purchasedAt: item.purchasedAt,
+    createdAt: item.createdAt,
+  };
+}
+
+function toStockBatchDetailDto(
+  item: StockItemWithPurchase,
+  now: Date,
+): StockBatchDetailDto {
+  return {
+    id: item.id,
+    quantity: formatQuantity(item.quantity),
+    initialQuantity: formatQuantity(item.initialQuantity),
+    location: item.location,
+    expiresAt: item.expiresAt?.toISOString() ?? null,
+    purchasedAt: item.purchasedAt?.toISOString() ?? null,
+    purchasePriceMinor: item.purchasePriceMinor,
+    currency: item.currency,
+    unitPriceMinor: unitPriceMinor(
+      item.initialQuantity,
+      item.purchasePriceMinor,
+    ),
+    storeName: item.purchaseLineItem?.purchase.storeName ?? null,
+    purchaseId: item.purchaseLineItem?.purchase.id ?? null,
+    receiptMediaId: item.purchaseLineItem?.purchase.receiptMediaId ?? null,
+    isExpired: item.expiresAt !== null && item.expiresAt <= now,
+    createdAt: item.createdAt.toISOString(),
+  };
+}
+
+function toStockConsumptionResultDto(
+  consumption: Prisma.StockConsumptionGetPayload<{ include: { lines: true } }>,
+): StockConsumptionResultDto {
+  return {
+    id: consumption.id,
+    productId: consumption.productId,
+    totalQuantity: formatQuantity(consumption.totalQuantity),
+    totalCostMinor: consumption.totalCostMinor,
+    costComplete: consumption.costComplete,
+    lines: consumption.lines.map((line) => ({
+      stockItemId: line.stockItemId,
+      quantity: formatQuantity(line.quantity),
+      costMinor: line.costMinor,
+    })),
+    createdAt: consumption.createdAt.toISOString(),
   };
 }
 

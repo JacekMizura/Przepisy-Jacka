@@ -50,10 +50,16 @@ Partia zapasu (`StockItem`) ma:
 
 - `initialQuantity` — początkowa ilość,
 - `quantity` — pozostała ilość,
-- `purchasePriceMinor` — łączna cena zakupu całej początkowej partii w groszach,
+- `purchasePriceMinor` — opcjonalna łączna cena zakupu całej początkowej partii w groszach (brak = nieznana cena),
 - `currency` — domyślnie `PLN`.
 
 Cena nie zmienia znaczenia po częściowym zużyciu. Ilości w JSON są decimal stringami z maksymalnie 3 miejscami, np. `"500.000"`.
+
+Ten sam produkt z katalogu może mieć wiele partii (np. zakupy w różnych sklepach). W widoku zbiorczym zapasów grupujemy po `productId` — jedna pozycja na produkt z łączną ilością i rozwinięciem partii (sklep, data, termin ważności, cena jednostkowa, odnośnik do zakupu). Nie scalamy automatycznie produktów o podobnych nazwach.
+
+Zmiana pozostałej ilości odbywa się wyłącznie przez akcję **„Zużyj”** (`StockConsumption` + linie pobrania z konkretnych partii). Edycja partii nie pozwala nadpisać `quantity` — tylko metadane (miejsce, daty, EAN, zdjęcie). Koszt zatwierdzonego zużycia liczymy z cen partii, z których faktycznie pobrano produkt: `purchasePriceMinor / initialQuantity × zużyta ilość` (grosze, zaokrąglenie half-up). Brak ceny w partii oznacza niekompletny koszt, nie zero. Szacunek kosztu przepisu z ostatnich zakupów pozostaje bez zmian.
+
+Automatyczny dobór partii do zużycia (FIFO): najpierw partie z najbliższym terminem ważności (pomijamy przeterminowane), potem partie bez terminu od najstarszego przyjęcia; remisy rozstrzyga data przyjęcia i identyfikator partii. Podgląd zużycia nic nie odejmuje; zatwierdzenie jest idempotentne (`idempotencyKey`) i wymaga zgodności `previewFingerprint` ze stanem partii. Cofnięcie zużycia przywraca ilości do tych samych partii.
 
 Nazwy produktów są unikalne w kuchni po normalizacji (trim, lowercase, zbiciu spacji). Wyświetlana pozostaje oryginalna `name`.
 

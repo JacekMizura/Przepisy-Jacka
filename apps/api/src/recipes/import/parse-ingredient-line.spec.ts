@@ -30,6 +30,16 @@ describe('parseIngredientLine', () => {
     expect(parsed.confidence).toBe('ambiguous');
   });
 
+  it('parses English tablespoon and teaspoon plurals', () => {
+    const tbsp = parseIngredientLine('2 tablespoons olive oil');
+    expect(tbsp.quantity).toBe('2.000');
+    expect(tbsp.unit).toBe(RecipeIngredientUnit.tablespoon);
+
+    const tsp = parseIngredientLine('2 teaspoons salt');
+    expect(tsp.quantity).toBe('2.000');
+    expect(tsp.unit).toBe(RecipeIngredientUnit.teaspoon);
+  });
+
   it('parses unit-leading lines without inventing quantity', () => {
     const parsed = parseIngredientLine('szczypta pieprzu');
     expect(parsed.quantity).toBeNull();

@@ -42,4 +42,22 @@ describe('extractRecipesFromHtml', () => {
     );
     expect(extractRecipesFromHtml(html)).toEqual([]);
   });
+
+  it('decodes HTML entities in Recipe text fields', () => {
+    const html = `<script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Recipe",
+        "name": "World&#39;s Best Lasagna",
+        "description": "Pasta &amp; cheese",
+        "recipeIngredient": ["1 cup cheese"],
+        "recipeInstructions": "Bake &amp; serve."
+      }
+    </script>`;
+    const recipes = extractRecipesFromHtml(html);
+    expect(recipes).toHaveLength(1);
+    expect(recipes[0]?.name).toBe("World's Best Lasagna");
+    expect(recipes[0]?.description).toBe('Pasta & cheese');
+    expect(recipes[0]?.steps[0]?.instruction).toBe('Bake & serve.');
+  });
 });

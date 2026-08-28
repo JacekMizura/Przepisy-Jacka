@@ -159,13 +159,35 @@ function mapRecipeNode(
   };
 }
 
+function decodeHtmlEntities(input: string): string {
+  return input
+    .replace(/&#(\d+);/g, (match, code: string) => {
+      const value = Number(code);
+      return Number.isFinite(value) ? String.fromCodePoint(value) : match;
+    })
+    .replace(/&#x([0-9a-f]+);/gi, (match, hex: string) => {
+      const value = Number.parseInt(hex, 16);
+      return Number.isFinite(value) ? String.fromCodePoint(value) : match;
+    })
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&nbsp;/g, ' ');
+}
+
 function readString(value: unknown): string | null {
-  if (typeof value === 'string') return value;
+  if (typeof value === 'string') return decodeHtmlEntities(value);
   if (typeof value === 'number' && Number.isFinite(value)) return String(value);
   if (value && typeof value === 'object') {
     const obj = value as Record<string, unknown>;
-    if (typeof obj['@value'] === 'string') return obj['@value'];
-    if (typeof obj.name === 'string') return obj.name;
+    if (typeof obj['@value'] === 'string') {
+      return decodeHtmlEntities(obj['@value']);
+    }
+    if (typeof obj.name === 'string') {
+      return decodeHtmlEntities(obj.name);
+    }
   }
   return null;
 }
@@ -206,13 +228,13 @@ function readIngredientLines(value: unknown): string[] {
   if (typeof value === 'string') {
     return value
       .split(/\n+/)
-      .map((line) => line.trim())
+      .map((line) => decodeHtmlEntities(line.trim()))
       .filter(Boolean);
   }
   if (Array.isArray(value)) {
     return value
       .map((item) => {
-        if (typeof item === 'string') return item.trim();
+        if (typeof item === 'string') return decodeHtmlEntities(item.trim());
         if (item && typeof item === 'object') {
           return (
             readString((item as Record<string, unknown>).text)?.trim() ??
@@ -250,7 +272,7 @@ function readInstructions(value: unknown): ExtractedRecipeStep[] {
     if (!node) return;
     if (typeof node === 'string') {
       for (const part of node.split(/\n+/)) {
-        pushStep(part, sectionTitle, null);
+        pushStep(decodeHtmlEntities(part), sectionTitle, null);
       }
       return;
     }

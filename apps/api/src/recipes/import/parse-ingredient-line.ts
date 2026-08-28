@@ -31,11 +31,11 @@ const UNIT_PATTERNS: Array<{
   },
   {
     unit: RecipeIngredientUnit.tablespoon,
-    pattern: /^(łyżki|łyżka|łyżek|tbsp|tbs|el\.?)\b/i,
+    pattern: /^(łyżki|łyżka|łyżek|tablespoons?|tbsp|tbs|el\.?)\b/i,
   },
   {
     unit: RecipeIngredientUnit.teaspoon,
-    pattern: /^(łyżeczki|łyżeczka|łyżeczek|tsp|ts|cl\.?)\b/i,
+    pattern: /^(łyżeczki|łyżeczka|łyżeczek|teaspoons?|tsp|ts|cl\.?)\b/i,
   },
   {
     unit: RecipeIngredientUnit.cup,

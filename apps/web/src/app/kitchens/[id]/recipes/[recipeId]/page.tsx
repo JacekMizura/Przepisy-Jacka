@@ -355,6 +355,8 @@ export default function RecipeDetailPage() {
             <div className="grid gap-10 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)] lg:items-start lg:gap-12 xl:grid-cols-[minmax(18rem,24rem)_minmax(0,1fr)]">
               <RecipeIngredientsPanel
                 ingredients={recipe.ingredients}
+                ingredientGroups={recipe.ingredientGroups}
+                steps={recipe.steps}
                 availabilityByIngredientId={availabilityByIngredientId}
                 checkedIngredientIds={checkedIngredients}
                 availabilityPending={availabilityQuery.isPending}

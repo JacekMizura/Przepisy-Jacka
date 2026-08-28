@@ -49,8 +49,9 @@ export function RecipeStepsEditorial({
         {sorted.map((step, index) => {
           const done = doneStepIds.has(step.id);
           const stepImageUrl = mediaDisplayUrl(step.image);
+          const tip = step.tip?.trim() ?? "";
           const heading = step.title
-            ? `Krok ${index + 1}: ${step.title}`
+            ? `Krok ${index + 1} · ${step.title}`
             : `Krok ${index + 1}`;
 
           return (
@@ -97,12 +98,23 @@ export function RecipeStepsEditorial({
               <div className="space-y-4 sm:pl-12">
                 <p
                   className={cn(
-                    "max-w-prose text-[15px] leading-7 text-stone-700 sm:text-base sm:leading-8",
+                    "max-w-prose whitespace-pre-wrap text-[15px] leading-7 text-stone-700 sm:text-base sm:leading-8",
                     done && "text-stone-500",
                   )}
                 >
                   {step.instruction}
                 </p>
+
+                {tip ? (
+                  <aside className="max-w-prose rounded-2xl border border-emerald-200/70 bg-emerald-50/50 px-4 py-3">
+                    <p className="text-xs font-semibold tracking-wide text-emerald-800 uppercase">
+                      Wskazówka
+                    </p>
+                    <p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-stone-700">
+                      {tip}
+                    </p>
+                  </aside>
+                ) : null}
 
                 {stepImageUrl ? (
                   <button

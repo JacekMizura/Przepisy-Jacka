@@ -104,7 +104,7 @@ Cookies sesji:
 - `StockItem` (`initialQuantity`, `quantity`, `purchasePriceMinor`, `currency`, miejsce, daty, opcjonalne `ean` / `imageUrl`). Ilości: `DECIMAL(12,3)`.
 - `ShoppingList` (jedna na kuchnię), `ShoppingListItem` (status `pending` / `bought` / `skipped`, planowana ilość/opakowania, wymagana ilość z przepisu, źródło przepisu, `resolvedAt` po rozliczeniu),
 - `Purchase` (`storeName`, `purchasedAt`, `currency`, `totalPriceMinor`, unikalny `idempotencyKey`), `PurchaseLineItem` (powiązanie z produktem, opcjonalnie `stockItemId` i `shoppingListItemId`; do zapasu trafia zawartość opakowań).
-- `Recipe`, `RecipeIngredient`, `RecipeStep` (opcjonalny tytuł i czas etapu), `RecipeGapAddition` (idempotencja dodawania braków do listy).
+- `Recipe`, `RecipeIngredient`, `RecipeIngredientGroup`, `RecipeStep` (opcjonalny tytuł, wskazówka i czas etapu), `RecipeGapAddition` (idempotencja dodawania braków do listy).
 
 Endpointy listy, zakupów i przepisów pod `kitchens/:kitchenId`. Każda operacja wymaga członkostwa w kuchni; prywatne przepisy tylko dla autora. Lookup wartości odżywczych: `GET …/nutrition-lookups/by-ean` (Open Food Facts przez NestJS; timeout, cache, obsługa 429/503; testy CI używają lokalnego mocka HTTP).
 
@@ -124,7 +124,7 @@ Podpisane URL-e do odczytu (15 minut) powstają na żądanie w `MediaService` i 
 
 Po stronie weba całą wysyłkę obsługuje `apps/web/src/lib/media-upload.ts`: walidacja pliku (JPEG/PNG/WebP, maks. 10 MB), `POST …/media/uploads`, transfer zawartości i `POST …/media/{id}/complete`. Dla sterownika `s3` plik leci `PUT` na podpisany URL przez `XMLHttpRequest` (postęp wysyłki), dla sterownika `memory` idzie base64 na endpoint API. Widok pola wysyłki to `apps/web/src/components/media-image-field.tsx`; przypisanie zdjęcia do produktu, okładki albo kroku robią osobne endpointy `image` / `cover`.
 
-Okładka przepisu i zdjęcie kroku wymagają istniejącego celu, więc przy tworzeniu przepisu web wysyła okładkę po zapisie, a zdjęcia kroków są dostępne w edycji. `PATCH …/recipes/{id}` odtwarza kroki od zera i usuwa ich zdjęcia, dlatego edycja pomija w żądaniu niezmienione kolekcje składników i kroków.
+Okładka przepisu i zdjęcie kroku wymagają istniejącego celu, więc przy tworzeniu przepisu web wysyła okładkę po zapisie, a zdjęcia kroków są dostępne w edycji. Przy `PATCH …/recipes/{id}` zdjęcie kroku jest zachowywane, gdy w payloadzie kroku jest istniejące `id`; kroki bez `id` powstają na nowo bez zdjęcia. Edycja pomija w żądaniu niezmienione kolekcje składników, grup i kroków.
 
 ## PostgreSQL
 

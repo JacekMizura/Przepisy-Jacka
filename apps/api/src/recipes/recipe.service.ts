@@ -14,6 +14,7 @@ import {
   type Recipe,
   type RecipeGapAddition,
   type RecipeIngredient,
+  type RecipeIngredientGroup,
   type RecipeStep,
   type User,
 } from '../generated/prisma/client';
@@ -37,6 +38,7 @@ import { RecipeEstimateDto } from './dto/recipe-estimate.dto';
 import {
   CreateRecipeDto,
   RecipeDetailDto,
+  RecipeIngredientGroupInputDto,
   RecipeIngredientInputDto,
   RecipeStepInputDto,
   RecipeSummaryDto,
@@ -65,6 +67,7 @@ type RecipeStepWithMedia = RecipeStep & {
 
 type RecipeWithRelations = Recipe & {
   author: Pick<User, 'id' | 'name'>;
+  ingredientGroups: RecipeIngredientGroup[];
   ingredients: RecipeIngredient[];
   steps: RecipeStepWithMedia[];
   coverMedia?: MediaAsset | null;
@@ -151,7 +154,8 @@ export class RecipeService {
     dto: CreateRecipeDto,
   ): Promise<RecipeDetailDto> {
     await requireKitchenMember(this.prisma, kitchenId, userId);
-    validateRecipeStructure(dto.ingredients, dto.steps);
+    const groups = dto.ingredientGroups ?? [];
+    validateRecipeStructure(groups, dto.ingredients, dto.steps);
     await validateIngredientProducts(this.prisma, kitchenId, dto.ingredients);
 
     const recipe = await this.prisma.$transaction(async (tx) => {
@@ -168,6 +172,9 @@ export class RecipeService {
           tags: normalizeTags(dto.tags),
           visibility: dto.visibility ?? RecipeVisibility.private,
           sourceUrl: normalizeOptionalText(dto.sourceUrl),
+          ingredientGroups: {
+            create: groups.map((group) => toGroupCreateData(group)),
+          },
           ingredients: {
             create: dto.ingredients.map((ingredient) =>
               toIngredientCreateData(ingredient),
@@ -207,23 +214,90 @@ export class RecipeService {
     );
     assertRecipeAuthor(existing, userId);
 
-    if (dto.ingredients !== undefined || dto.steps !== undefined) {
-      validateRecipeStructure(
-        dto.ingredients ??
-          existing.ingredients.map(toIngredientInputFromEntity),
-        dto.steps ?? existing.steps.map(toStepInputFromEntity),
-      );
+    const nextGroups =
+      dto.ingredientGroups ??
+      existing.ingredientGroups.map(toGroupInputFromEntity);
+    const nextIngredients =
+      dto.ingredients ?? existing.ingredients.map(toIngredientInputFromEntity);
+    const nextSteps = dto.steps ?? existing.steps.map(toStepInputFromEntity);
+
+    const structureTouched =
+      dto.ingredientGroups !== undefined ||
+      dto.ingredients !== undefined ||
+      dto.steps !== undefined;
+
+    if (structureTouched) {
+      validateRecipeStructure(nextGroups, nextIngredients, nextSteps);
     }
     if (dto.ingredients !== undefined) {
       await validateIngredientProducts(this.prisma, kitchenId, dto.ingredients);
     }
 
+    const existingStepById = new Map(
+      existing.steps.map((step) => [step.id, step]),
+    );
+    const existingIngredientIds = new Set(
+      existing.ingredients.map((ingredient) => ingredient.id),
+    );
+
+    let orphanedStepMediaIds: string[] = [];
+
     const recipe = await this.prisma.$transaction(async (tx) => {
-      if (dto.ingredients !== undefined) {
+      if (structureTouched) {
+        await tx.recipeIngredient.updateMany({
+          where: { recipeId },
+          data: { groupId: null },
+        });
         await tx.recipeIngredient.deleteMany({ where: { recipeId } });
-      }
-      if (dto.steps !== undefined) {
+        await tx.recipeIngredientGroup.deleteMany({ where: { recipeId } });
         await tx.recipeStep.deleteMany({ where: { recipeId } });
+
+        const keptStepMediaIds = new Set<string>();
+        const stepCreates = nextSteps.map((step) => {
+          const previous =
+            step.id && existingStepById.has(step.id)
+              ? existingStepById.get(step.id)
+              : undefined;
+          if (previous?.imageMediaId) {
+            keptStepMediaIds.add(previous.imageMediaId);
+          }
+          return {
+            ...toStepCreateData(step),
+            ...(previous ? { id: previous.id } : {}),
+            imageMediaId: previous?.imageMediaId ?? null,
+            recipeId,
+          };
+        });
+        orphanedStepMediaIds = existing.steps
+          .map((step) => step.imageMediaId)
+          .filter(
+            (id): id is string => id !== null && !keptStepMediaIds.has(id),
+          );
+
+        if (nextGroups.length > 0) {
+          await tx.recipeIngredientGroup.createMany({
+            data: nextGroups.map((group) => ({
+              ...toGroupCreateData(group),
+              recipeId,
+            })),
+          });
+        }
+
+        await tx.recipeIngredient.createMany({
+          data: nextIngredients.map((ingredient) => {
+            const preserveId =
+              ingredient.id && existingIngredientIds.has(ingredient.id)
+                ? ingredient.id
+                : undefined;
+            return {
+              ...toIngredientCreateData(ingredient),
+              ...(preserveId ? { id: preserveId } : {}),
+              recipeId,
+            };
+          }),
+        });
+
+        await tx.recipeStep.createMany({ data: stepCreates });
       }
 
       return tx.recipe.update({
@@ -246,32 +320,13 @@ export class RecipeService {
             dto.sourceUrl === undefined
               ? undefined
               : normalizeOptionalText(dto.sourceUrl),
-          ingredients:
-            dto.ingredients === undefined
-              ? undefined
-              : {
-                  create: dto.ingredients.map((ingredient) =>
-                    toIngredientCreateData(ingredient),
-                  ),
-                },
-          steps:
-            dto.steps === undefined
-              ? undefined
-              : {
-                  create: dto.steps.map((step) => toStepCreateData(step)),
-                },
         },
         include: recipeInclude,
       });
     });
 
-    if (dto.steps !== undefined) {
-      // Kroki są odtwarzane od zera, więc ich stare zdjęcia zostają bez właściciela.
-      await this.mediaService.deleteAssetsByIds(
-        existing.steps
-          .map((step) => step.imageMediaId)
-          .filter((id): id is string => id !== null),
-      );
+    if (orphanedStepMediaIds.length > 0) {
+      await this.mediaService.deleteAssetsByIds(orphanedStepMediaIds);
     }
 
     return this.toRecipeDetailDtoWithMedia(recipe);
@@ -727,6 +782,7 @@ export class RecipeService {
 
 const recipeInclude = {
   author: { select: { id: true, name: true } },
+  ingredientGroups: { orderBy: { sortOrder: 'asc' as const } },
   ingredients: { orderBy: { sortOrder: 'asc' as const } },
   steps: {
     orderBy: { sortOrder: 'asc' as const },
@@ -764,6 +820,7 @@ function assertRecipeAuthor(recipe: Recipe, userId: string): void {
 }
 
 function validateRecipeStructure(
+  groups: RecipeIngredientGroupInputDto[],
   ingredients: RecipeIngredientInputDto[],
   steps: RecipeStepInputDto[],
 ): void {
@@ -776,6 +833,14 @@ function validateRecipeStructure(
     throw new BadRequestException('Przepis musi mieć co najmniej jeden krok.');
   }
   assertUniqueSortOrders(
+    groups.map((item) => item.sortOrder),
+    'grup składników',
+  );
+  assertUniqueIds(
+    groups.map((item) => item.id),
+    'grup składników',
+  );
+  assertUniqueSortOrders(
     ingredients.map((item) => item.sortOrder),
     'składników',
   );
@@ -783,6 +848,24 @@ function validateRecipeStructure(
     steps.map((item) => item.sortOrder),
     'kroków',
   );
+
+  const groupIds = new Set(groups.map((group) => group.id));
+  for (const ingredient of ingredients) {
+    if (ingredient.groupId && !groupIds.has(ingredient.groupId)) {
+      throw new BadRequestException(
+        'Składnik wskazuje grupę spoza tego przepisu.',
+      );
+    }
+  }
+}
+
+function assertUniqueIds(values: string[], label: string): void {
+  const unique = new Set(values);
+  if (unique.size !== values.length) {
+    throw new BadRequestException(
+      `Identyfikatory ${label} muszą być unikalne.`,
+    );
+  }
 }
 
 function assertUniqueSortOrders(values: number[], label: string): void {
@@ -1126,6 +1209,14 @@ async function resolveExistingGapAddition(
   return toPublicGapResult(stored);
 }
 
+function toGroupCreateData(group: RecipeIngredientGroupInputDto) {
+  return {
+    id: group.id,
+    name: group.name.trim(),
+    sortOrder: group.sortOrder,
+  };
+}
+
 function toIngredientCreateData(ingredient: RecipeIngredientInputDto) {
   return {
     name: ingredient.name.trim(),
@@ -1136,6 +1227,7 @@ function toIngredientCreateData(ingredient: RecipeIngredientInputDto) {
     unit: ingredient.unit,
     note: normalizeOptionalText(ingredient.note),
     productId: ingredient.productId ?? null,
+    groupId: ingredient.groupId ?? null,
     sortOrder: ingredient.sortOrder,
   };
 }
@@ -1144,6 +1236,7 @@ function toStepCreateData(step: RecipeStepInputDto) {
   return {
     title: normalizeOptionalText(step.title),
     instruction: step.instruction.trim(),
+    tip: normalizeOptionalText(step.tip),
     durationMinutes: step.durationMinutes ?? null,
     sortOrder: step.sortOrder,
   };
@@ -1169,10 +1262,22 @@ function normalizeTags(tags: string[] | undefined): string[] {
     .slice(0, 20);
 }
 
+function toGroupInputFromEntity(
+  group: RecipeIngredientGroup,
+): RecipeIngredientGroupInputDto {
+  return {
+    id: group.id,
+    name: group.name,
+    sortOrder: group.sortOrder,
+  };
+}
+
 function toIngredientInputFromEntity(
   ingredient: RecipeIngredient,
 ): RecipeIngredientInputDto {
   return {
+    id: ingredient.id,
+    groupId: ingredient.groupId,
     name: ingredient.name,
     quantity:
       ingredient.quantity !== null ? formatQuantity(ingredient.quantity) : null,
@@ -1185,8 +1290,10 @@ function toIngredientInputFromEntity(
 
 function toStepInputFromEntity(step: RecipeStep): RecipeStepInputDto {
   return {
+    id: step.id,
     title: step.title,
     instruction: step.instruction,
+    tip: step.tip,
     durationMinutes: step.durationMinutes,
     sortOrder: step.sortOrder,
   };
@@ -1225,8 +1332,14 @@ function toRecipeDetailDto(
   return {
     ...toRecipeSummaryDto(recipe, coverImage),
     sourceUrl: recipe.sourceUrl,
+    ingredientGroups: recipe.ingredientGroups.map((group) => ({
+      id: group.id,
+      name: group.name,
+      sortOrder: group.sortOrder,
+    })),
     ingredients: recipe.ingredients.map((ingredient) => ({
       id: ingredient.id,
+      groupId: ingredient.groupId,
       name: ingredient.name,
       quantity:
         ingredient.quantity !== null
@@ -1241,6 +1354,7 @@ function toRecipeDetailDto(
       id: step.id,
       title: step.title,
       instruction: step.instruction,
+      tip: step.tip,
       durationMinutes: step.durationMinutes,
       sortOrder: step.sortOrder,
       image: stepImages.get(step.id) ?? null,

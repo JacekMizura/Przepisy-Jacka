@@ -112,6 +112,11 @@ body {
     max-width: none !important;
   }
 
+  .recipe-ingredients-panel {
+    position: static !important;
+    top: auto !important;
+  }
+
   .recipe-detail {
     color: #111;
   }

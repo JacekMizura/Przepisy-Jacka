@@ -4197,9 +4197,43 @@
           "updatedAt"
         ]
       },
+      "RecipeIngredientGroupInputDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Stabilny identyfikator grupy w payloadzie (nowy albo istniejący). Składniki wskazują go przez groupId."
+          },
+          "name": {
+            "type": "string",
+            "example": "Ciasto"
+          },
+          "sortOrder": {
+            "type": "number",
+            "example": 0
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "sortOrder"
+        ]
+      },
       "RecipeIngredientInputDto": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Opcjonalny istniejący identyfikator składnika — zachowuje powiązania przy edycji."
+          },
+          "groupId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Id grupy z tego samego payloadu; null = bez grupy."
+          },
           "name": {
             "type": "string",
             "example": "Jajka"
@@ -4248,6 +4282,11 @@
       "RecipeStepInputDto": {
         "type": "object",
         "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Opcjonalny istniejący identyfikator kroku — zachowuje zdjęcie przy edycji."
+          },
           "title": {
             "type": "string",
             "nullable": true,
@@ -4256,6 +4295,12 @@
           "instruction": {
             "type": "string",
             "example": "Ugotuj makaron al dente."
+          },
+          "tip": {
+            "type": "string",
+            "nullable": true,
+            "example": "Nie mieszaj zbyt długo, żeby masa nie stała się gumowata.",
+            "description": "Opcjonalna wskazówka autora pod opisem kroku."
           },
           "durationMinutes": {
             "type": "number",
@@ -4325,6 +4370,13 @@
             "type": "string",
             "nullable": true
           },
+          "ingredientGroups": {
+            "description": "Opcjonalne grupy składników. Pusty przepis nie wymaga grup.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeIngredientGroupInputDto"
+            }
+          },
           "ingredients": {
             "type": "array",
             "items": {
@@ -4346,11 +4398,34 @@
           "steps"
         ]
       },
+      "RecipeIngredientGroupDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "sortOrder"
+        ]
+      },
       "RecipeIngredientDto": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string"
+          },
+          "groupId": {
+            "type": "string",
+            "nullable": true
           },
           "name": {
             "type": "string"
@@ -4390,6 +4465,7 @@
         },
         "required": [
           "id",
+          "groupId",
           "name",
           "quantity",
           "unit",
@@ -4410,6 +4486,11 @@
           },
           "instruction": {
             "type": "string"
+          },
+          "tip": {
+            "type": "string",
+            "nullable": true,
+            "description": "Opcjonalna wskazówka autora."
           },
           "durationMinutes": {
             "type": "number",
@@ -4432,6 +4513,7 @@
           "id",
           "title",
           "instruction",
+          "tip",
           "durationMinutes",
           "sortOrder",
           "image"
@@ -4510,6 +4592,12 @@
             "type": "string",
             "nullable": true
           },
+          "ingredientGroups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeIngredientGroupDto"
+            }
+          },
           "ingredients": {
             "type": "array",
             "items": {
@@ -4539,6 +4627,7 @@
           "createdAt",
           "updatedAt",
           "sourceUrl",
+          "ingredientGroups",
           "ingredients",
           "steps"
         ]
@@ -4590,6 +4679,12 @@
           "sourceUrl": {
             "type": "string",
             "nullable": true
+          },
+          "ingredientGroups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeIngredientGroupInputDto"
+            }
           },
           "ingredients": {
             "type": "array",

@@ -945,4 +945,406 @@ describe('Recipes (e2e)', () => {
     expect(search.status).toBe(200);
     expect((search.body as Array<{ name: string }>)[0]?.name).toBe('Naleśniki');
   });
+
+  it('supports ingredient groups, step tips, reorder and group removal without dropping ingredients', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+    const member = await signUpUser(api.origin, WEB_ORIGIN);
+    const kitchen = await createKitchen(owner, 'Grupy i wskazówki');
+    await inviteMember(owner, kitchen.id, member);
+
+    const doughGroupId = crypto.randomUUID();
+    const fillingGroupId = crypto.randomUUID();
+
+    const created = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: sampleRecipeBody({
+          name: 'Pierogi',
+          ingredientGroups: [
+            { id: doughGroupId, name: 'Ciasto', sortOrder: 0 },
+            { id: fillingGroupId, name: 'Nadzienie', sortOrder: 1 },
+          ],
+          ingredients: [
+            {
+              name: 'Mąka',
+              quantity: '300.000',
+              unit: 'gram',
+              groupId: doughGroupId,
+              sortOrder: 0,
+            },
+            {
+              name: 'Woda',
+              quantity: '150.000',
+              unit: 'milliliter',
+              groupId: doughGroupId,
+              sortOrder: 1,
+            },
+            {
+              name: 'Twaróg',
+              quantity: '250.000',
+              unit: 'gram',
+              groupId: fillingGroupId,
+              sortOrder: 2,
+            },
+            {
+              name: 'Sól',
+              quantity: '1.000',
+              unit: 'teaspoon',
+              sortOrder: 3,
+            },
+          ],
+          steps: [
+            {
+              title: 'Przygotuj ciasto',
+              instruction: 'Wymieszaj mąkę z wodą.',
+              tip: 'Nie mieszaj zbyt długo.',
+              sortOrder: 0,
+            },
+            {
+              instruction: 'Zrób nadzienie.',
+              sortOrder: 1,
+            },
+          ],
+        }),
+      },
+    );
+    expect(created.status).toBe(201);
+    const recipe = created.body as {
+      id: string;
+      ingredientGroups: Array<{ id: string; name: string; sortOrder: number }>;
+      ingredients: Array<{
+        id: string;
+        name: string;
+        groupId: string | null;
+        sortOrder: number;
+      }>;
+      steps: Array<{
+        id: string;
+        title: string | null;
+        tip: string | null;
+        instruction: string;
+        sortOrder: number;
+      }>;
+    };
+
+    expect(recipe.ingredientGroups.map((group) => group.name)).toEqual([
+      'Ciasto',
+      'Nadzienie',
+    ]);
+    expect(
+      recipe.ingredients.find((item) => item.name === 'Mąka')?.groupId,
+    ).toBe(doughGroupId);
+    expect(
+      recipe.ingredients.find((item) => item.name === 'Sól')?.groupId,
+    ).toBeNull();
+    expect(recipe.steps[0]?.title).toBe('Przygotuj ciasto');
+    expect(recipe.steps[0]?.tip).toBe('Nie mieszaj zbyt długo.');
+    expect(recipe.steps[1]?.tip).toBeNull();
+
+    const flour = recipe.ingredients.find((item) => item.name === 'Mąka');
+    const water = recipe.ingredients.find((item) => item.name === 'Woda');
+    const cheese = recipe.ingredients.find((item) => item.name === 'Twaróg');
+    const salt = recipe.ingredients.find((item) => item.name === 'Sól');
+    const stepA = recipe.steps[0];
+    const stepB = recipe.steps[1];
+    expect(flour && water && cheese && salt && stepA && stepB).toBeTruthy();
+
+    // Usunięcie grupy „Nadzienie”: składniki zostają, bez groupId.
+    // Zamiana kolejności grup i składników + edycja wskazówki.
+    const patched = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/${recipe.id}`,
+      {
+        method: 'PATCH',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          ingredientGroups: [
+            { id: doughGroupId, name: 'Ciasto', sortOrder: 0 },
+          ],
+          ingredients: [
+            {
+              id: water?.id,
+              name: 'Woda',
+              quantity: '160.000',
+              unit: 'milliliter',
+              groupId: doughGroupId,
+              sortOrder: 0,
+            },
+            {
+              id: flour?.id,
+              name: 'Mąka',
+              quantity: '300.000',
+              unit: 'gram',
+              groupId: doughGroupId,
+              sortOrder: 1,
+            },
+            {
+              id: cheese?.id,
+              name: 'Twaróg',
+              quantity: '250.000',
+              unit: 'gram',
+              groupId: null,
+              sortOrder: 2,
+            },
+            {
+              id: salt?.id,
+              name: 'Sól',
+              quantity: '1.000',
+              unit: 'teaspoon',
+              groupId: null,
+              sortOrder: 3,
+            },
+          ],
+          steps: [
+            {
+              id: stepB?.id,
+              instruction: 'Zrób nadzienie.',
+              tip: 'Użyj tłustego twarogu.',
+              sortOrder: 0,
+            },
+            {
+              id: stepA?.id,
+              title: 'Przygotuj ciasto',
+              instruction: 'Wymieszaj mąkę z wodą.',
+              tip: null,
+              sortOrder: 1,
+            },
+          ],
+        },
+      },
+    );
+    expect(patched.status).toBe(200);
+    const updated = patched.body as typeof recipe;
+    expect(updated.ingredientGroups).toHaveLength(1);
+    expect(updated.ingredients).toHaveLength(4);
+    expect(
+      updated.ingredients.find((item) => item.name === 'Twaróg')?.groupId,
+    ).toBeNull();
+    expect(updated.ingredients.find((item) => item.id === flour?.id)?.id).toBe(
+      flour?.id,
+    );
+    expect(updated.steps[0]?.id).toBe(stepB?.id);
+    expect(updated.steps[0]?.tip).toBe('Użyj tłustego twarogu.');
+    expect(updated.steps[1]?.id).toBe(stepA?.id);
+    expect(updated.steps[1]?.tip).toBeNull();
+
+    // Zachowanie zdjęcia kroku przy edycji tekstu z tym samym id.
+    const mediaId = crypto.randomUUID();
+    await executeTestDb(
+      `INSERT INTO "MediaAsset" (
+         id, "kitchenId", "uploadedByUserId", purpose, "objectKey",
+         "mimeType", "byteSize", status, "createdAt", "updatedAt"
+       ) VALUES (
+         $1, $2, $3, 'recipe_step', $4,
+         'image/webp', 100, 'ready', NOW(), NOW()
+       )`,
+      [
+        mediaId,
+        kitchen.id,
+        owner.id,
+        `test/${kitchen.id}/steps/${mediaId}.webp`,
+      ],
+    );
+    await executeTestDb(
+      `UPDATE "RecipeStep" SET "imageMediaId" = $1 WHERE id = $2`,
+      [mediaId, stepB?.id],
+    );
+
+    const keepImage = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/${recipe.id}`,
+      {
+        method: 'PATCH',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          ingredientGroups: [
+            { id: doughGroupId, name: 'Ciasto', sortOrder: 0 },
+          ],
+          ingredients: [
+            {
+              id: water?.id,
+              name: 'Woda',
+              quantity: '160.000',
+              unit: 'milliliter',
+              groupId: doughGroupId,
+              sortOrder: 0,
+            },
+            {
+              id: flour?.id,
+              name: 'Mąka',
+              quantity: '300.000',
+              unit: 'gram',
+              groupId: doughGroupId,
+              sortOrder: 1,
+            },
+            {
+              id: cheese?.id,
+              name: 'Twaróg',
+              quantity: '250.000',
+              unit: 'gram',
+              groupId: null,
+              sortOrder: 2,
+            },
+            {
+              id: salt?.id,
+              name: 'Sól',
+              quantity: '1.000',
+              unit: 'teaspoon',
+              groupId: null,
+              sortOrder: 3,
+            },
+          ],
+          steps: [
+            {
+              id: stepB?.id,
+              instruction: 'Zrób nadzienie — poprawione.',
+              tip: 'Użyj tłustego twarogu.',
+              sortOrder: 0,
+            },
+            {
+              id: stepA?.id,
+              title: 'Przygotuj ciasto',
+              instruction: 'Wymieszaj mąkę z wodą.',
+              tip: null,
+              sortOrder: 1,
+            },
+          ],
+        },
+      },
+    );
+    expect(keepImage.status).toBe(200);
+    const afterImage = keepImage.body as {
+      steps: Array<{ id: string; image: { mediaAssetId: string } | null }>;
+    };
+    expect(
+      afterImage.steps.find((step) => step.id === stepB?.id)?.image
+        ?.mediaAssetId,
+    ).toBe(mediaId);
+
+    // Stary przepis bez grup nadal działa.
+    const legacy = await createRecipe(
+      owner,
+      kitchen.id,
+      sampleRecipeBody({ name: 'Bez grup' }),
+    );
+    const legacyGet = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/${legacy.id}`,
+      { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
+    );
+    expect(legacyGet.status).toBe(200);
+    const legacyBody = legacyGet.body as typeof recipe;
+    expect(legacyBody.ingredientGroups).toEqual([]);
+    expect(legacyBody.ingredients.every((item) => item.groupId === null)).toBe(
+      true,
+    );
+    expect(legacyBody.steps.every((step) => step.tip === null)).toBe(true);
+
+    // Odrzucenie groupId spoza payloadu / innego przepisu.
+    const foreignGroupDenied = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/${legacy.id}`,
+      {
+        method: 'PATCH',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          ingredientGroups: [],
+          ingredients: [
+            {
+              name: 'Jajka',
+              quantity: '2.000',
+              unit: 'piece',
+              groupId: doughGroupId,
+              sortOrder: 0,
+            },
+          ],
+          steps: [{ instruction: 'Ubij.', sortOrder: 0 }],
+        },
+      },
+    );
+    expect(foreignGroupDenied.status).toBe(400);
+  });
+
+  it('counts the same product in two groups once per ingredient line for estimate', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+    const kitchen = await createKitchen(owner, 'Podwójny produkt');
+    const milk = await createProduct(owner, kitchen.id, {
+      name: 'Mleko',
+      defaultUnit: 'milliliter',
+    });
+
+    await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/products/${milk.id}/nutrition`,
+      {
+        method: 'PUT',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          baseQuantity: '100.000',
+          baseUnit: 'milliliter',
+          kcal: '50.000',
+          proteinGrams: '3.000',
+          carbsGrams: '5.000',
+          fatGrams: '2.000',
+        },
+      },
+    );
+
+    const groupA = crypto.randomUUID();
+    const groupB = crypto.randomUUID();
+    const recipe = await createRecipe(
+      owner,
+      kitchen.id,
+      sampleRecipeBody({
+        name: 'Podwójne mleko',
+        servings: 1,
+        ingredientGroups: [
+          { id: groupA, name: 'Ciasto', sortOrder: 0 },
+          { id: groupB, name: 'Sos', sortOrder: 1 },
+        ],
+        ingredients: [
+          {
+            name: 'Mleko do ciasta',
+            quantity: '100.000',
+            unit: 'milliliter',
+            productId: milk.id,
+            groupId: groupA,
+            sortOrder: 0,
+          },
+          {
+            name: 'Mleko do sosu',
+            quantity: '100.000',
+            unit: 'milliliter',
+            productId: milk.id,
+            groupId: groupB,
+            sortOrder: 1,
+          },
+        ],
+        steps: [{ instruction: 'Wymieszaj.', sortOrder: 0 }],
+      }),
+    );
+
+    const estimate = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/${recipe.id}/estimate?servings=1`,
+      { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
+    );
+    expect(estimate.status).toBe(200);
+    const body = estimate.body as {
+      nutrition: {
+        countedIngredients: number;
+        recipe: { kcal: string } | null;
+      };
+    };
+    expect(body.nutrition.countedIngredients).toBe(2);
+    expect(body.nutrition.recipe?.kcal).toBe('100.00');
+  });
 });

@@ -24,6 +24,7 @@ import {
 } from '../../generated/prisma/client';
 import { MediaImageDto } from '../../media/dto/media.dto';
 import { isPresentOptional } from '../../stock/dto/product.dto';
+import { RecipeCategoryRefDto } from './recipe-category.dto';
 
 export class RecipeIngredientGroupInputDto {
   @ApiProperty({
@@ -212,6 +213,17 @@ export class CreateRecipeDto {
   @IsEnum(RecipeVisibility)
   visibility?: RecipeVisibility;
 
+  @ApiPropertyOptional({
+    type: [String],
+    format: 'uuid',
+    description: 'Opcjonalne kategorie kuchni przypisane do przepisu.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(40)
+  @IsUUID('4', { each: true })
+  categoryIds?: string[];
+
   @ApiPropertyOptional({ type: String, nullable: true })
   @IsOptional()
   @ValidateIf(isPresentOptional)
@@ -296,6 +308,18 @@ export class UpdateRecipeDto {
   @IsOptional()
   @IsEnum(RecipeVisibility)
   visibility?: RecipeVisibility;
+
+  @ApiPropertyOptional({
+    type: [String],
+    format: 'uuid',
+    description:
+      'Pełna lista kategorii przepisu. Pusta tablica usuwa wszystkie przypisania. Brak pola = bez zmian.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(40)
+  @IsUUID('4', { each: true })
+  categoryIds?: string[];
 
   @ApiPropertyOptional({ type: String, nullable: true })
   @IsOptional()
@@ -427,6 +451,9 @@ export class RecipeSummaryDto {
 
   @ApiProperty({ type: [String] })
   tags!: string[];
+
+  @ApiProperty({ type: [RecipeCategoryRefDto] })
+  categories!: RecipeCategoryRefDto[];
 
   @ApiProperty({ enum: RecipeVisibility })
   visibility!: RecipeVisibility;

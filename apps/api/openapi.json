@@ -1853,6 +1853,27 @@
               ],
               "type": "string"
             }
+          },
+          {
+            "name": "uncategorized",
+            "required": false,
+            "in": "query",
+            "description": "Wyłącznie przepisy bez kategorii (wyłączne względem categoryIds).",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "categoryIds",
+            "required": false,
+            "in": "query",
+            "description": "Przepisy należące do dowolnej z podanych kategorii (OR). Ignorowane przy uncategorized=true.",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
           }
         ],
         "responses": {
@@ -2171,6 +2192,158 @@
         "summary": "Dodanie brakujących składników do listy zakupów",
         "tags": [
           "recipes"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/recipe-categories": {
+      "get": {
+        "operationId": "RecipeCategoryController_list",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/RecipeCategoryDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Lista kategorii przepisów kuchni",
+        "tags": [
+          "recipe-categories"
+        ]
+      },
+      "post": {
+        "operationId": "RecipeCategoryController_create",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRecipeCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeCategoryDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Utworzenie kategorii przepisów",
+        "tags": [
+          "recipe-categories"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/recipe-categories/{categoryId}": {
+      "patch": {
+        "operationId": "RecipeCategoryController_update",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "categoryId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRecipeCategoryDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeCategoryDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Zmiana nazwy kategorii przepisów",
+        "tags": [
+          "recipe-categories"
+        ]
+      },
+      "delete": {
+        "operationId": "RecipeCategoryController_remove",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "categoryId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": ""
+          }
+        },
+        "summary": "Usunięcie kategorii (usuwa tylko przypisania, nie przepisy)",
+        "tags": [
+          "recipe-categories"
         ]
       }
     }
@@ -4095,6 +4268,21 @@
           "receiptImage"
         ]
       },
+      "RecipeCategoryRefDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
       "RecipeAuthorDto": {
         "type": "object",
         "properties": {
@@ -4151,6 +4339,12 @@
               "type": "string"
             }
           },
+          "categories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeCategoryRefDto"
+            }
+          },
           "visibility": {
             "type": "string",
             "enum": [
@@ -4190,6 +4384,7 @@
           "cookTimeMinutes",
           "difficulty",
           "tags",
+          "categories",
           "visibility",
           "author",
           "coverImage",
@@ -4365,6 +4560,14 @@
               "kitchen"
             ],
             "default": "private"
+          },
+          "categoryIds": {
+            "description": "Opcjonalne kategorie kuchni przypisane do przepisu.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           },
           "sourceUrl": {
             "type": "string",
@@ -4560,6 +4763,12 @@
               "type": "string"
             }
           },
+          "categories": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeCategoryRefDto"
+            }
+          },
           "visibility": {
             "type": "string",
             "enum": [
@@ -4621,6 +4830,7 @@
           "cookTimeMinutes",
           "difficulty",
           "tags",
+          "categories",
           "visibility",
           "author",
           "coverImage",
@@ -4675,6 +4885,14 @@
               "private",
               "kitchen"
             ]
+          },
+          "categoryIds": {
+            "description": "Pełna lista kategorii przepisu. Pusta tablica usuwa wszystkie przypisania. Brak pola = bez zmian.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           },
           "sourceUrl": {
             "type": "string",
@@ -5299,6 +5517,60 @@
           "skipped",
           "createdAt"
         ]
+      },
+      "RecipeCategoryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kitchenId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "sortOrder": {
+            "type": "number"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "kitchenId",
+          "name",
+          "sortOrder",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateRecipeCategoryDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Śniadania"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "UpdateRecipeCategoryDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Dania główne"
+          }
+        }
       }
     }
   }

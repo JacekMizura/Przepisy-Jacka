@@ -299,6 +299,14 @@ export default function RecipeDetailPage() {
                 <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
                   {RECIPE_VISIBILITY_LABELS[recipe.visibility]}
                 </span>
+                {(recipe.categories ?? []).map((category) => (
+                  <span
+                    key={category.id}
+                    className="rounded-full bg-emerald-50/80 px-2.5 py-0.5 text-xs font-medium text-emerald-900"
+                  >
+                    {category.name}
+                  </span>
+                ))}
                 {recipe.tags.map((tag) => (
                   <span
                     key={tag}

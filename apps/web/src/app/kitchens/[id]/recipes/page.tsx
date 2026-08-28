@@ -232,6 +232,11 @@ function RecipesPageContent() {
               <Settings2 size={16} className="mr-1" />
               Zarządzaj kategoriami
             </Button>
+            <Link href={`/kitchens/${kitchenId}/recipes/import`}>
+              <Button type="button" variant="outline">
+                Importuj z linku
+              </Button>
+            </Link>
             <Link href={`/kitchens/${kitchenId}/recipes/new`}>
               <Button>
                 <Plus size={16} className="mr-1" />

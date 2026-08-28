@@ -320,7 +320,33 @@ export default function RecipeDetailPage() {
               <p className="mt-3 text-sm text-stone-500">
                 {recipe.author.name},{" "}
                 {new Date(recipe.createdAt).toLocaleDateString("pl-PL")}
+                {recipe.sourceAuthor ? (
+                  <>
+                    <span className="mx-1.5 text-stone-300" aria-hidden>
+                      ·
+                    </span>
+                    Autor źródła: {recipe.sourceAuthor}
+                  </>
+                ) : null}
               </p>
+              {recipe.sourceUrl ? (
+                <p className="mt-2 text-sm">
+                  <a
+                    href={recipe.sourceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="font-medium text-emerald-800 underline decoration-emerald-300 underline-offset-2 hover:text-emerald-950"
+                  >
+                    Źródło przepisu
+                  </a>
+                  {recipe.importedAt ? (
+                    <span className="ml-2 text-stone-500">
+                      (import{" "}
+                      {new Date(recipe.importedAt).toLocaleDateString("pl-PL")})
+                    </span>
+                  ) : null}
+                </p>
+              ) : null}
 
               <div className="recipe-print-hide mt-6 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                 {hasGaps ? (

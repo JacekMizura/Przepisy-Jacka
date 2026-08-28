@@ -71,6 +71,35 @@ export const envSchema = z.object({
     emptyStringAsUndefined,
     z.coerce.number().int().min(60).max(604_800).default(86_400),
   ),
+  RECIPE_IMPORT_TIMEOUT_MS: z.preprocess(
+    emptyStringAsUndefined,
+    z.coerce.number().int().min(1_000).max(30_000).default(10_000),
+  ),
+  RECIPE_IMPORT_MAX_BYTES: z.preprocess(
+    emptyStringAsUndefined,
+    z.coerce.number().int().min(16_384).max(5_000_000).default(1_500_000),
+  ),
+  RECIPE_IMPORT_MAX_REDIRECTS: z.preprocess(
+    emptyStringAsUndefined,
+    z.coerce.number().int().min(0).max(5).default(3),
+  ),
+  RECIPE_IMPORT_RATE_LIMIT_PER_HOUR: z.preprocess(
+    emptyStringAsUndefined,
+    z.coerce.number().int().min(1).max(200).default(20),
+  ),
+  RECIPE_IMPORT_USER_AGENT: z.preprocess(
+    emptyStringAsUndefined,
+    z
+      .string()
+      .min(1)
+      .default(
+        'MojaKuchnia/0.1 (+https://github.com/JacekMizura/Przepisy-Jacka)',
+      ),
+  ),
+  RECIPE_IMPORT_USE_FIXTURES: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((value) => value === 'true'),
 });
 
 export type AppEnv = z.infer<typeof envSchema>;

@@ -143,7 +143,13 @@ Wartości odżywcze liczymy wyłącznie ze składników powiązanych z produktem
 
 Brak danych nigdy nie oznacza zera. Gdy żaden składnik nie ma danych, sumy są `null`. Odpowiedź podaje, ile składników policzono, których zabrakło i z jakich zakupów pochodzą ceny. Koszt jest oznaczony jako szacunkowy.
 
-Publiczne linki, import ze stron i planowanie posiłków — poza tym etapem.
+Publiczne linki i planowanie posiłków — poza tym etapem.
+
+### Import przepisu z linku
+
+Członek kuchni może wkleić publiczny adres HTTPS. API (wyłącznie NestJS) pobiera stronę w trybie SSRF-safe i odczytuje dane strukturalne `Recipe` z JSON-LD (obiekt, tablica, `@graph`, wielowartościowe `@type`). Podgląd wypełnia istniejący edytor przepisu; **nie tworzy** przepisów, produktów ani kategorii. Użytkownik poprawia treść, zatwierdza kategorie i powiązania produktów, a dopiero „Zapisz przepis” tworzy prywatny przepis z `sourceUrl`, opcjonalnym `sourceAuthor`, `importedAt` oraz `importIdempotencyKey` (ponowne wysłanie tego samego zapisu nie tworzy duplikatu).
+
+Brakujących pól nie zgadujemy (brak czasu ≠ 0; niejednoznaczne „2 słoiki” zostaje do ustalenia). Ilości/jednostki rozpoznajemy tylko gdy są jednoznaczne — bez podstawiania `1` ani `szt.`. Produkty i kategorie są tylko podpowiadane z aktualnej kuchni. Koszt i makro nadal liczy API z produktów i zakupów; wartości odżywcze ze strony źródłowej są ignorowane. Zewnętrznych zdjęć nie pobieramy — pozostaje własny upload do R2.
 
 ## Uwierzytelnianie
 

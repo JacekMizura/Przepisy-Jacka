@@ -1821,6 +1821,47 @@
         ]
       }
     },
+    "/api/kitchens/{kitchenId}/recipes/import/preview": {
+      "post": {
+        "operationId": "RecipeImportController_preview",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreviewRecipeImportDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecipeImportPreviewDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Pobiera stronę HTTPS i zwraca podgląd przepisu z JSON-LD (bez zapisu).",
+        "tags": [
+          "recipe-import"
+        ]
+      }
+    },
     "/api/kitchens/{kitchenId}/recipes": {
       "get": {
         "operationId": "RecipeController_list",
@@ -4268,6 +4309,254 @@
           "receiptImage"
         ]
       },
+      "PreviewRecipeImportDto": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "example": "https://example.com/przepis"
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "ImportedIngredientPreviewDto": {
+        "type": "object",
+        "properties": {
+          "rawText": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "string",
+            "nullable": true
+          },
+          "unit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "kilogram",
+              "milliliter",
+              "liter",
+              "teaspoon",
+              "tablespoon",
+              "cup",
+              "pinch",
+              "package",
+              "to_taste"
+            ],
+            "nullable": true
+          },
+          "confidence": {
+            "type": "string",
+            "enum": [
+              "exact",
+              "ambiguous",
+              "none"
+            ]
+          },
+          "suggestedProductId": {
+            "type": "string",
+            "nullable": true
+          },
+          "suggestedProductName": {
+            "type": "string",
+            "nullable": true
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "rawText",
+          "name",
+          "quantity",
+          "unit",
+          "confidence",
+          "suggestedProductId",
+          "suggestedProductName",
+          "warnings"
+        ]
+      },
+      "ImportedStepPreviewDto": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "instruction": {
+            "type": "string"
+          },
+          "tip": {
+            "type": "string",
+            "nullable": true
+          },
+          "sortOrder": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "title",
+          "instruction",
+          "tip",
+          "sortOrder"
+        ]
+      },
+      "ImportedRecipeCandidateDto": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "number"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "servings": {
+            "type": "number",
+            "nullable": true
+          },
+          "servingsRaw": {
+            "type": "string",
+            "nullable": true
+          },
+          "servingsAmbiguous": {
+            "type": "boolean"
+          },
+          "prepTimeMinutes": {
+            "type": "number",
+            "nullable": true
+          },
+          "cookTimeMinutes": {
+            "type": "number",
+            "nullable": true
+          },
+          "sourceAuthor": {
+            "type": "string",
+            "nullable": true
+          },
+          "sourceCategories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "suggestedCategoryIds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "unmatchedSourceCategories": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ingredients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportedIngredientPreviewDto"
+            }
+          },
+          "steps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportedStepPreviewDto"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "gaps": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "index",
+          "name",
+          "description",
+          "servings",
+          "servingsRaw",
+          "servingsAmbiguous",
+          "prepTimeMinutes",
+          "cookTimeMinutes",
+          "sourceAuthor",
+          "sourceCategories",
+          "suggestedCategoryIds",
+          "unmatchedSourceCategories",
+          "ingredients",
+          "steps",
+          "warnings",
+          "gaps"
+        ]
+      },
+      "ExistingSourceRecipeDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ]
+      },
+      "RecipeImportPreviewDto": {
+        "type": "object",
+        "properties": {
+          "sourceUrl": {
+            "type": "string"
+          },
+          "importIdempotencyKey": {
+            "type": "string"
+          },
+          "importedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "candidates": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ImportedRecipeCandidateDto"
+            }
+          },
+          "existingFromSameSource": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExistingSourceRecipeDto"
+            }
+          }
+        },
+        "required": [
+          "sourceUrl",
+          "importIdempotencyKey",
+          "importedAt",
+          "candidates",
+          "existingFromSameSource"
+        ]
+      },
       "RecipeCategoryRefDto": {
         "type": "object",
         "properties": {
@@ -4573,6 +4862,22 @@
             "type": "string",
             "nullable": true
           },
+          "sourceAuthor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Autor przepisu ze źródła (oddzielony od użytkownika aplikacji)."
+          },
+          "importedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Data importu ze źródła zewnętrznego."
+          },
+          "importIdempotencyKey": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Klucz idempotencji zapisu importu — ponowne wysłanie zwraca ten sam przepis."
+          },
           "ingredientGroups": {
             "description": "Opcjonalne grupy składników. Pusty przepis nie wymaga grup.",
             "type": "array",
@@ -4801,6 +5106,17 @@
             "type": "string",
             "nullable": true
           },
+          "sourceAuthor": {
+            "type": "string",
+            "nullable": true,
+            "description": "Autor ze źródła zewnętrznego (nie użytkownik Mojej Kuchni)."
+          },
+          "importedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Kiedy przepis zaimportowano ze źródła."
+          },
           "ingredientGroups": {
             "type": "array",
             "items": {
@@ -4837,6 +5153,8 @@
           "createdAt",
           "updatedAt",
           "sourceUrl",
+          "sourceAuthor",
+          "importedAt",
           "ingredientGroups",
           "ingredients",
           "steps"
@@ -4895,6 +5213,10 @@
             }
           },
           "sourceUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "sourceAuthor": {
             "type": "string",
             "nullable": true
           },

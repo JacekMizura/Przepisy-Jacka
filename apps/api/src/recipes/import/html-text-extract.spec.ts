@@ -133,4 +133,53 @@ Hashtag #obiad i luźna notatka na koniec.
     expect(recipes[0]?.steps.length).toBeGreaterThanOrEqual(2);
     expect(recipes[0]?.ingredientLines.length).toBeGreaterThanOrEqual(2);
   });
+
+  it('parses Ania prose preparation without HowToStep as one editable step', () => {
+    const result = extractRecipesFromFetchedHtml(
+      fixture('ania-ketchup-prose.html'),
+      'https://aniagotuje.pl/przepis/ania-ketchup-prose',
+    );
+    expect(result.method).toBe('site:aniagotuje');
+    const recipe = result.candidates[0];
+    expect(recipe?.steps).toHaveLength(1);
+    expect(recipe?.steps[0]?.instruction).toMatch(/Jabłka oraz cukinie/i);
+    expect(recipe?.steps[0]?.instruction).toMatch(/\n\n/);
+    expect(recipe?.steps[0]?.instruction).not.toMatch(/Zapraszam po pyszny/i);
+    expect(recipe?.steps[0]?.instruction).not.toMatch(/podobne przepisy/i);
+    expect(recipe?.steps[0]?.instruction).not.toMatch(/Komentarz/i);
+    expect(recipe?.steps[0]?.instruction).not.toMatch(/Szklanka ma u mnie/i);
+    expect(recipe?.steps[0]?.tip).toMatch(/lodówki/i);
+    expect(recipe?.warnings.some((w) => /jeden edytowalny krok/i.test(w))).toBe(
+      true,
+    );
+  });
+
+  it('does not treat microdata recipeInstructions wrapping ingredients as steps', () => {
+    const recipes = extractRecipesFromMicrodata(
+      fixture('ania-ketchup-prose.html'),
+    );
+    expect(recipes[0]?.steps).toHaveLength(0);
+    expect(recipes[0]?.ingredientLines.length).toBeGreaterThan(0);
+  });
+
+  it('keeps clean textual recipeInstructions as one step with paragraphs', () => {
+    const html = `<html><body>
+      <div itemscope itemtype="https://schema.org/Recipe">
+        <h1 itemprop="name">Zupa tekstowa</h1>
+        <span itemprop="recipeIngredient">1 marchew</span>
+        <div itemprop="recipeInstructions">
+          <p>Obierz warzywa.</p>
+          <p>Gotuj 20 minut.</p>
+        </div>
+      </div>
+    </body></html>`;
+    const recipes = extractRecipesFromMicrodata(html);
+    expect(recipes[0]?.steps).toHaveLength(1);
+    expect(recipes[0]?.steps[0]?.instruction).toBe(
+      'Obierz warzywa.\n\nGotuj 20 minut.',
+    );
+    expect(
+      recipes[0]?.warnings.some((w) => /jeden edytowalny krok/i.test(w)),
+    ).toBe(true);
+  });
 });

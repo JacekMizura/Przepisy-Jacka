@@ -165,19 +165,39 @@ function stepsFromRoot(
   }
 
   root.find('[itemprop="recipeInstructions"]').each((_, el) => {
-    const text = elementText($, $(el));
-    if (!text) return;
-    for (const part of text.split(/\n+/)) {
-      const trimmed = part.trim();
-      if (!trimmed) continue;
-      const split = splitTipFromInstruction(trimmed);
-      steps.push({
-        title: null,
-        instruction: split.instruction,
-        tip: split.tip,
-        sortOrder: sortOrder++,
-      });
+    const node = $(el);
+    // Kontener obejmujący składniki / cały artykuł — nie traktuj jako instrukcji.
+    if (node.find('[itemprop="recipeIngredient"]').length > 0) {
+      return;
     }
+    if (
+      node.find(
+        '[itemprop="recipeInstructions"][itemtype*="HowToStep"], [itemtype*="HowToStep"]',
+      ).length > 0
+    ) {
+      return;
+    }
+
+    const paragraphs: string[] = [];
+    const pNodes = node.find('p');
+    if (pNodes.length > 0) {
+      pNodes.each((__, p) => {
+        const text = collapseWhitespace($(p).text());
+        if (text) paragraphs.push(text);
+      });
+    } else {
+      const text = elementText($, node);
+      if (text) paragraphs.push(text);
+    }
+    if (paragraphs.length === 0) return;
+
+    const instruction = paragraphs.join('\n\n');
+    steps.push({
+      title: null,
+      instruction,
+      tip: null,
+      sortOrder: sortOrder++,
+    });
   });
 
   return steps;
@@ -208,6 +228,17 @@ function mapRecipeRoot(
     propValue($, root, 'cookTime') ?? propValue($, root, 'totalTime'),
   );
 
+  const steps = stepsFromRoot($, root);
+  if (
+    steps.length === 1 &&
+    (steps[0]?.instruction.includes('\n\n') ||
+      (steps[0]?.instruction.length ?? 0) > 280)
+  ) {
+    warnings.push(
+      'Źródło nie wydziela osobnych kroków przygotowania — treść zapisano jako jeden edytowalny krok (akapity zachowane).',
+    );
+  }
+
   return {
     name: name || 'Zaimportowany przepis',
     description,
@@ -221,7 +252,7 @@ function mapRecipeRoot(
     sourceAuthor: authorFromRoot($, root),
     sourceCategories: categoriesFromRoot($, root),
     ingredientLines: ingredientsFromRoot($, root),
-    steps: stepsFromRoot($, root),
+    steps,
     warnings,
     gaps: [],
   };

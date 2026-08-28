@@ -8,6 +8,7 @@ import { safeFetchHttps } from '../apps/api/dist/recipes/import/safe-http-fetch.
 const URLS = [
   'https://aniagotuje.pl/przepis/sos-slodko-kwasny-do-sloikow',
   'https://aniagotuje.pl/przepis/pomidory-w-sloikach',
+  'https://aniagotuje.pl/przepis/ketchup-z-cukinii',
 ];
 
 async function runOne(url) {
@@ -34,6 +35,12 @@ async function runOne(url) {
   console.log('prep/cook min:', c.prepTimeMinutes, c.cookTimeMinutes);
   console.log('ingredients:', c.ingredientLines.length);
   console.log('steps:', c.steps.length);
+  if (c.steps.length === 1 && c.steps[0]?.instruction.includes('\n\n')) {
+    console.log(
+      'prose step paragraphs:',
+      c.steps[0].instruction.split(/\n\n/).length,
+    );
+  }
   console.log(
     'tips:',
     c.steps.filter((s) => s.tip).map((s) => `${s.title ?? '?'}: ${s.tip?.slice(0, 80)}`),
@@ -50,4 +57,4 @@ for (const url of URLS) {
 if (results.some((ok) => !ok)) {
   process.exit(1);
 }
-console.log('\nOK — oba przepisy Ani Gotuje odczytane.');
+console.log('\nOK — przepisy Ani Gotuje odczytane.');

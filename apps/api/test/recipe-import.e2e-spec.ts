@@ -37,6 +37,7 @@ type Preview = {
     unmatchedSourceCategories: string[];
     unassignedFragments?: string[];
     gaps: string[];
+    warnings: string[];
   }>;
   existingFromSameSource: Array<{ id: string; name: string }>;
 };
@@ -297,6 +298,38 @@ describe('Recipe URL import (e2e)', () => {
       preview.candidates[0]?.ingredients.some(
         (item) =>
           item.confidence === 'ambiguous' && /360|sztuk/i.test(item.rawText),
+      ),
+    ).toBe(true);
+  });
+
+  it('previews Ania prose instructions (no HowToStep) as one editable step', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+    const kitchen = await createKitchen(owner, 'Import Ania prose');
+
+    const previewRes = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/import/preview`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          mode: 'url',
+          url: 'https://recipe-import.test/ania-ketchup-prose',
+        },
+      },
+    );
+    expect(previewRes.status).toBe(200);
+    const preview = previewRes.body as Preview;
+    expect(preview.extractionMethod).toBe('site:aniagotuje');
+    expect(preview.candidates[0]?.steps).toHaveLength(1);
+    expect(preview.candidates[0]?.steps[0]?.instruction).toMatch(/cukinie/i);
+    expect(preview.candidates[0]?.steps[0]?.instruction).not.toMatch(
+      /Zapraszam/i,
+    );
+    expect(
+      preview.candidates[0]?.warnings.some((w) =>
+        /jeden edytowalny krok/i.test(w),
       ),
     ).toBe(true);
   });

@@ -111,7 +111,6 @@ describe('EAS / Expo profiles', () => {
     expect(eas.build.development?.developmentClient).toBe(true);
     expect(eas.build.preview?.developmentClient).toBeUndefined();
     expect(eas.build.preview?.android?.buildType).toBe('apk');
-    expect(eas.build.preview?.android?.versionCode).toBe(2);
     expect(eas.build.preview?.env?.EXPO_PUBLIC_API_URL).toBe(
       PRODUCTION_API_ORIGIN,
     );

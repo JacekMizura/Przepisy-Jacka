@@ -172,6 +172,19 @@ export class ProductDto {
   @ApiProperty({ type: String, nullable: true })
   category!: string | null;
 
+  @ApiProperty({
+    type: String,
+    format: 'date-time',
+    nullable: true,
+    description: 'Null = aktywny katalog; ustawione = zarchiwizowany.',
+  })
+  archivedAt!: string | null;
+
+  @ApiProperty({
+    description: 'true gdy archivedAt jest ustawione.',
+  })
+  isArchived!: boolean;
+
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: string;
 

@@ -72,6 +72,11 @@ export class StockProductSummaryDto {
   @ApiPropertyOptional({ type: String, nullable: true })
   category!: string | null;
 
+  @ApiProperty({
+    description: 'Produkt zarchiwizowany (historia i partie zachowane).',
+  })
+  isArchived!: boolean;
+
   @ApiProperty({ type: String })
   totalQuantity!: string;
 

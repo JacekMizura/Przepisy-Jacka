@@ -1,6 +1,3 @@
-import { resolve } from 'node:path';
-import { spawnSync } from 'node:child_process';
-
 import {
   apiFetch,
   signUpUser,
@@ -8,27 +5,8 @@ import {
   type RunningApi,
   type TestUser,
 } from './create-api-app';
-import { applyTestEnv } from './test-env';
 
 const WEB_ORIGIN = 'http://127.0.0.1:3010';
-
-function syncUsdaCatalog(): void {
-  applyTestEnv();
-  const result = spawnSync(
-    process.execPath,
-    [resolve(__dirname, '../scripts/sync-usda-catalog.mjs')],
-    {
-      cwd: resolve(__dirname, '..'),
-      env: process.env,
-      encoding: 'utf8',
-    },
-  );
-  if (result.status !== 0) {
-    throw new Error(
-      `usda sync failed:\n${result.stdout ?? ''}\n${result.stderr ?? ''}`,
-    );
-  }
-}
 
 describe('USDA generic food catalog (e2e)', () => {
   let api: RunningApi;
@@ -37,8 +15,6 @@ describe('USDA generic food catalog (e2e)', () => {
   let otherKitchenId: string;
 
   beforeAll(async () => {
-    syncUsdaCatalog();
-    syncUsdaCatalog(); // idempotencja
     api = await startApiServer();
     user = await signUpUser(api.origin, WEB_ORIGIN, {
       email: `usda.${Date.now()}@example.com`,
@@ -227,16 +203,7 @@ describe('USDA generic food catalog (e2e)', () => {
     expect(nutrition.sourceGenericFoodId).toBe(
       gBody.suggested.sourceGenericFoodId,
     );
-
-    const beforeSyncKcal = nutrition.kcal;
-    syncUsdaCatalog();
-    const after = await apiFetch(
-      api.origin,
-      `/api/kitchens/${kitchenId}/products/${productId}/nutrition`,
-      { cookies: user.cookies, webOrigin: WEB_ORIGIN },
-    );
-    expect((after.body as { kcal: string }).kcal).toBe(beforeSyncKcal);
-    expect((after.body as { source: string }).source).toBe('usda_fdc');
+    // Ochrona ProductNutrition przy ponownym migrate — usda-catalog-migrate.e2e-spec.ts
   });
 
   it('ręczna poprawka po USDA ustawia source=manual i czyści powiązanie katalogu', async () => {

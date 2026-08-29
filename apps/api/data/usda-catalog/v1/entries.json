@@ -2263,33 +2263,6 @@
       "mappingWarnings": []
     },
     {
-      "fdcId": 175168,
-      "polishName": "Łosoś atlantycki hodowlany pieczony",
-      "aliases": [
-        "łosoś pieczony"
-      ],
-      "descriptionOriginal": "Fish, salmon, Atlantic, farmed, cooked, dry heat",
-      "variantLabel": "farmed, cooked dry heat",
-      "dataType": "SR Legacy",
-      "category": "Finfish and Shellfish Products",
-      "compositionMayVary": false,
-      "basis": "100 g części jadalnej",
-      "publicationDate": "4/1/2019",
-      "nutrition": {
-        "kcal": 206,
-        "proteinGrams": 22.1,
-        "carbsGrams": 0,
-        "fatGrams": 12.4,
-        "fiberGrams": 0,
-        "saltGrams": 0.152,
-        "sodiumMg": 61,
-        "energyField": "1008_energy_kcal",
-        "carbsMethod": "available_approx_carb_minus_fiber",
-        "carbsApproximate": true
-      },
-      "mappingWarnings": []
-    },
-    {
       "fdcId": 171998,
       "polishName": "Łosoś atlantycki dziki pieczony",
       "aliases": [
@@ -2310,6 +2283,34 @@
         "fiberGrams": 0,
         "saltGrams": 0.14,
         "sodiumMg": 56,
+        "energyField": "1008_energy_kcal",
+        "carbsMethod": "available_approx_carb_minus_fiber",
+        "carbsApproximate": true
+      },
+      "mappingWarnings": []
+    },
+    {
+      "fdcId": 173709,
+      "polishName": "Tuńczyk lekki w wodzie (puszka, odsączony)",
+      "aliases": [
+        "tuńczyk w wodzie",
+        "tuna canned water"
+      ],
+      "descriptionOriginal": "Fish, tuna, light, canned in water, drained solids (Includes foods for USDA's Food Distribution Program)",
+      "variantLabel": "light, canned in water, drained solids",
+      "dataType": "SR Legacy",
+      "category": "Finfish and Shellfish Products",
+      "compositionMayVary": false,
+      "basis": "100 g części jadalnej",
+      "publicationDate": "4/1/2019",
+      "nutrition": {
+        "kcal": 86,
+        "proteinGrams": 19.4,
+        "carbsGrams": 0,
+        "fatGrams": 0.96,
+        "fiberGrams": 0,
+        "saltGrams": 0.618,
+        "sodiumMg": 247,
         "energyField": "1008_energy_kcal",
         "carbsMethod": "available_approx_carb_minus_fiber",
         "carbsApproximate": true

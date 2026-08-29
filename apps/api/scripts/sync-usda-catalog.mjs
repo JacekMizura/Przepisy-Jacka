@@ -1,9 +1,11 @@
 /**
- * Idempotentna synchronizacja katalogu USDA (bez Nest / bez seeda aplikacji).
+ * Idempotentna synchronizacja katalogu USDA z entries.json (narzędzie deweloperskie).
+ * Produkcja ładuje katalog przez migrację `20260829121000_usda_catalog_v1_seed`
+ * — ten skrypt NIE jest wymagany na Railway.
  *
  *   pnpm --filter @moja-kuchnia/api usda:sync-catalog
  */
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,6 +15,19 @@ import pg from 'pg';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 loadEnv({ path: join(__dirname, '../.env') });
+
+const ID_NAMESPACE = 'moja-kuchnia:usda-catalog:v1';
+
+function stableUuidFromFdcId(fdcId) {
+  const digest = createHmac('sha256', ID_NAMESPACE)
+    .update(String(fdcId))
+    .digest();
+  const bytes = Buffer.from(digest.subarray(0, 16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x50;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
 
 function normalizeProductName(name) {
   return name.trim().toLowerCase().replace(/\s+/g, ' ');
@@ -64,11 +79,7 @@ async function main() {
         ? '2025-12-18'
         : '2018-04';
 
-      const existing = await client.query(
-        `SELECT id FROM "UsdaFoodCatalogEntry" WHERE "fdcId" = $1`,
-        [entry.fdcId],
-      );
-      const id = existing.rows[0]?.id ?? randomUUID();
+      const id = stableUuidFromFdcId(entry.fdcId);
 
       await client.query(
         `INSERT INTO "UsdaFoodCatalogEntry" (
@@ -122,13 +133,13 @@ async function main() {
           entry.variantLabel,
           entry.dataType,
           entry.category,
-          entry.compositionMayVary,
-          entry.basis,
+          Boolean(entry.compositionMayVary),
+          entry.basis ?? '100 g części jadalnej',
           sourceDataset,
           sourceRelease,
-          `https://fdc.nal.usda.gov/fdc-app.html#/food-details/${entry.fdcId}/nutrients`,
+          'https://fdc.nal.usda.gov/',
           file.catalogVersion,
-          importedAt.toISOString(),
+          importedAt,
           entry.publicationDate,
           dec(n.kcal),
           dec(n.proteinGrams),
@@ -139,29 +150,30 @@ async function main() {
           dec(n.sodiumMg),
           n.energyField,
           n.carbsMethod,
-          n.carbsApproximate,
+          Boolean(n.carbsApproximate),
           JSON.stringify(entry.mappingWarnings ?? []),
         ],
       );
       upserted += 1;
     }
 
-    const stale = await client.query(
-      `DELETE FROM "UsdaFoodCatalogEntry"
-       WHERE "catalogVersion" <> $1 OR NOT ("fdcId" = ANY($2::int[]))
-       RETURNING id`,
-      [file.catalogVersion, keepFdcIds],
+    const removed = await client.query(
+      `DELETE FROM "UsdaFoodCatalogEntry" WHERE NOT ("fdcId" = ANY($1::int[]))`,
+      [keepFdcIds],
     );
 
-    const result = {
-      catalogVersion: file.catalogVersion,
-      upserted,
-      removed: stale.rowCount ?? 0,
-      entriesSha256: createHash('sha256')
-        .update(readFileSync(join(catalogDir, 'entries.json')))
-        .digest('hex'),
-    };
-    console.log(JSON.stringify(result));
+    const entriesSha256 = createHash('sha256')
+      .update(readFileSync(join(catalogDir, 'entries.json')))
+      .digest('hex');
+
+    console.log(
+      JSON.stringify({
+        catalogVersion: file.catalogVersion,
+        upserted,
+        removed: removed.rowCount ?? 0,
+        entriesSha256,
+      }),
+    );
   } finally {
     await client.end();
   }

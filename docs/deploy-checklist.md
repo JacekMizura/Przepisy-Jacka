@@ -97,5 +97,5 @@ Auth na preview wymaga osobnej decyzji o `AUTH_TRUSTED_ORIGINS` — brak wildcar
 
 1. Push / PR feature brancha → obserwuj GitHub Actions.
 2. Merge do `main` dopiero przy zielonym CI.
-3. Potwierdź `prisma migrate deploy` w logach release Railway.
+3. Potwierdź `prisma migrate deploy` w logach release Railway (w tym seed katalogu USDA v1 — bez ręcznego `usda:sync-catalog`).
 4. Smoke: rejestracja / logowanie / `/api/me` przez origin weba.

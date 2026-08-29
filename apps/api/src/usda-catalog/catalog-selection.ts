@@ -550,16 +550,16 @@ export const USDA_CATALOG_SELECTION: CatalogSelection[] = [
     variantLabel: '80% lean, patty, pan-broiled',
   },
   {
-    fdcId: 175168,
-    polishName: 'Łosoś atlantycki hodowlany pieczony',
-    aliases: ['łosoś pieczony'],
-    variantLabel: 'farmed, cooked dry heat',
-  },
-  {
     fdcId: 171998,
     polishName: 'Łosoś atlantycki dziki pieczony',
     aliases: ['łosoś dziki pieczony'],
     variantLabel: 'wild, cooked dry heat',
+  },
+  {
+    fdcId: 173709,
+    polishName: 'Tuńczyk lekki w wodzie (puszka, odsączony)',
+    aliases: ['tuńczyk w wodzie', 'tuna canned water'],
+    variantLabel: 'light, canned in water, drained solids',
   },
   {
     fdcId: 171956,

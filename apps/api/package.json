@@ -18,6 +18,8 @@
     "prisma:generate": "prisma generate",
     "generate:openapi": "prisma generate && nest build && node dist/generate-openapi.js",
     "usda:build-catalog": "node scripts/build-usda-catalog.mjs",
+    "usda:generate-migration": "node scripts/generate-usda-catalog-migration.mjs",
+    "usda:check-catalog": "node scripts/check-usda-catalog.mjs",
     "usda:sync-catalog": "node scripts/sync-usda-catalog.mjs"
   },
   "dependencies": {

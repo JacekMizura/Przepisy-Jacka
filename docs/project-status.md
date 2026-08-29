@@ -52,7 +52,7 @@ Szczegóły: [docs/deploy-checklist.md](./deploy-checklist.md).
 
 Krótko:
 
-1. Railway: pre-deploy `pnpm --filter @moja-kuchnia/api exec prisma migrate deploy`, potem start API.
+1. Railway: pre-deploy `pnpm --filter @moja-kuchnia/api exec prisma migrate deploy` (schema + seed katalogu USDA), potem start API.
 2. Railway: zmienne produkcyjne (originy = `https://przepisy-jacka-web.vercel.app`, nowy `BETTER_AUTH_SECRET`).
 3. Vercel: serwerowe `API_ORIGIN=https://przepisy-jacka-production-ae86.up.railway.app`; usuń zbędne `NEXT_PUBLIC_API_URL`.
 4. Push feature brancha / PR — pierwszy prawdziwy przebieg GitHub Actions.

@@ -150,7 +150,15 @@ function StockRow({ item }: { item: StockSummary }) {
       }
       style={ui.card}
     >
-      <Text style={{ fontWeight: '700', fontSize: 16 }}>{item.productName}</Text>
+      <Text style={{ fontWeight: '700', fontSize: 16 }}>
+        {item.productName}
+        {item.isArchived ? (
+          <Text style={{ fontWeight: '600', color: '#b45309' }}>
+            {' '}
+            · Zarchiwizowany
+          </Text>
+        ) : null}
+      </Text>
       <Text style={ui.muted}>
         {formatQuantity(item.totalQuantity, item.defaultUnit)} ·{' '}
         {item.batchCount} {item.batchCount === 1 ? 'partia' : 'partie'}

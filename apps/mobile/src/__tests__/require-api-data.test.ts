@@ -23,7 +23,7 @@ describe('api-result helpers', () => {
     expect(data).toEqual({ id: '1' });
   });
 
-  it('throws ApiRequestError with status message on error branch', () => {
+  it('throws ApiRequestError with conflict body message on 409', () => {
     expect(() =>
       requireApiData(
         { error: { message: 'nope' }, response: { status: 409 } },
@@ -33,13 +33,22 @@ describe('api-result helpers', () => {
 
     try {
       requireApiData(
-        { error: { message: 'nope' }, response: { status: 409 } },
+        {
+          error: {
+            message: {
+              code: 'PRODUCT_ARCHIVED_EXISTS',
+              message: 'Produkt o tej nazwie jest w archiwum.',
+              productId: 'p1',
+            },
+          },
+          response: { status: 409 },
+        },
         'fallback',
       );
     } catch (error) {
       expect(error).toBeInstanceOf(ApiRequestError);
       expect((error as ApiRequestError).status).toBe(409);
-      expect((error as ApiRequestError).message).toContain('Konflikt');
+      expect((error as ApiRequestError).message).toMatch(/archiwum/);
     }
   });
 

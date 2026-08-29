@@ -37,9 +37,7 @@ CLI `prisma` jest w `dependencies` pakietu `@moja-kuchnia/api`.
 | `CORS_ORIGINS` | `https://przepisy-jacka-web.vercel.app` |
 | `PUBLIC_WEB_ORIGIN` | `https://przepisy-jacka-web.vercel.app` |
 | `BETTER_AUTH_URL` | `https://przepisy-jacka-web.vercel.app` |
-| `AUTH_TRUSTED_ORIGINS` | `https://przepisy-jacka-web.vercel.app,mojakuchnia://` (dokładny schemat aplikacji — **wymagane przed udostępnieniem mobile**; bez `*` i bez `exp://`) |
-
-
+| `AUTH_TRUSTED_ORIGINS` | Najpierw wyłącznie `https://przepisy-jacka-web.vercel.app` (obecny origin Vercela). Dopisz `,mojakuchnia://` **dopiero po wdrożeniu wersji API**, która akceptuje dokładny schemat aplikacji (Better Auth `expo()` + walidacja w `parseTrustedOrigins`). Nie ustawiaj `mojakuchnia://` na Railway przed tym deployem. Bez `*`, bez `exp://`. |
 | `BETTER_AUTH_SECRET` | nowy trwały sekret (≥ 32 znaki), **nie** kopiuj z CI ani `.env.example` |
 | `ALLOW_DEMO_SEED` | `false` albo brak zmiennej |
 | `MEDIA_STORAGE_DRIVER` | `s3` (lub puste — wtedy S3 gdy pełna konfiguracja) |

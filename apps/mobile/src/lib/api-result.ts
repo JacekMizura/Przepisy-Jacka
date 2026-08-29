@@ -37,6 +37,15 @@ export function readApiError(
       if (typeof message === 'string' && message.length > 0) {
         return message;
       }
+      if (
+        typeof message === 'object' &&
+        message !== null &&
+        'message' in message &&
+        typeof (message as { message: unknown }).message === 'string' &&
+        (message as { message: string }).message.length > 0
+      ) {
+        return (message as { message: string }).message;
+      }
       if (Array.isArray(message) && message.length > 0) {
         const parts = message.filter(
           (item): item is string =>
@@ -60,6 +69,32 @@ export function readApiError(
     return error.message;
   }
   return fallback;
+}
+
+/** Nest ConflictException z `{ code, message, productId }` albo stringiem. */
+export function readConflictCode(error: unknown): string | null {
+  const body =
+    error instanceof ApiRequestError
+      ? error.body
+      : typeof error === 'object' && error !== null
+        ? error
+        : null;
+  if (!body || typeof body !== 'object') {
+    return null;
+  }
+  if ('code' in body && typeof body.code === 'string') {
+    return body.code;
+  }
+  if (
+    'message' in body &&
+    typeof body.message === 'object' &&
+    body.message !== null &&
+    'code' in body.message &&
+    typeof (body.message as { code: unknown }).code === 'string'
+  ) {
+    return (body.message as { code: string }).code;
+  }
+  return null;
 }
 
 export function messageForStatus(status: number, fallback: string): string {
@@ -108,9 +143,10 @@ export function requireApiData<T>(
 ): T {
   const status = apiStatus(result);
   if (result.error !== undefined || result.data === undefined) {
+    const detail = readApiError(result.error, fallback);
     throw new ApiRequestError(
       status,
-      messageForStatus(status, readApiError(result.error, fallback)),
+      status === 409 ? detail : messageForStatus(status, detail),
       result.error,
     );
   }

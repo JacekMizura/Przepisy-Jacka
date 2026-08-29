@@ -162,12 +162,21 @@ export default function StockProductScreen() {
   return (
     <SafeAreaView style={ui.screen} edges={['bottom']}>
       <ScrollView contentContainerStyle={ui.padded}>
-        <Text style={ui.title}>{product.productName}</Text>
+        <Text style={ui.title}>
+          {product.productName}
+          {product.isArchived ? ' (zarchiwizowany)' : ''}
+        </Text>
         <Text style={ui.subtitle}>
           Razem {formatQuantity(product.totalQuantity, product.defaultUnit)} ·{' '}
           {product.batchCount}{' '}
           {product.batchCount === 1 ? 'partia' : 'partie'}
         </Text>
+        {product.isArchived ? (
+          <Text style={ui.muted}>
+            Produkt jest w archiwum — możesz zużyć lub odpisać pozostały zapas.
+            Nowe zakupy wymagają przywrócenia na webie.
+          </Text>
+        ) : null}
         <PrimaryButton
           label="Zużyj (auto / ręcznie)"
           onPress={() =>

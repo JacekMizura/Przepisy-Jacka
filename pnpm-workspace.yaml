@@ -14,7 +14,25 @@ allowBuilds:
   prisma: true
   unrs-resolver: true
 
+nodeLinker: hoisted
+strictPeerDependencies: false
+autoInstallPeers: true
+
 # NestJS uses Jest 30; Expo/React Native still pulls jest-environment-node@29.
 # Without this override, hoisted node_modules mixes Jest 30 runtime with a Jest 29 environment.
+#
+# react/react-dom: Expo SDK 54 pins 19.1.0; Next 16 accepts ^19.0.0.
+# Aligning web to 19.1.0 collapses duplicate peer graphs that expo-doctor flags
+# when mobile (19.1.0) and web (19.2.x) coexist under a hoisted linker.
+# expo-network: API's optional peer of @better-auth/expo otherwise resolves to
+# a separate major (57.x) unused by the server plugin.
 overrides:
   jest-environment-node: "30.4.1"
+  react: "19.1.0"
+  react-dom: "19.1.0"
+  expo-network: "~8.0.8"
+
+peerDependencyRules:
+  allowedVersions:
+    react: "19.1.0"
+    react-dom: "19.1.0"

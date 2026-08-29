@@ -25,6 +25,7 @@ import {
   createMobileApiClient,
   isUnauthorized,
   readApiError,
+  readConflictCode,
   requireApiData,
 } from '@/lib/api';
 import {
@@ -217,7 +218,15 @@ export default function ShoppingCheckoutScreen() {
         params: { purchaseId: purchase.id },
       });
     },
-    onError: (e) => setFormError(readApiError(e, 'Błąd checkoutu.')),
+    onError: (e) => {
+      if (readConflictCode(e) === 'PRODUCT_ARCHIVED_EXISTS') {
+        setFormError(
+          `${readApiError(e, 'Produkt o tej nazwie jest w archiwum.')} Przywróć go na webie zamiast tworzyć nowy.`,
+        );
+        return;
+      }
+      setFormError(readApiError(e, 'Błąd checkoutu.'));
+    },
   });
 
   async function onPickReceipt(source: 'camera' | 'library') {

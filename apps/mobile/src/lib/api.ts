@@ -11,6 +11,7 @@ export {
   isUnauthorized,
   messageForStatus,
   readApiError,
+  readConflictCode,
   requireApiData,
 } from '@/lib/api-result';
 

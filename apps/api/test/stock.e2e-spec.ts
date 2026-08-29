@@ -281,13 +281,13 @@ describe('Products and stock (e2e)', () => {
     expect(deleted.status).toBe(200);
   });
 
-  it('requires explicit confirmation before cascading product deletion', async () => {
+  it('archives product with stock instead of cascading delete', async () => {
     const owner = await signUpUser(api.origin, WEB_ORIGIN);
     const kitchenRes = await apiFetch(api.origin, '/api/kitchens', {
       method: 'POST',
       webOrigin: WEB_ORIGIN,
       cookies: owner.cookies,
-      body: { name: 'Kaskada' },
+      body: { name: 'Archiwum' },
     });
     const kitchen = kitchenRes.body as { id: string };
     const productRes = await apiFetch(
@@ -318,7 +318,7 @@ describe('Products and stock (e2e)', () => {
     );
     const stock = stockRes.body as { id: string };
 
-    const blocked = await apiFetch(
+    const archived = await apiFetch(
       api.origin,
       `/api/kitchens/${kitchen.id}/products/${product.id}`,
       {
@@ -327,32 +327,39 @@ describe('Products and stock (e2e)', () => {
         cookies: owner.cookies,
       },
     );
-    expect(blocked.status).toBe(409);
-    const remainingBefore = await queryTestDb<{ count: string }>(
+    expect(archived.status).toBe(200);
+    expect((archived.body as { isArchived: boolean }).isArchived).toBe(true);
+
+    const remainingStock = await queryTestDb<{ count: string }>(
       'SELECT COUNT(*)::text AS count FROM "StockItem" WHERE id = $1',
       [stock.id],
     );
-    expect(Number(remainingBefore[0]?.count)).toBe(1);
+    const remainingProduct = await queryTestDb<{
+      archived: string | null;
+    }>('SELECT "archivedAt"::text AS archived FROM "Product" WHERE id = $1', [
+      product.id,
+    ]);
+    expect(Number(remainingStock[0]?.count)).toBe(1);
+    expect(remainingProduct).toHaveLength(1);
+    expect(remainingProduct[0]?.archived).not.toBeNull();
 
-    const confirmed = await apiFetch(
+    const activeList = await apiFetch(
       api.origin,
-      `/api/kitchens/${kitchen.id}/products/${product.id}?confirmCascade=true`,
+      `/api/kitchens/${kitchen.id}/products`,
+      { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
+    );
+    expect(activeList.status).toBe(200);
+    expect(activeList.body as unknown[]).toEqual([]);
+
+    const permanentBlocked = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/products/${product.id}?permanent=true`,
       {
         method: 'DELETE',
         webOrigin: WEB_ORIGIN,
         cookies: owner.cookies,
       },
     );
-    expect(confirmed.status).toBe(200);
-    const remainingStock = await queryTestDb<{ count: string }>(
-      'SELECT COUNT(*)::text AS count FROM "StockItem" WHERE id = $1',
-      [stock.id],
-    );
-    const remainingProduct = await queryTestDb<{ count: string }>(
-      'SELECT COUNT(*)::text AS count FROM "Product" WHERE id = $1',
-      [product.id],
-    );
-    expect(Number(remainingStock[0]?.count)).toBe(0);
-    expect(Number(remainingProduct[0]?.count)).toBe(0);
+    expect(permanentBlocked.status).toBe(409);
   });
 });

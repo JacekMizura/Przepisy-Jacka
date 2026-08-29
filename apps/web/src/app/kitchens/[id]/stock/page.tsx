@@ -116,10 +116,14 @@ export default function StockPage() {
   const [stockEan, setStockEan] = useState("");
   const [stockImageUrl, setStockImageUrl] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
-  const [productToDelete, setProductToDelete] = useState<{
+  const [productToArchive, setProductToArchive] = useState<{
     id: string;
     name: string;
-    hasStock: boolean;
+  } | null>(null);
+  const [showArchivedCatalog, setShowArchivedCatalog] = useState(false);
+  const [archivedNameConflict, setArchivedNameConflict] = useState<{
+    productId: string;
+    message: string;
   } | null>(null);
   const [batchToDelete, setBatchToDelete] = useState<{
     id: string;
@@ -170,6 +174,29 @@ export default function StockPage() {
     },
   });
 
+  const archivedProductsQuery = useQuery({
+    queryKey: ["products", kitchenId, "archived"],
+    enabled: showArchivedCatalog,
+    queryFn: async () => {
+      const client = createWebApiClient();
+      const { data, error } = await client.GET(
+        "/api/kitchens/{kitchenId}/products",
+        {
+          params: {
+            path: { kitchenId },
+            query: { archive: "archived" },
+          },
+        },
+      );
+      if (error) {
+        throw new Error(
+          readApiError(error, "Nie udało się pobrać archiwum produktów."),
+        );
+      }
+      return data ?? [];
+    },
+  });
+
   const stockSummaryQuery = useQuery({
     queryKey: ["stock-summary", kitchenId, locationFilter],
     queryFn: async () => {
@@ -187,26 +214,6 @@ export default function StockPage() {
         throw new Error(
           readApiError(error, "Nie udało się pobrać podsumowania zapasów."),
         );
-      }
-      return data ?? [];
-    },
-  });
-
-  const stockQuery = useQuery({
-    queryKey: ["stock", kitchenId, locationFilter],
-    queryFn: async () => {
-      const client = createWebApiClient();
-      const { data, error } = await client.GET(
-        "/api/kitchens/{kitchenId}/stock-items",
-        {
-          params: {
-            path: { kitchenId },
-            query: locationFilter ? { location: locationFilter } : {},
-          },
-        },
-      );
-      if (error) {
-        throw new Error(readApiError(error, "Nie udało się pobrać zapasów."));
       }
       return data ?? [];
     },
@@ -329,7 +336,7 @@ export default function StockPage() {
         throw new Error(eanError);
       }
       const client = createWebApiClient();
-      const { data, error } = await client.POST(
+      const { data, error, response } = await client.POST(
         "/api/kitchens/{kitchenId}/products",
         {
           params: { path: { kitchenId } },
@@ -341,6 +348,39 @@ export default function StockPage() {
           },
         },
       );
+      if (response.status === 409) {
+        const payload = error as unknown as {
+          message?:
+            | string
+            | { code?: string; productId?: string; message?: string };
+          code?: string;
+          productId?: string;
+        } | null;
+        const detail =
+          payload &&
+          typeof payload.message === "object" &&
+          payload.message !== null
+            ? payload.message
+            : payload;
+        if (
+          detail &&
+          (detail.code === "PRODUCT_ARCHIVED_EXISTS" ||
+            (typeof detail.message === "string" &&
+              detail.message.includes("archiwum")))
+        ) {
+          throw Object.assign(
+            new Error(
+              typeof detail.message === "string"
+                ? detail.message
+                : "Produkt o tej nazwie jest w archiwum.",
+            ),
+            {
+              code: "PRODUCT_ARCHIVED_EXISTS",
+              productId: detail.productId,
+            },
+          );
+        }
+      }
       if (error) {
         throw new Error(readApiError(error, "Nie udało się dodać produktu."));
       }
@@ -410,12 +450,23 @@ export default function StockPage() {
       setProductMediaAssetId(null);
       setProductCategory("");
       setProductFormOpen(false);
+      setArchivedNameConflict(null);
       if (product) {
         setSelectedProductId(product.id);
         const units = inputUnitsFor(product.defaultUnit);
         setInputUnit(units[0]?.value ?? "gram");
         setStockFormOpen(true);
       }
+    },
+    onError: (error: Error & { code?: string; productId?: string }) => {
+      if (error.code === "PRODUCT_ARCHIVED_EXISTS" && error.productId) {
+        setArchivedNameConflict({
+          productId: error.productId,
+          message: error.message,
+        });
+        return;
+      }
+      setFormError(error.message);
     },
   });
 
@@ -504,29 +555,68 @@ export default function StockPage() {
     },
   });
 
-  const deleteProduct = useMutation({
-    mutationFn: async (confirmCascade: boolean) => {
-      if (!productToDelete) {
-        throw new Error("Brak produktu do usunięcia.");
+  const archiveProduct = useMutation({
+    mutationFn: async () => {
+      if (!productToArchive) {
+        throw new Error("Brak produktu do archiwizacji.");
       }
       const client = createWebApiClient();
-      const { error } = await client.DELETE(
+      const { error, response } = await client.DELETE(
         "/api/kitchens/{kitchenId}/products/{productId}",
         {
           params: {
-            path: { kitchenId, productId: productToDelete.id },
-            query: confirmCascade ? { confirmCascade: true } : {},
+            path: { kitchenId, productId: productToArchive.id },
           },
         },
       );
+      if (response.status === 409) {
+        throw new Error(
+          readApiError(
+            error,
+            "Nie można zarchiwizować produktu (sprawdź listę zakupów).",
+          ),
+        );
+      }
       if (error) {
-        throw new Error(readApiError(error, "Nie udało się usunąć produktu."));
+        throw new Error(
+          readApiError(error, "Nie udało się zarchiwizować produktu."),
+        );
       }
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["products", kitchenId] });
-      await queryClient.invalidateQueries({ queryKey: ["stock", kitchenId] });
-      setProductToDelete(null);
+      await queryClient.invalidateQueries({
+        queryKey: ["stock-summary", kitchenId],
+      });
+      setProductToArchive(null);
+    },
+    onError: (error: Error) => {
+      setListFeedbackError(true);
+      setListFeedback(error.message);
+      setProductToArchive(null);
+    },
+  });
+
+  const restoreProduct = useMutation({
+    mutationFn: async (productId: string) => {
+      const client = createWebApiClient();
+      const { error } = await client.POST(
+        "/api/kitchens/{kitchenId}/products/{productId}/restore",
+        { params: { path: { kitchenId, productId } } },
+      );
+      if (error) {
+        throw new Error(
+          readApiError(error, "Nie udało się przywrócić produktu."),
+        );
+      }
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["products", kitchenId] });
+      await queryClient.invalidateQueries({
+        queryKey: ["stock-summary", kitchenId],
+      });
+      setArchivedNameConflict(null);
+      setShowArchivedCatalog(true);
     },
   });
 
@@ -1231,6 +1321,11 @@ export default function StockPage() {
                               <div className="min-w-0 flex-1">
                                 <p className="font-medium text-gray-900">
                                   {summary.productName}
+                                  {summary.isArchived ? (
+                                    <span className="ml-2 text-xs font-medium text-amber-700">
+                                      Zarchiwizowany
+                                    </span>
+                                  ) : null}
                                 </p>
                                 <p className="text-sm text-gray-600">
                                   {formatQuantityWithUnit(
@@ -1561,9 +1656,6 @@ export default function StockPage() {
               ) : (
                 <ul>
                   {(productsQuery.data ?? []).map((product) => {
-                    const hasStock = (stockQuery.data ?? []).some(
-                      (item) => item.productId === product.id,
-                    );
                     const { thumbnail, full } = productImageUrls(product);
                     const detailsOpen = expandedProductIds.has(product.id);
                     return (
@@ -1644,14 +1736,13 @@ export default function StockPage() {
                               size="sm"
                               variant="outline"
                               onClick={() =>
-                                setProductToDelete({
+                                setProductToArchive({
                                   id: product.id,
                                   name: product.name,
-                                  hasStock,
                                 })
                               }
                             >
-                              Usuń produkt
+                              Archiwizuj produkt
                             </Button>
                             <Button
                               size="sm"
@@ -1700,10 +1791,47 @@ export default function StockPage() {
                   })}
                 </ul>
               )}
-              <p className="border-t border-gray-50 px-4 py-3 text-xs text-gray-400">
-                Usunięcie produktu z katalogu usuwa też wszystkie jego partie na
-                półkach.
-              </p>
+              <div className="border-t border-gray-50 px-4 py-3">
+                <button
+                  type="button"
+                  className="text-xs font-medium text-emerald-700 hover:underline"
+                  onClick={() => setShowArchivedCatalog((open) => !open)}
+                >
+                  {showArchivedCatalog
+                    ? "Ukryj archiwum produktów"
+                    : "Pokaż archiwum produktów"}
+                </button>
+                {showArchivedCatalog ? (
+                  <ul className="mt-3 space-y-2">
+                    {(archivedProductsQuery.data ?? []).length === 0 ? (
+                      <li className="text-xs text-gray-400">
+                        Brak zarchiwizowanych produktów.
+                      </li>
+                    ) : (
+                      (archivedProductsQuery.data ?? []).map((product) => (
+                        <li
+                          key={product.id}
+                          className="flex items-center justify-between gap-2 text-sm"
+                        >
+                          <span className="text-gray-600">{product.name}</span>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={restoreProduct.isPending}
+                            onClick={() => restoreProduct.mutate(product.id)}
+                          >
+                            Przywróć
+                          </Button>
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                ) : null}
+                <p className="mt-3 text-xs text-gray-400">
+                  Archiwizacja usuwa produkt z aktywnego katalogu. Partie,
+                  zakupy, zużycia i przepisy zostają.
+                </p>
+              </div>
             </div>
           ) : null}
         </section>
@@ -1718,18 +1846,27 @@ export default function StockPage() {
         />
       ) : null}
 
-      {productToDelete ? (
+      {productToArchive ? (
         <ConfirmDialog
-          title={`Usunąć produkt „${productToDelete.name}”?`}
-          description={
-            productToDelete.hasStock
-              ? "Produkt ma partie zapasów. Potwierdzenie usunie produkt oraz wszystkie jego partie."
-              : "Produkt nie ma partii i zostanie usunięty."
+          title={`Zarchiwizować „${productToArchive.name}”?`}
+          description="Produkt zniknie z aktywnego katalogu i selektorów. Historia zakupów, partie, zużycia, zdjęcia i powiązania z przepisami zostaną zachowane. Jeśli ma zapas, nadal zobaczysz go na liście zapasów jako zarchiwizowany."
+          confirmLabel="Archiwizuj"
+          pending={archiveProduct.isPending}
+          onCancel={() => setProductToArchive(null)}
+          onConfirm={() => archiveProduct.mutate()}
+        />
+      ) : null}
+
+      {archivedNameConflict ? (
+        <ConfirmDialog
+          title="Produkt jest w archiwum"
+          description={archivedNameConflict.message}
+          confirmLabel="Przywróć produkt"
+          pending={restoreProduct.isPending}
+          onCancel={() => setArchivedNameConflict(null)}
+          onConfirm={() =>
+            restoreProduct.mutate(archivedNameConflict.productId)
           }
-          confirmLabel="Usuń"
-          pending={deleteProduct.isPending}
-          onCancel={() => setProductToDelete(null)}
-          onConfirm={() => deleteProduct.mutate(productToDelete.hasStock)}
         />
       ) : null}
 

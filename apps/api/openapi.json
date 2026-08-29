@@ -1028,6 +1028,20 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "archive",
+            "required": false,
+            "in": "query",
+            "description": "Domyślnie active — bez zarchiwizowanych.",
+            "schema": {
+              "enum": [
+                "active",
+                "archived",
+                "all"
+              ],
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -1158,7 +1172,7 @@
             }
           },
           {
-            "name": "confirmCascade",
+            "name": "permanent",
             "required": false,
             "in": "query",
             "schema": {
@@ -1168,10 +1182,17 @@
         ],
         "responses": {
           "200": {
-            "description": ""
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductDto"
+                }
+              }
+            }
           }
         },
-        "summary": "Usunięcie produktu (kaskada partii po potwierdzeniu)",
+        "summary": "Archiwizacja produktu (historia zostaje). ?permanent=true tylko dla nigdy nieużytego.",
         "tags": [
           "stock"
         ]
@@ -1221,6 +1242,45 @@
           }
         },
         "summary": "Konfiguracja sposobu zakupu produktu (opakowania / dokładna ilość)",
+        "tags": [
+          "stock"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/products/{productId}/restore": {
+      "post": {
+        "operationId": "StockController_restoreProduct",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Przywrócenie produktu z archiwum",
         "tags": [
           "stock"
         ]
@@ -3945,6 +4005,16 @@
             "type": "string",
             "nullable": true
           },
+          "archivedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Null = aktywny katalog; ustawione = zarchiwizowany."
+          },
+          "isArchived": {
+            "type": "boolean",
+            "description": "true gdy archivedAt jest ustawione."
+          },
           "createdAt": {
             "type": "string",
             "format": "date-time"
@@ -3972,6 +4042,8 @@
           "image",
           "nutrition",
           "category",
+          "archivedAt",
+          "isArchived",
           "createdAt",
           "updatedAt"
         ]
@@ -4503,6 +4575,10 @@
             "type": "string",
             "nullable": true
           },
+          "isArchived": {
+            "type": "boolean",
+            "description": "Produkt zarchiwizowany (historia i partie zachowane)."
+          },
           "totalQuantity": {
             "type": "string"
           },
@@ -4528,6 +4604,7 @@
           "productId",
           "productName",
           "defaultUnit",
+          "isArchived",
           "totalQuantity",
           "batchCount",
           "expiringBatchCount",

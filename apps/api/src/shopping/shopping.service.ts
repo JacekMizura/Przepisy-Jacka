@@ -184,6 +184,11 @@ export class ShoppingService {
       if (!product) {
         throw new BadRequestException('Nie znaleziono produktu w tej kuchni.');
       }
+      if (product.archivedAt !== null) {
+        throw new ConflictException(
+          'Produkt jest zarchiwizowany. Przywróć go, zanim dodasz go do listy zakupów.',
+        );
+      }
 
       assertProductPurchaseModeForCreate(product, dto);
 
@@ -1246,6 +1251,11 @@ async function resolveCheckoutProduct(
     });
     if (!product) {
       throw new BadRequestException('Nie znaleziono produktu w tej kuchni.');
+    }
+    if (product.archivedAt !== null) {
+      throw new ConflictException(
+        'Produkt jest zarchiwizowany. Przywróć go przed zakupem.',
+      );
     }
     assertInputUnitCompatibleWithProduct(line.inputUnit, product.defaultUnit);
     return product;

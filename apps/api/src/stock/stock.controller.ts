@@ -57,12 +57,23 @@ export class StockController {
 
   @Get('products')
   @ApiOperation({ summary: 'Katalog produktów kuchni' })
+  @ApiQuery({
+    name: 'archive',
+    required: false,
+    enum: ['active', 'archived', 'all'],
+    description: 'Domyślnie active — bez zarchiwizowanych.',
+  })
   @ApiOkResponse({ type: [ProductDto] })
   listProducts(
     @Session() session: UserSession,
     @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Query('archive') archive?: string,
   ): Promise<ProductDto[]> {
-    return this.stockService.listProducts(session.user.id, kitchenId);
+    const filter =
+      archive === 'archived' || archive === 'all' || archive === 'active'
+        ? archive
+        : 'active';
+    return this.stockService.listProducts(session.user.id, kitchenId, filter);
   }
 
   @Post('products')
@@ -115,22 +126,39 @@ export class StockController {
 
   @Delete('products/:productId')
   @ApiOperation({
-    summary: 'Usunięcie produktu (kaskada partii po potwierdzeniu)',
+    summary:
+      'Archiwizacja produktu (historia zostaje). ?permanent=true tylko dla nigdy nieużytego.',
   })
-  @ApiQuery({ name: 'confirmCascade', required: false, type: Boolean })
+  @ApiQuery({ name: 'permanent', required: false, type: Boolean })
+  @ApiOkResponse({ type: ProductDto })
   async deleteProduct(
     @Session() session: UserSession,
     @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
     @Param('productId', ParseUUIDPipe) productId: string,
-    @Query('confirmCascade') confirmCascade?: string,
-  ): Promise<{ ok: true }> {
-    await this.stockService.deleteProduct(
+    @Query('permanent') permanent?: string,
+  ): Promise<ProductDto | { ok: true }> {
+    const result = await this.stockService.deleteProduct(
       session.user.id,
       kitchenId,
       productId,
-      confirmCascade === 'true',
+      { permanent: permanent === 'true' },
     );
-    return { ok: true };
+    return result ?? { ok: true };
+  }
+
+  @Post('products/:productId/restore')
+  @ApiOperation({ summary: 'Przywrócenie produktu z archiwum' })
+  @ApiOkResponse({ type: ProductDto })
+  restoreProduct(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Param('productId', ParseUUIDPipe) productId: string,
+  ): Promise<ProductDto> {
+    return this.stockService.restoreProduct(
+      session.user.id,
+      kitchenId,
+      productId,
+    );
   }
 
   @Get('products/:productId/nutrition')

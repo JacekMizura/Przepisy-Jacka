@@ -369,7 +369,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Usunięcie produktu (kaskada partii po potwierdzeniu) */
+        /** Archiwizacja produktu (historia zostaje). ?permanent=true tylko dla nigdy nieużytego. */
         delete: operations["StockController_deleteProduct"];
         options?: never;
         head?: never;
@@ -388,6 +388,23 @@ export interface paths {
         put?: never;
         /** Konfiguracja sposobu zakupu produktu (opakowania / dokładna ilość) */
         post: operations["StockController_configureProductPurchase"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/products/{productId}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Przywrócenie produktu z archiwum */
+        post: operations["StockController_restoreProduct"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1136,6 +1153,13 @@ export interface components {
             image: components["schemas"]["MediaImageDto"] | null;
             nutrition: components["schemas"]["ProductNutritionDto"] | null;
             category: string | null;
+            /**
+             * Format: date-time
+             * @description Null = aktywny katalog; ustawione = zarchiwizowany.
+             */
+            archivedAt: string | null;
+            /** @description true gdy archivedAt jest ustawione. */
+            isArchived: boolean;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
@@ -1344,6 +1368,8 @@ export interface components {
             /** @enum {string} */
             defaultUnit: "piece" | "gram" | "milliliter";
             category?: string | null;
+            /** @description Produkt zarchiwizowany (historia i partie zachowane). */
+            isArchived: boolean;
             totalQuantity: string;
             batchCount: number;
             expiringBatchCount: number;
@@ -2656,7 +2682,10 @@ export interface operations {
     };
     StockController_listProducts: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Domyślnie active — bez zarchiwizowanych. */
+                archive?: "active" | "archived" | "all";
+            };
             header?: never;
             path: {
                 kitchenId: string;
@@ -2703,7 +2732,7 @@ export interface operations {
     StockController_deleteProduct: {
         parameters: {
             query?: {
-                confirmCascade?: boolean;
+                permanent?: boolean;
             };
             header?: never;
             path: {
@@ -2718,7 +2747,9 @@ export interface operations {
                 headers: {
                     [name: string]: unknown;
                 };
-                content?: never;
+                content: {
+                    "application/json": components["schemas"]["ProductDto"];
+                };
             };
         };
     };
@@ -2763,6 +2794,28 @@ export interface operations {
                 "application/json": components["schemas"]["ConfigureProductPurchaseDto"];
             };
         };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductDto"];
+                };
+            };
+        };
+    };
+    StockController_restoreProduct: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             200: {
                 headers: {

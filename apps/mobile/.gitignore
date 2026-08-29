@@ -6,6 +6,10 @@ node_modules/
 # Expo
 .expo/
 dist/
+dist-android/
+dist-android-preview/
+dist-android-preview-debug/
+dist-ios/
 web-build/
 expo-env.d.ts
 

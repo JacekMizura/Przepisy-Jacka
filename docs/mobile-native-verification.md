@@ -3,23 +3,23 @@
 Nie używaj Expo Web ani mockupów jako zamiennika smoke na urządzeniu.
 Nie uruchamiaj EAS Build, publicznego tunelu ani zmian Railway bez osobnej zgody.
 
-## Wspólne wymagania
+**Development Build** (`developmentClient: true`) wymaga Metro — to narzędzie programisty, **nie** natywny smoke produktu.
+**Preview APK** (profil `preview`) to samodzielna aplikacja z wbudowanym bundle i HTTPS API — budować **dopiero po** merge PR + migracjach + `mojakuchnia://` na Railway (patrz checklista poniżej).
 
-1. Lokalne API NestJS + Postgres Compose 18 (nie produkcja, nie konto produkcyjne).
-2. W `apps/api/.env` (lokalnie):
-   - `API_HOST=0.0.0.0`, `API_PORT=3001`
-   - `AUTH_TRUSTED_ORIGINS` z dokładnym `mojakuchnia://` (np. `http://localhost:3000,mojakuchnia://`) — **nie** ustawiaj jeszcze na Railway
-   - `MEDIA_STORAGE_DRIVER=memory`
-   - lokalne `DATABASE_URL` / `BETTER_AUTH_SECRET` (nie produkcyjne)
-3. W `apps/mobile/.env`: `EXPO_PUBLIC_API_URL` wskazujący adres osiągalny z telefonu (patrz wariant B).
-4. Development build z `expo-dev-client` (scheme `mojakuchnia`) — nie Expo Go (`exp://` zabronione).
+## Profile EAS
 
-Logi: bez cookies, tokenów i sekretów. Zrzuty tylko z telefonu.
+| Profil | Node | Dev Client | Cleartext | API | Artefakt |
+| --- | --- | --- | --- | --- | --- |
+| `development` | `24.13.0` | tak (Metro) | tak (LAN) | lokalne `.env` | APK wewnętrzny |
+| `preview` | `24.13.0` | **nie** | **nie** | `https://przepisy-jacka-production-ae86.up.railway.app` | APK `versionCode: 2` |
+| `production` | `24.13.0` | nie | nie | to samo HTTPS API | AAB |
 
-## Checklist smoke
+Node `24.13.0` = major 24 jak CI (`node-version: "24"`) i `engines >=24` / lokalne `.nvmrc`.
 
-1. Start aplikacji — brak crasha.
-2. Rejestracja / logowanie na lokalnym koncie.
+## Checklist smoke (Preview na telefonie — po wdrożeniu API)
+
+1. Start aplikacji — brak crasha, **bez** ekranu Expo Dev Client / Metro.
+2. Rejestracja / logowanie na koncie testowym (nie produkcyjne dane użytkownika końcowego, jeśli to możliwe).
 3. Zamknięcie aplikacji i odtworzenie sesji (SecureStore).
 4. Wybór kuchni.
 5. Lista zapasów i rozwinięcie partii.
@@ -27,9 +27,11 @@ Logi: bez cookies, tokenów i sekretów. Zrzuty tylko z telefonu.
 7. Odpis z powodem i cofnięcie.
 8. Lista zakupów i checkout.
 9. Aparat i galeria.
-10. Upload zdjęcia produktu i paragonu: begin → PUT → complete (sterownik `memory`).
+10. Upload zdjęcia produktu i paragonu: begin → PUT → complete.
 11. Odmowa uprawnień, anulowanie zdjęcia, brak sieci.
 12. Wylogowanie i usunięcie lokalnej sesji.
+
+Logi: bez cookies, tokenów i sekretów. Zrzuty tylko z telefonu.
 
 ## Wariant A — lokalny emulator (`expo run:android`)
 
@@ -37,45 +39,30 @@ Logi: bez cookies, tokenów i sekretów. Zrzuty tylko z telefonu.
 2. API: `pnpm --filter @moja-kuchnia/api dev`.
 3. `apps/mobile/.env`: `EXPO_PUBLIC_API_URL=http://10.0.2.2:3001`.
 4. `pnpm --filter @moja-kuchnia/mobile exec expo run:android`.
-5. Checklist smoke.
+5. Checklist smoke względem lokalnego API.
 
-## Wariant B — fizyczny telefon + EAS Development Build
+## Wariant B — Development Build (tylko dla developerów)
 
-### Udostępnienie lokalnego API telefonowi
-
-**Preferowane (bez tunelu):** telefon i PC w tej samej sieci Wi‑Fi.
-
-1. `ipconfig` → IPv4 PC (np. `192.168.0.42`).
-2. Firewall Windows: zezwól na przychodzący TCP `3001` (profil sieci prywatnej).
-3. `apps/mobile/.env`: `EXPO_PUBLIC_API_URL=http://192.168.0.42:3001` (Twój IP).
-4. Cleartext HTTP dla lokalnego `http://` jest włączany **tylko** przy profilu EAS `development` (`app.config.ts` + `expo-build-properties`). Preview/production → wyłączony.
-
-**Opcjonalny tunel HTTPS** (Cloudflare Tunnel / ngrok): tylko gdy LAN nie działa. Tunel wystawia lokalne API publicznie — użyj jednorazowego URL, nie loguj sekretów, wyłącz po teście. **Nie uruchamiaj tunelu bez potwierdzenia.**
-
-### Build i instalacja (po zgodzie na EAS)
-
-Stan: projekt EAS `@jacekms-team/moja-kuchnia` jest powiązany (`owner` + `extra.eas.projectId` w `app.json`).
+Wymaga komputera z Metro. Nie zastępuje Preview.
 
 ```bash
 cd apps/mobile
 eas build -p android --profile development
-```
-
-Profil: `development` (`developmentClient: true`, `distribution: internal`, APK, **Node `22.14.0`** — minimum dla `pnpm@11.20.0` na EAS; lokalnie/CI nadal Node 24 z `engines` / `.nvmrc`). Pakiet: `pl.mojakuchnia.app`. Scheme: `mojakuchnia`.
-
-**Uwaga:** przyszłe profile `preview` / `production` w `eas.json` też muszą ustawić Node zgodny z `pnpm@11` (≥ 22.13; najlepiej ten sam major co CI/`.nvmrc`, obecnie 24), inaczej `pnpm install` na EAS padnie jak przy Node 20.
-
-Po instalacji APK:
-
-```bash
-# terminal API
-pnpm --filter @moja-kuchnia/api dev
-
-# terminal Metro (dev client)
 pnpm --filter @moja-kuchnia/mobile exec expo start --dev-client
 ```
 
-Otwórz development build na telefonie i połącz z Metro (QR / URL). Wykonaj checklist smoke.
+## Wariant C — Preview APK (samodzielna aplikacja)
+
+**Nie buduj Preview**, dopóki produkcyjne API nie zawiera zmian z PR mobile (Expo auth, `mojakuchnia://`, migracja odpisu itd.).
+
+Po spełnieniu kolejności z [deploy-checklist.md](./deploy-checklist.md) → sekcja „Mobile Preview po merge”:
+
+```bash
+cd apps/mobile
+eas build -p android --profile preview
+```
+
+Instalacja APK zastąpi Development Build (`versionCode: 2`). Aplikacja startuje offline względem Metro i woła Railway HTTPS.
 
 ## Stan agenta
 

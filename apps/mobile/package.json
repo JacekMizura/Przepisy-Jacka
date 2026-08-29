@@ -18,6 +18,7 @@
     "config:production": "node ./scripts/expo-config-profile.mjs production",
     "config:preview": "node ./scripts/expo-config-profile.mjs preview",
     "export:android": "expo export --platform android --output-dir dist-android",
+    "export:android:preview": "node ./scripts/export-android-preview.mjs",
     "export:ios": "expo export --platform ios --output-dir dist-ios"
   },
   "dependencies": {

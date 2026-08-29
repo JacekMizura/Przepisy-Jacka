@@ -8,6 +8,7 @@ import {
   NutritionDataSource,
   ProductPurchaseMode,
   ProductUnit,
+  ShoppingListItemStatus,
   StorageLocation,
   type MediaAsset,
   type Product,
@@ -129,10 +130,21 @@ export class StockService {
     private readonly mediaService: MediaService,
   ) {}
 
-  async listProducts(userId: string, kitchenId: string): Promise<ProductDto[]> {
+  async listProducts(
+    userId: string,
+    kitchenId: string,
+    archiveFilter: 'active' | 'archived' | 'all' = 'active',
+  ): Promise<ProductDto[]> {
     await requireKitchenMember(this.prisma, kitchenId, userId);
     const products = await this.prisma.product.findMany({
-      where: { kitchenId },
+      where: {
+        kitchenId,
+        ...(archiveFilter === 'active'
+          ? { archivedAt: null }
+          : archiveFilter === 'archived'
+            ? { archivedAt: { not: null } }
+            : {}),
+      },
       include: productInclude,
       orderBy: [{ category: 'asc' }, { name: 'asc' }],
     });
@@ -155,6 +167,24 @@ export class StockService {
     const ean = normalizeOptionalEan(dto.ean);
     const imageUrl = normalizeOptionalImageUrl(dto.imageUrl);
     const category = normalizeOptionalCategory(dto.category);
+
+    const archivedByName = await this.prisma.product.findFirst({
+      where: { kitchenId, normalizedName, archivedAt: { not: null } },
+      select: { id: true },
+    });
+    if (archivedByName) {
+      throw archivedProductNameConflict(archivedByName.id);
+    }
+    if (ean) {
+      const archivedByEan = await this.prisma.product.findFirst({
+        where: { kitchenId, ean, archivedAt: { not: null } },
+        select: { id: true },
+      });
+      if (archivedByEan) {
+        throw archivedProductNameConflict(archivedByEan.id);
+      }
+    }
+
     try {
       const product = await this.prisma.product.create({
         data: {
@@ -410,22 +440,105 @@ export class StockService {
     userId: string,
     kitchenId: string,
     productId: string,
-    confirmCascade: boolean,
-  ): Promise<void> {
+    options: { permanent?: boolean } = {},
+  ): Promise<ProductDto | void> {
     await requireKitchenMember(this.prisma, kitchenId, userId);
     const product = await this.prisma.product.findFirst({
       where: { id: productId, kitchenId },
-      include: { _count: { select: { stockItems: true } } },
+      include: {
+        _count: {
+          select: {
+            stockItems: true,
+            purchaseLineItems: true,
+            stockConsumptions: true,
+            recipeIngredients: true,
+            shoppingListItems: true,
+            purchaseOptions: true,
+          },
+        },
+      },
     });
     if (!product) {
       throw new BadRequestException('Nie znaleziono produktu.');
     }
-    if (product._count.stockItems > 0 && !confirmCascade) {
+
+    if (options.permanent) {
+      const hasHistory =
+        product._count.stockItems > 0 ||
+        product._count.purchaseLineItems > 0 ||
+        product._count.stockConsumptions > 0 ||
+        product._count.recipeIngredients > 0 ||
+        product._count.shoppingListItems > 0 ||
+        product._count.purchaseOptions > 0 ||
+        product.archivedAt !== null;
+      if (hasHistory) {
+        throw new ConflictException(
+          'Trwałe usunięcie jest dozwolone wyłącznie dla produktu nigdy nieużytego i bez archiwum. Użyj archiwizacji.',
+        );
+      }
+      const nutrition = await this.prisma.productNutrition.findUnique({
+        where: { productId: product.id },
+        select: { productId: true },
+      });
+      if (nutrition) {
+        throw new ConflictException(
+          'Trwałe usunięcie jest dozwolone wyłącznie dla produktu nigdy nieużytego. Użyj archiwizacji.',
+        );
+      }
+      try {
+        await this.prisma.product.delete({ where: { id: product.id } });
+      } catch (error) {
+        throw toProductWriteError(error);
+      }
+      return;
+    }
+
+    if (product.archivedAt) {
+      throw new ConflictException('Produkt jest już zarchiwizowany.');
+    }
+
+    const pendingShopping = await this.prisma.shoppingListItem.count({
+      where: {
+        productId: product.id,
+        status: ShoppingListItemStatus.pending,
+        shoppingList: { kitchenId },
+      },
+    });
+    if (pendingShopping > 0) {
       throw new ConflictException(
-        'Produkt ma partie zapasów. Potwierdź usunięcie kaskadowe.',
+        'Produkt ma oczekującą pozycję na liście zakupów. Usuń lub rozlicz ją przed archiwizacją.',
       );
     }
-    await this.prisma.product.delete({ where: { id: product.id } });
+
+    const archived = await this.prisma.product.update({
+      where: { id: product.id },
+      data: { archivedAt: new Date() },
+      include: productInclude,
+    });
+    return this.toProductDtoWithMedia(archived);
+  }
+
+  async restoreProduct(
+    userId: string,
+    kitchenId: string,
+    productId: string,
+  ): Promise<ProductDto> {
+    await requireKitchenMember(this.prisma, kitchenId, userId);
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, kitchenId },
+    });
+    if (!product) {
+      throw new BadRequestException('Nie znaleziono produktu.');
+    }
+    if (!product.archivedAt) {
+      throw new ConflictException('Produkt nie jest zarchiwizowany.');
+    }
+    const restored = await this.prisma.product.update({
+      where: { id: product.id },
+      data: { archivedAt: null },
+      include: productInclude,
+    });
+    return this.toProductDtoWithMedia(restored);
   }
 
   async listStockItems(
@@ -463,6 +576,7 @@ export class StockService {
     if (!product) {
       throw new BadRequestException('Nie znaleziono produktu w tej kuchni.');
     }
+    assertProductNotArchived(product);
     const quantity = parseQuantityString(dto.quantity, 'quantity');
     assertStockQuantities(quantity, quantity);
     const priceMinor =
@@ -584,6 +698,7 @@ export class StockService {
           productName: item.product.name,
           defaultUnit: item.product.defaultUnit,
           category: item.product.category,
+          isArchived: item.product.archivedAt !== null,
           totalQuantity: '0.000',
           batchCount: 0,
           expiringBatchCount: 0,
@@ -1251,7 +1366,32 @@ function toProductWriteError(error: unknown): Error {
     }
     return new ConflictException('Produkt o tej nazwie już istnieje w kuchni.');
   }
+  if (
+    error instanceof Prisma.PrismaClientKnownRequestError &&
+    (error.code === 'P2003' || error.code === 'P2014')
+  ) {
+    return new ConflictException(
+      'Nie można trwale usunąć produktu powiązanego z historią. Użyj archiwizacji.',
+    );
+  }
   return error instanceof Error ? error : new Error('Nieznany błąd zapisu.');
+}
+
+function archivedProductNameConflict(productId: string): ConflictException {
+  return new ConflictException({
+    code: 'PRODUCT_ARCHIVED_EXISTS',
+    productId,
+    message:
+      'Produkt o tej nazwie jest w archiwum. Przywróć go zamiast tworzyć nowy.',
+  });
+}
+
+function assertProductNotArchived(product: { archivedAt: Date | null }): void {
+  if (product.archivedAt !== null) {
+    throw new ConflictException(
+      'Produkt jest zarchiwizowany. Przywróć go, zanim dodasz nowe zakupy lub partie.',
+    );
+  }
 }
 
 type ProductWithRelations = Product & {
@@ -1278,6 +1418,8 @@ function toProductDto(
       ? toProductNutritionDto(product.nutrition)
       : null,
     category: product.category,
+    archivedAt: product.archivedAt?.toISOString() ?? null,
+    isArchived: product.archivedAt !== null,
     createdAt: product.createdAt.toISOString(),
     updatedAt: product.updatedAt.toISOString(),
     purchaseOptions: product.purchaseOptions?.map(toPurchaseOptionDto) ?? [],

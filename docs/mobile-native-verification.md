@@ -54,15 +54,16 @@ Logi: bez cookies, tokenów i sekretów. Zrzuty tylko z telefonu.
 
 ### Build i instalacja (po zgodzie na EAS)
 
-Stan przygotowania: CLI zalogowane; projekt Expo **nie** jest jeszcze powiązany z EAS (`extra.eas.projectId` brak) — pierwsze `eas build` wymaga `eas init` / linku projektu (osobna zgoda).
+Stan: projekt EAS `@jacekms-team/moja-kuchnia` jest powiązany (`owner` + `extra.eas.projectId` w `app.json`).
 
 ```bash
 cd apps/mobile
-# po powiązaniu projektu:
 eas build -p android --profile development
 ```
 
-Profil: `development` (`developmentClient: true`, `distribution: internal`, APK). Pakiet: `pl.mojakuchnia.app`. Scheme: `mojakuchnia`.
+Profil: `development` (`developmentClient: true`, `distribution: internal`, APK, **Node `22.14.0`** — minimum dla `pnpm@11.20.0` na EAS; lokalnie/CI nadal Node 24 z `engines` / `.nvmrc`). Pakiet: `pl.mojakuchnia.app`. Scheme: `mojakuchnia`.
+
+**Uwaga:** przyszłe profile `preview` / `production` w `eas.json` też muszą ustawić Node zgodny z `pnpm@11` (≥ 22.13; najlepiej ten sam major co CI/`.nvmrc`, obecnie 24), inaczej `pnpm install` na EAS padnie jak przy Node 20.
 
 Po instalacji APK:
 

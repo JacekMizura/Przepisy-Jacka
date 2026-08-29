@@ -1506,6 +1506,251 @@
         ]
       }
     },
+    "/api/kitchens/{kitchenId}/stock-summary": {
+      "get": {
+        "operationId": "StockController_listStockSummary",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "location",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "enum": [
+                "pantry",
+                "fridge",
+                "freezer",
+                "other"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StockProductSummaryDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Zbiorczy widok zapasów pogrupowany po produkcie (z partiami)",
+        "tags": [
+          "stock"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/products/{productId}/consume/preview": {
+      "post": {
+        "operationId": "StockController_previewConsume",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsumeStockPreviewDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsumeStockPreviewResultDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Podgląd zużycia zapasu (FIFO, bez zapisu)",
+        "tags": [
+          "stock"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/products/{productId}/consume": {
+      "post": {
+        "operationId": "StockController_commitConsume",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConsumeStockCommitDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockConsumptionResultDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Zatwierdzenie zużycia zapasu (idempotentne)",
+        "tags": [
+          "stock"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/stock-consumptions": {
+      "get": {
+        "operationId": "StockController_listConsumptions",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/StockConsumptionResultDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Historia zużyć zapasów w kuchni",
+        "tags": [
+          "stock"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/stock-consumptions/{consumptionId}/reverse": {
+      "post": {
+        "operationId": "StockController_reverseConsumption",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "consumptionId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReverseConsumptionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StockConsumptionResultDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Cofnięcie wcześniejszego zużycia",
+        "tags": [
+          "stock"
+        ]
+      }
+    },
     "/api/kitchens/{kitchenId}/shopping-list/items": {
       "get": {
         "operationId": "ShoppingController_listShoppingListItems",
@@ -3506,8 +3751,9 @@
             "nullable": true
           },
           "purchasePriceMinor": {
-            "type": "number",
-            "example": 599
+            "type": "object",
+            "example": 599,
+            "nullable": true
           },
           "currency": {
             "type": "string",
@@ -3538,7 +3784,6 @@
           "location",
           "expiresAt",
           "purchasedAt",
-          "purchasePriceMinor",
           "currency",
           "ean",
           "imageUrl",
@@ -3575,9 +3820,10 @@
             "format": "date-time"
           },
           "purchasePriceMinor": {
-            "type": "number",
+            "type": "object",
             "example": 599,
-            "description": "Łączna cena zakupu początkowej partii w groszach."
+            "nullable": true,
+            "description": "Łączna cena zakupu początkowej partii w groszach; pominięcie = nieznana cena."
           },
           "currency": {
             "type": "string",
@@ -3598,17 +3844,12 @@
         "required": [
           "productId",
           "quantity",
-          "location",
-          "purchasePriceMinor"
+          "location"
         ]
       },
       "UpdateStockItemDto": {
         "type": "object",
         "properties": {
-          "quantity": {
-            "type": "string",
-            "example": "200.000"
-          },
           "location": {
             "type": "string",
             "enum": [
@@ -3641,6 +3882,379 @@
             "nullable": true
           }
         }
+      },
+      "StockBatchDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "string"
+          },
+          "initialQuantity": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string",
+            "enum": [
+              "pantry",
+              "fridge",
+              "freezer",
+              "other"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "purchasedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "purchasePriceMinor": {
+            "type": "number",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "example": "PLN"
+          },
+          "unitPriceMinor": {
+            "type": "number",
+            "nullable": true
+          },
+          "storeName": {
+            "type": "string",
+            "nullable": true
+          },
+          "purchaseId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "receiptMediaId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "isExpired": {
+            "type": "boolean"
+          },
+          "canDelete": {
+            "type": "boolean",
+            "description": "Czy fizyczne usunięcie jest dozwolone (tylko ręczna, niepowiązana, nigdy nieużyta partia)."
+          },
+          "deleteBlockReason": {
+            "type": "string",
+            "nullable": true,
+            "description": "Powód blokady usunięcia; null gdy canDelete=true."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "quantity",
+          "initialQuantity",
+          "location",
+          "currency",
+          "isExpired",
+          "canDelete",
+          "createdAt"
+        ]
+      },
+      "StockProductSummaryDto": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "productName": {
+            "type": "string"
+          },
+          "defaultUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ]
+          },
+          "category": {
+            "type": "string",
+            "nullable": true
+          },
+          "totalQuantity": {
+            "type": "string"
+          },
+          "batchCount": {
+            "type": "number"
+          },
+          "expiringBatchCount": {
+            "type": "number"
+          },
+          "nearestExpiry": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "batches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StockBatchDetailDto"
+            }
+          }
+        },
+        "required": [
+          "productId",
+          "productName",
+          "defaultUnit",
+          "totalQuantity",
+          "batchCount",
+          "expiringBatchCount",
+          "batches"
+        ]
+      },
+      "ManualConsumeLineDto": {
+        "type": "object",
+        "properties": {
+          "stockItemId": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "string",
+            "example": "100.000"
+          }
+        },
+        "required": [
+          "stockItemId",
+          "quantity"
+        ]
+      },
+      "ConsumeStockPreviewDto": {
+        "type": "object",
+        "properties": {
+          "quantity": {
+            "type": "string",
+            "example": "600.000"
+          },
+          "manualLines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ManualConsumeLineDto"
+            }
+          }
+        },
+        "required": [
+          "quantity"
+        ]
+      },
+      "ConsumeAllocationLineDto": {
+        "type": "object",
+        "properties": {
+          "stockItemId": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "string"
+          },
+          "costMinor": {
+            "type": "number",
+            "nullable": true
+          },
+          "storeName": {
+            "type": "string",
+            "nullable": true
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "purchasedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "remainingQuantity": {
+            "type": "string"
+          },
+          "purchasePriceMinor": {
+            "type": "number",
+            "nullable": true
+          },
+          "isExpired": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "stockItemId",
+          "quantity"
+        ]
+      },
+      "ConsumeStockPreviewResultDto": {
+        "type": "object",
+        "properties": {
+          "quantity": {
+            "type": "string"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConsumeAllocationLineDto"
+            }
+          },
+          "totalQuantity": {
+            "type": "string"
+          },
+          "totalCostMinor": {
+            "type": "number",
+            "nullable": true
+          },
+          "costComplete": {
+            "type": "boolean"
+          },
+          "previewFingerprint": {
+            "type": "string"
+          },
+          "insufficientQuantity": {
+            "type": "string",
+            "nullable": true
+          },
+          "disclaimer": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "quantity",
+          "lines",
+          "totalQuantity",
+          "costComplete",
+          "previewFingerprint",
+          "disclaimer"
+        ]
+      },
+      "ConsumeStockCommitDto": {
+        "type": "object",
+        "properties": {
+          "quantity": {
+            "type": "string",
+            "example": "600.000"
+          },
+          "manualLines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ManualConsumeLineDto"
+            }
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "description": "Klucz idempotencji żądania zużycia."
+          },
+          "previewFingerprint": {
+            "type": "string",
+            "description": "Odcisk partii z podglądu — wymagany przy zatwierdzeniu propozycji FIFO."
+          }
+        },
+        "required": [
+          "quantity",
+          "idempotencyKey",
+          "previewFingerprint"
+        ]
+      },
+      "StockConsumptionLineDto": {
+        "type": "object",
+        "properties": {
+          "stockItemId": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "string"
+          },
+          "costMinor": {
+            "type": "number",
+            "nullable": true
+          },
+          "storeName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "stockItemId",
+          "quantity"
+        ]
+      },
+      "StockConsumptionResultDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "productId": {
+            "type": "string"
+          },
+          "productName": {
+            "type": "string"
+          },
+          "totalQuantity": {
+            "type": "string"
+          },
+          "totalCostMinor": {
+            "type": "number",
+            "nullable": true
+          },
+          "costComplete": {
+            "type": "boolean"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StockConsumptionLineDto"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "reversesConsumptionId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "isReversal": {
+            "type": "boolean"
+          },
+          "isReversed": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "productId",
+          "totalQuantity",
+          "costComplete",
+          "lines",
+          "createdAt",
+          "isReversal",
+          "isReversed"
+        ]
+      },
+      "ReverseConsumptionDto": {
+        "type": "object",
+        "properties": {
+          "idempotencyKey": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ]
       },
       "ShoppingListItemProductDto": {
         "type": "object",

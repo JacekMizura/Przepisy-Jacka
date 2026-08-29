@@ -40,6 +40,14 @@ import {
   StockItemDto,
   UpdateStockItemDto,
 } from './dto/stock-item.dto';
+import {
+  ConsumeStockCommitDto,
+  ConsumeStockPreviewDto,
+  ConsumeStockPreviewResultDto,
+  ReverseConsumptionDto,
+  StockConsumptionResultDto,
+} from './dto/stock-consume.dto';
+import { StockProductSummaryDto } from './dto/stock-summary.dto';
 import { StockService } from './stock.service';
 
 @ApiTags('stock')
@@ -267,6 +275,90 @@ export class StockController {
       kitchenId,
       stockItemId,
       body,
+    );
+  }
+
+  @Get('stock-summary')
+  @ApiOperation({
+    summary: 'Zbiorczy widok zapasów pogrupowany po produkcie (z partiami)',
+  })
+  @ApiQuery({ name: 'productId', required: false })
+  @ApiQuery({ name: 'location', required: false, enum: StorageLocation })
+  @ApiOkResponse({ type: [StockProductSummaryDto] })
+  listStockSummary(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Query('productId') productId?: string,
+    @Query('location') location?: StorageLocation,
+  ): Promise<StockProductSummaryDto[]> {
+    return this.stockService.listStockSummary(session.user.id, kitchenId, {
+      productId,
+      location,
+    });
+  }
+
+  @Post('products/:productId/consume/preview')
+  @ApiOperation({ summary: 'Podgląd zużycia zapasu (FIFO, bez zapisu)' })
+  @ApiOkResponse({ type: ConsumeStockPreviewResultDto })
+  previewConsume(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Param('productId', ParseUUIDPipe) productId: string,
+    @Body() body: ConsumeStockPreviewDto,
+  ): Promise<ConsumeStockPreviewResultDto> {
+    return this.stockService.previewConsumeStock(
+      session.user.id,
+      kitchenId,
+      productId,
+      body,
+    );
+  }
+
+  @Post('products/:productId/consume')
+  @ApiOperation({ summary: 'Zatwierdzenie zużycia zapasu (idempotentne)' })
+  @ApiOkResponse({ type: StockConsumptionResultDto })
+  commitConsume(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Param('productId', ParseUUIDPipe) productId: string,
+    @Body() body: ConsumeStockCommitDto,
+  ): Promise<StockConsumptionResultDto> {
+    return this.stockService.commitConsumeStock(
+      session.user.id,
+      kitchenId,
+      productId,
+      body,
+    );
+  }
+
+  @Get('stock-consumptions')
+  @ApiOperation({ summary: 'Historia zużyć zapasów w kuchni' })
+  @ApiQuery({ name: 'productId', required: false })
+  @ApiOkResponse({ type: [StockConsumptionResultDto] })
+  listConsumptions(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Query('productId') productId?: string,
+  ): Promise<StockConsumptionResultDto[]> {
+    return this.stockService.listConsumptions(session.user.id, kitchenId, {
+      productId,
+    });
+  }
+
+  @Post('stock-consumptions/:consumptionId/reverse')
+  @ApiOperation({ summary: 'Cofnięcie wcześniejszego zużycia' })
+  @ApiOkResponse({ type: StockConsumptionResultDto })
+  reverseConsumption(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Param('consumptionId', ParseUUIDPipe) consumptionId: string,
+    @Body() body: ReverseConsumptionDto,
+  ): Promise<StockConsumptionResultDto> {
+    return this.stockService.reverseConsumption(
+      session.user.id,
+      kitchenId,
+      consumptionId,
+      body.idempotencyKey,
     );
   }
 

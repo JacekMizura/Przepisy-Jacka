@@ -224,17 +224,17 @@ describe('Products and stock (e2e)', () => {
     expect(item.quantity).toBe('500.000');
     expect(item.purchasePriceMinor).toBe(599);
 
-    const tooMuch = await apiFetch(
+    const quantityPatchRejected = await apiFetch(
       api.origin,
       `/api/kitchens/${kitchenA.id}/stock-items/${item.id}`,
       {
         method: 'PATCH',
         webOrigin: WEB_ORIGIN,
         cookies: ownerA.cookies,
-        body: { quantity: '500.001' },
+        body: { quantity: '200.000' },
       },
     );
-    expect(tooMuch.status).toBe(400);
+    expect(quantityPatchRejected.status).toBe(400);
 
     const updated = await apiFetch(
       api.origin,
@@ -243,7 +243,7 @@ describe('Products and stock (e2e)', () => {
         method: 'PATCH',
         webOrigin: WEB_ORIGIN,
         cookies: ownerA.cookies,
-        body: { quantity: '200.000', location: 'freezer' },
+        body: { location: 'freezer' },
       },
     );
     expect(updated.status).toBe(200);
@@ -253,7 +253,7 @@ describe('Products and stock (e2e)', () => {
       purchasePriceMinor: number;
       location: string;
     };
-    expect(updatedBody.quantity).toBe('200.000');
+    expect(updatedBody.quantity).toBe('500.000');
     expect(updatedBody.initialQuantity).toBe('500.000');
     expect(updatedBody.purchasePriceMinor).toBe(599);
     expect(updatedBody.location).toBe('freezer');

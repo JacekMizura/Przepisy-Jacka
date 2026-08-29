@@ -38,14 +38,6 @@
       "expo-dev-client",
       "expo-secure-store",
       [
-        "expo-build-properties",
-        {
-          "android": {
-            "usesCleartextTraffic": true
-          }
-        }
-      ],
-      [
         "expo-image-picker",
         {
           "photosPermission": "Moja Kuchnia potrzebuje galerii do zdjęć produktów i paragonów.",
@@ -63,6 +55,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "owner": "jacekms-team",
+    "extra": {
+      "eas": {
+        "projectId": "33203e20-caf1-4aa3-bac9-c881a67b2553"
+      }
     }
   }
 }

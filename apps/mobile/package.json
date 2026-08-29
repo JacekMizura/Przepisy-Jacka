@@ -14,6 +14,9 @@
     "test": "jest",
     "doctor": "npx expo-doctor",
     "expo-doctor": "npx expo-doctor",
+    "config:development": "node ./scripts/expo-config-profile.mjs development",
+    "config:production": "node ./scripts/expo-config-profile.mjs production",
+    "config:preview": "node ./scripts/expo-config-profile.mjs preview",
     "export:android": "expo export --platform android --output-dir dist-android",
     "export:ios": "expo export --platform ios --output-dir dist-ios"
   },

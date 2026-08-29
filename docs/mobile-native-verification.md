@@ -48,7 +48,7 @@ Logi: bez cookies, tokenów i sekretów. Zrzuty tylko z telefonu.
 1. `ipconfig` → IPv4 PC (np. `192.168.0.42`).
 2. Firewall Windows: zezwól na przychodzący TCP `3001` (profil sieci prywatnej).
 3. `apps/mobile/.env`: `EXPO_PUBLIC_API_URL=http://192.168.0.42:3001` (Twój IP).
-4. Cleartext HTTP dla lokalnego `http://` jest włączony przez plugin `expo-build-properties` (`usesCleartextTraffic`) — tylko pod lokalne testy.
+4. Cleartext HTTP dla lokalnego `http://` jest włączany **tylko** przy profilu EAS `development` (`app.config.ts` + `expo-build-properties`). Preview/production → wyłączony.
 
 **Opcjonalny tunel HTTPS** (Cloudflare Tunnel / ngrok): tylko gdy LAN nie działa. Tunel wystawia lokalne API publicznie — użyj jednorazowego URL, nie loguj sekretów, wyłącz po teście. **Nie uruchamiaj tunelu bez potwierdzenia.**
 

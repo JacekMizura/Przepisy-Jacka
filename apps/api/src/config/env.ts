@@ -147,12 +147,66 @@ export function parseCorsOrigins(origins: string): string[] {
     .filter((origin) => origin.length > 0);
 }
 
+/** Schematy zabronione w AUTH_TRUSTED_ORIGINS (Expo Go / lokalne / niebezpieczne). */
+const FORBIDDEN_TRUSTED_SCHEMES = new Set([
+  'exp',
+  'exps',
+  'file',
+  'javascript',
+  'data',
+  'blob',
+  'about',
+  'vbscript',
+]);
+
+/**
+ * Web: wyłącznie jawne http(s) originy (bez `*`).
+ * Mobile (Better Auth 1.7 Expo): wyłącznie dokładny schemat aplikacji
+ * w formie `nazwa://` (np. `mojakuchnia://`) — bez wildcardów, bez hosta
+ * i bez ścieżki. Brak Origin w żądaniu natywnym nie jest tu „autoryzacją”;
+ * lista trustedOrigins dotyczy tylko callbacków / deep-linków Better Auth.
+ */
 export function parseTrustedOrigins(origins: string): string[] {
   const parsed = parseCorsOrigins(origins);
-  if (parsed.some((origin) => origin.includes('*'))) {
-    throw new Error(
-      'AUTH_TRUSTED_ORIGINS nie może zawierać wildcardu. Podaj jawne originy weba.',
-    );
+  for (const origin of parsed) {
+    if (origin.includes('*')) {
+      throw new Error(
+        `AUTH_TRUSTED_ORIGINS: wildcard „*” jest zabroniony („${origin}”). Podaj jawne originy.`,
+      );
+    }
+
+    const isHttpOrigin =
+      origin.startsWith('http://') || origin.startsWith('https://');
+    if (isHttpOrigin) {
+      let url: URL;
+      try {
+        url = new URL(origin);
+      } catch {
+        throw new Error(
+          `AUTH_TRUSTED_ORIGINS: niepoprawny origin http(s) „${origin}”.`,
+        );
+      }
+      if (url.username || url.password) {
+        throw new Error(
+          `AUTH_TRUSTED_ORIGINS: origin http(s) nie może zawierać poświadczeń („${origin}”).`,
+        );
+      }
+      continue;
+    }
+
+    // Dokładnie `scheme://` — bez hosta, ścieżki, query ani fragmentu.
+    const deepLinkMatch = /^([a-z][a-z0-9+.-]*):\/\/$/i.exec(origin);
+    if (!deepLinkMatch) {
+      throw new Error(
+        `AUTH_TRUSTED_ORIGINS: niepoprawny origin „${origin}”. Oczekiwano http(s) URL albo dokładnego schematu aplikacji (np. mojakuchnia://).`,
+      );
+    }
+    const scheme = deepLinkMatch[1]!.toLowerCase();
+    if (FORBIDDEN_TRUSTED_SCHEMES.has(scheme)) {
+      throw new Error(
+        `AUTH_TRUSTED_ORIGINS: schemat „${scheme}:” jest zabroniony. Użyj schematu aplikacji z app.json (np. mojakuchnia://), nie Expo Go (exp://).`,
+      );
+    }
   }
   return parsed;
 }

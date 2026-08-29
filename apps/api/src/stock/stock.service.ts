@@ -64,6 +64,7 @@ import {
   unitPriceMinor,
   type StockBatchRow,
 } from './stock-consume';
+import { resolveStockConsumptionKindAndReason } from './stock-consumption-kind';
 
 const stockBatchInclude = {
   purchaseLineItem: {
@@ -778,6 +779,8 @@ export class StockService {
       return toStockConsumptionResultDto(existing);
     }
 
+    const { kind, reason } = resolveStockConsumptionKindAndReason(dto);
+
     const requested = parseQuantityString(dto.quantity, 'quantity');
     const manualLines = dto.manualLines?.map((line) => ({
       stockItemId: line.stockItemId,
@@ -832,6 +835,8 @@ export class StockService {
           kitchenId,
           productId,
           idempotencyKey: dto.idempotencyKey,
+          kind,
+          reason,
           totalQuantity: allocation.totalQuantity,
           totalCostMinor: allocation.totalCostMinor,
           costComplete: allocation.costComplete,
@@ -906,6 +911,8 @@ export class StockService {
           kitchenId,
           productId: original.productId,
           idempotencyKey,
+          kind: original.kind,
+          reason: original.reason,
           totalQuantity: original.totalQuantity,
           totalCostMinor: original.totalCostMinor,
           costComplete: original.costComplete,
@@ -1532,6 +1539,8 @@ function toStockConsumptionResultDto(
     id: consumption.id,
     productId: consumption.productId,
     productName: extras?.productName,
+    kind: consumption.kind,
+    reason: consumption.reason,
     totalQuantity: formatQuantity(consumption.totalQuantity),
     totalCostMinor: consumption.totalCostMinor,
     costComplete: consumption.costComplete,

@@ -1,4 +1,8 @@
-import { isMediaStorageConfigured, validateEnv } from './env';
+import {
+  isMediaStorageConfigured,
+  parseTrustedOrigins,
+  validateEnv,
+} from './env';
 
 describe('media storage env', () => {
   const base = {
@@ -43,5 +47,52 @@ describe('media storage env', () => {
       MEDIA_S3_SECRET_ACCESS_KEY: 'secret',
     });
     expect(isMediaStorageConfigured(env)).toBe(false);
+  });
+});
+
+describe('parseTrustedOrigins', () => {
+  it('akceptuje jawne http(s) oraz dokładny schemat aplikacji', () => {
+    expect(
+      parseTrustedOrigins(
+        'http://localhost:3000,https://przepisy-jacka-web.vercel.app,mojakuchnia://',
+      ),
+    ).toEqual([
+      'http://localhost:3000',
+      'https://przepisy-jacka-web.vercel.app',
+      'mojakuchnia://',
+    ]);
+  });
+
+  it('odrzuca dowolny wildcard', () => {
+    expect(() => parseTrustedOrigins('https://*.vercel.app')).toThrow(
+      /wildcard/,
+    );
+    expect(() => parseTrustedOrigins('mojakuchnia://*')).toThrow(/wildcard/);
+    expect(() => parseTrustedOrigins('exp://**')).toThrow(/wildcard/);
+    expect(() => parseTrustedOrigins('exp://192.168.*.*:*/**')).toThrow(
+      /wildcard/,
+    );
+  });
+
+  it('odrzuca zabronione schematy Expo Go i lokalne', () => {
+    expect(() => parseTrustedOrigins('exp://')).toThrow(/zabroniony/);
+    expect(() => parseTrustedOrigins('exps://')).toThrow(/zabroniony/);
+    expect(() => parseTrustedOrigins('file://')).toThrow(/zabroniony/);
+    expect(() => parseTrustedOrigins('javascript://')).toThrow(/zabroniony/);
+  });
+
+  it('odrzuca deep-link z hostem lub ścieżką', () => {
+    expect(() => parseTrustedOrigins('mojakuchnia://callback')).toThrow(
+      /niepoprawny origin/,
+    );
+    expect(() => parseTrustedOrigins('mojakuchnia://host/path')).toThrow(
+      /niepoprawny origin/,
+    );
+  });
+
+  it('odrzuca http(s) z poświadczeniami', () => {
+    expect(() => parseTrustedOrigins('https://user:pass@example.com')).toThrow(
+      /poświadczeń/,
+    );
   });
 });

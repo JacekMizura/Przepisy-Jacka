@@ -1418,6 +1418,16 @@ export interface components {
             idempotencyKey: string;
             /** @description Odcisk partii z podglądu — wymagany przy zatwierdzeniu propozycji FIFO. */
             previewFingerprint: string;
+            /**
+             * @description consume = zwykłe zużycie; write_off = odpis (wymaga reason). Pominięcie = consume (domyślnie).
+             * @enum {string}
+             */
+            kind?: "consume" | "write_off";
+            /**
+             * @description Powód odpisu (wymagany dla write_off, max 200 znaków po trimie).
+             * @example Przeterminowane — wyrzucone
+             */
+            reason?: string;
         };
         StockConsumptionLineDto: {
             stockItemId: string;
@@ -1429,6 +1439,9 @@ export interface components {
             id: string;
             productId: string;
             productName?: string;
+            /** @enum {string} */
+            kind: "consume" | "write_off";
+            reason?: string | null;
             totalQuantity: string;
             totalCostMinor?: number | null;
             costComplete: boolean;

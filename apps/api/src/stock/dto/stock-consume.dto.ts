@@ -1,13 +1,21 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
+  IsIn,
   IsOptional,
   IsString,
   IsUUID,
+  MaxLength,
   MinLength,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+
+export const STOCK_CONSUMPTION_KINDS = ['consume', 'write_off'] as const;
+export type StockConsumptionKindValue =
+  (typeof STOCK_CONSUMPTION_KINDS)[number];
+
+export const STOCK_CONSUMPTION_REASON_MAX_LENGTH = 200;
 
 export class ManualConsumeLineDto {
   @ApiProperty()
@@ -34,6 +42,14 @@ export class ConsumeStockPreviewDto {
   manualLines?: ManualConsumeLineDto[];
 }
 
+function trimReason(value: unknown): unknown {
+  if (typeof value !== 'string') {
+    return value;
+  }
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? undefined : trimmed;
+}
+
 export class ConsumeStockCommitDto extends ConsumeStockPreviewDto {
   @ApiProperty({ description: 'Klucz idempotencji żądania zużycia.' })
   @IsString()
@@ -47,6 +63,29 @@ export class ConsumeStockCommitDto extends ConsumeStockPreviewDto {
   @IsString()
   @MinLength(8)
   previewFingerprint!: string;
+
+  @ApiPropertyOptional({
+    enum: STOCK_CONSUMPTION_KINDS,
+    required: false,
+    description:
+      'consume = zwykłe zużycie; write_off = odpis (wymaga reason). Pominięcie = consume (domyślnie).',
+  })
+  @IsOptional()
+  @IsIn(STOCK_CONSUMPTION_KINDS)
+  kind?: StockConsumptionKindValue;
+
+  @ApiPropertyOptional({
+    description:
+      'Powód odpisu (wymagany dla write_off, max 200 znaków po trimie).',
+    maxLength: STOCK_CONSUMPTION_REASON_MAX_LENGTH,
+    example: 'Przeterminowane — wyrzucone',
+    required: false,
+  })
+  @Transform(({ value }) => trimReason(value))
+  @IsOptional()
+  @IsString()
+  @MaxLength(STOCK_CONSUMPTION_REASON_MAX_LENGTH)
+  reason?: string;
 }
 
 export class ConsumeAllocationLineDto {
@@ -127,6 +166,12 @@ export class StockConsumptionResultDto {
 
   @ApiPropertyOptional({ type: String })
   productName?: string;
+
+  @ApiProperty({ enum: STOCK_CONSUMPTION_KINDS })
+  kind!: StockConsumptionKindValue;
+
+  @ApiPropertyOptional({ type: String, nullable: true })
+  reason!: string | null;
 
   @ApiProperty({ type: String })
   totalQuantity!: string;

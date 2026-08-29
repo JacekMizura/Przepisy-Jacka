@@ -4750,6 +4750,20 @@
           "previewFingerprint": {
             "type": "string",
             "description": "Odcisk partii z podglądu — wymagany przy zatwierdzeniu propozycji FIFO."
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "consume",
+              "write_off"
+            ],
+            "description": "consume = zwykłe zużycie; write_off = odpis (wymaga reason). Pominięcie = consume (domyślnie)."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Powód odpisu (wymagany dla write_off, max 200 znaków po trimie).",
+            "maxLength": 200,
+            "example": "Przeterminowane — wyrzucone"
           }
         },
         "required": [
@@ -4793,6 +4807,17 @@
           "productName": {
             "type": "string"
           },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "consume",
+              "write_off"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          },
           "totalQuantity": {
             "type": "string"
           },
@@ -4828,6 +4853,7 @@
         "required": [
           "id",
           "productId",
+          "kind",
           "totalQuantity",
           "costComplete",
           "lines",

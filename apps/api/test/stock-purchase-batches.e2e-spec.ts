@@ -911,4 +911,223 @@ describe('Stock purchase batches and consumption (e2e)', () => {
     );
     expect(foreignOwner.status).toBe(404);
   });
+
+  it('write_off requires reason, persists kind/reason, reverses and is idempotent', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+    const outsider = await signUpUser(api.origin, WEB_ORIGIN);
+    const { kitchen, product } = await createKitchenWithTomatoes(owner.cookies);
+    const batchA = await createBatch(kitchen.id, owner.cookies, {
+      productId: product.id,
+      quantity: '50.000',
+      purchasePriceMinor: 100,
+    });
+    const batchB = await createBatch(kitchen.id, owner.cookies, {
+      productId: product.id,
+      quantity: '50.000',
+      purchasePriceMinor: 200,
+    });
+
+    const missingReasonPreview = (
+      await apiFetch(
+        api.origin,
+        `/api/kitchens/${kitchen.id}/products/${product.id}/consume/preview`,
+        {
+          method: 'POST',
+          webOrigin: WEB_ORIGIN,
+          cookies: owner.cookies,
+          body: {
+            quantity: '30.000',
+            manualLines: [
+              { stockItemId: batchA.id, quantity: '20.000' },
+              { stockItemId: batchB.id, quantity: '10.000' },
+            ],
+          },
+        },
+      )
+    ).body as ConsumePreview;
+
+    const withoutReason = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/products/${product.id}/consume`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          quantity: '30.000',
+          kind: 'write_off',
+          idempotencyKey: `wo-noreason-${crypto.randomUUID()}`,
+          previewFingerprint: missingReasonPreview.previewFingerprint,
+          manualLines: [
+            { stockItemId: batchA.id, quantity: '20.000' },
+            { stockItemId: batchB.id, quantity: '10.000' },
+          ],
+        },
+      },
+    );
+    expect(withoutReason.status).toBe(400);
+
+    const preview = (
+      await apiFetch(
+        api.origin,
+        `/api/kitchens/${kitchen.id}/products/${product.id}/consume/preview`,
+        {
+          method: 'POST',
+          webOrigin: WEB_ORIGIN,
+          cookies: owner.cookies,
+          body: {
+            quantity: '30.000',
+            manualLines: [
+              { stockItemId: batchA.id, quantity: '20.000' },
+              { stockItemId: batchB.id, quantity: '10.000' },
+            ],
+          },
+        },
+      )
+    ).body as ConsumePreview;
+
+    const idempotencyKey = `wo-${crypto.randomUUID()}`;
+    const commitBody = {
+      quantity: '30.000',
+      kind: 'write_off' as const,
+      reason: '  zepsute po terminie  ',
+      idempotencyKey,
+      previewFingerprint: preview.previewFingerprint,
+      manualLines: [
+        { stockItemId: batchA.id, quantity: '20.000' },
+        { stockItemId: batchB.id, quantity: '10.000' },
+      ],
+    };
+
+    const first = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/products/${product.id}/consume`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: commitBody,
+      },
+    );
+    expect([200, 201]).toContain(first.status);
+    const consumption = first.body as ConsumptionResult & {
+      kind: string;
+      reason: string | null;
+      lines: Array<{ stockItemId: string }>;
+    };
+    expect(consumption.kind).toBe('write_off');
+    expect(consumption.reason).toBe('zepsute po terminie');
+    expect(consumption.lines).toHaveLength(2);
+
+    const second = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/products/${product.id}/consume`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: commitBody,
+      },
+    );
+    expect([200, 201]).toContain(second.status);
+    expect((second.body as { id: string }).id).toBe(consumption.id);
+
+    const listed = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/stock-consumptions?productId=${product.id}`,
+      { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
+    );
+    expect(listed.status).toBe(200);
+    const entry = (
+      listed.body as Array<{ id: string; kind: string; reason: string | null }>
+    ).find((row) => row.id === consumption.id);
+    expect(entry?.kind).toBe('write_off');
+    expect(entry?.reason).toBe('zepsute po terminie');
+
+    const foreignKitchen = await apiFetch(api.origin, '/api/kitchens', {
+      method: 'POST',
+      webOrigin: WEB_ORIGIN,
+      cookies: outsider.cookies,
+      body: { name: 'Obca-odpis' },
+    });
+    const otherKitchenId = (foreignKitchen.body as { id: string }).id;
+    const cross = await apiFetch(
+      api.origin,
+      `/api/kitchens/${otherKitchenId}/stock-consumptions/${consumption.id}/reverse`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: outsider.cookies,
+        body: { idempotencyKey: `rev-cross-${crypto.randomUUID()}` },
+      },
+    );
+    expect([400, 404]).toContain(cross.status);
+
+    const reverse = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/stock-consumptions/${consumption.id}/reverse`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: { idempotencyKey: `rev-wo-${crypto.randomUUID()}` },
+      },
+    );
+    expect([200, 201]).toContain(reverse.status);
+    const reversal = reverse.body as {
+      kind: string;
+      reason: string | null;
+      isReversal: boolean;
+    };
+    expect(reversal.isReversal).toBe(true);
+    expect(reversal.kind).toBe('write_off');
+    expect(reversal.reason).toBe('zepsute po terminie');
+
+    const summary = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/stock-summary`,
+      { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
+    );
+    expect((summary.body as StockSummary[])[0]?.totalQuantity).toBe('100.000');
+  });
+
+  it('consume without kind/reason still works (backward compatible)', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+    const { kitchen, product } = await createKitchenWithTomatoes(owner.cookies);
+    await createBatch(kitchen.id, owner.cookies, {
+      productId: product.id,
+      quantity: '20.000',
+      purchasePriceMinor: 50,
+    });
+    const preview = (
+      await apiFetch(
+        api.origin,
+        `/api/kitchens/${kitchen.id}/products/${product.id}/consume/preview`,
+        {
+          method: 'POST',
+          webOrigin: WEB_ORIGIN,
+          cookies: owner.cookies,
+          body: { quantity: '5.000' },
+        },
+      )
+    ).body as ConsumePreview;
+    const commit = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/products/${product.id}/consume`,
+      {
+        method: 'POST',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          quantity: '5.000',
+          idempotencyKey: `legacy-${crypto.randomUUID()}`,
+          previewFingerprint: preview.previewFingerprint,
+        },
+      },
+    );
+    expect([200, 201]).toContain(commit.status);
+    const body = commit.body as { kind: string; reason: string | null };
+    expect(body.kind).toBe('consume');
+    expect(body.reason).toBeNull();
+  });
 });

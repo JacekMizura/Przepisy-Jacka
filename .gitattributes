@@ -1,0 +1,2 @@
+# USDA catalog integrity hashes require exact LF bytes (see usda:check-catalog).
+apps/api/data/usda-catalog/** text eol=lf

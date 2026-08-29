@@ -42,11 +42,12 @@ Weryfikacja same-origin: `pnpm test:auth-blackbox` uruchamia prawdziwy NestJS or
 
 ### `apps/mobile`
 
-- uproszczone UI codziennych funkcji,
-- te same konta i to samo API,
-- bezpieczne przechowywanie danych sesji (`expo-secure-store`).
-
-W tym etapie mobile nie zostało zmienione funkcjonalnie.
+- uproszczone UI codziennych funkcji (Expo Router),
+- te same konta i to samo API (`EXPO_PUBLIC_API_URL` → origin Railway/API, bez proxy Next),
+- sesja Better Auth z pluginem Expo: cookies w `expo-secure-store`, wywołania domenowe z nagłówkiem `Cookie` i `credentials: omit`,
+- aktywna kuchnia w SecureStore; przy zmianie kuchni cache React Query jest czyszczony,
+- zapasy (podsumowanie, partie, zużycie FIFO/ręczne, historia), lista zakupów i checkout z opcjonalnym paragonem (media R2),
+- zakładka przepisów na razie jako placeholder kolejnego etapu.
 
 ## Przepływ danych
 
@@ -62,7 +63,7 @@ W tym etapie mobile nie zostało zmienione funkcjonalnie.
 
 1. NestJS wystawia REST i generuje dokument OpenAPI.
 2. `pnpm api:generate` buduje typy i klienta w `packages/api-client`.
-3. Web i mobile importują ten klient dla endpointów domenowych. Klient Better Auth (`better-auth/react`) obsługuje `/api/auth/*` na tym samym originie weba.
+3. Web i mobile importują ten klient dla endpointów domenowych. Web: Better Auth (`better-auth/react`) na same-origin `/api/auth/*` przez proxy. Mobile: `better-auth/react` + `@better-auth/expo/client` z `baseURL = EXPO_PUBLIC_API_URL`.
 
 ## Współdzielić wolno
 
@@ -91,7 +92,7 @@ Cookies sesji:
 - `SameSite=Lax`,
 - `Secure` tylko w produkcji.
 
-`BETTER_AUTH_URL` to publiczny origin weba, nie origin Railway. `AUTH_TRUSTED_ORIGINS` zawiera wyłącznie jawne originy (localhost i produkcyjny URL weba). Brak wildcardu dla preview Vercela.
+`BETTER_AUTH_URL` to publiczny origin weba, nie origin Railway. `AUTH_TRUSTED_ORIGINS` zawiera wyłącznie jawne originy http(s) weba oraz dokładny schemat aplikacji mobilnej `mojakuchnia://` (bez `*`, bez hosta/ścieżki). Zabronione są m.in. `exp://`, `exps://`, `file:`, `javascript:` i wszelkie wildcardy — także w development; lokalny mobile powinien używać development build ze scheme z `app.json`, a nie otwierać produkcyjnego API na dowolne adresy Expo Go. Plugin serwerowy `expo()` z `@better-auth/expo` (Better Auth 1.7) jest wymagany dla klienta mobilnego. Brak nagłówka `Origin` w natywnym fetch nie jest traktowany jako zaufanie — sesja idzie przez Cookie z SecureStore.
 
 ## Model danych (ten etap)
 

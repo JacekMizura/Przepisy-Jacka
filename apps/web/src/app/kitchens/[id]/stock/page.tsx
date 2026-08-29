@@ -1558,6 +1558,15 @@ export default function StockPage() {
                         <div className="space-y-1">
                           <p className="font-medium text-gray-900">
                             {entry.productName ?? entry.productId}
+                            {entry.kind === "write_off" ? (
+                              <span className="ml-2 text-xs font-semibold text-rose-800">
+                                Odpis
+                              </span>
+                            ) : (
+                              <span className="ml-2 text-xs font-semibold text-gray-600">
+                                Zużycie
+                              </span>
+                            )}
                             {entry.isReversal ? (
                               <span className="ml-2 text-xs font-semibold text-amber-800">
                                 Cofnięcie
@@ -1569,6 +1578,11 @@ export default function StockPage() {
                               </span>
                             ) : null}
                           </p>
+                          {entry.reason ? (
+                            <p className="text-gray-700">
+                              Powód: {entry.reason}
+                            </p>
+                          ) : null}
                           <p className="text-gray-600">
                             {formatQuantityWithUnit(
                               entry.totalQuantity,

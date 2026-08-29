@@ -37,7 +37,7 @@ CLI `prisma` jest w `dependencies` pakietu `@moja-kuchnia/api`.
 | `CORS_ORIGINS` | `https://przepisy-jacka-web.vercel.app` |
 | `PUBLIC_WEB_ORIGIN` | `https://przepisy-jacka-web.vercel.app` |
 | `BETTER_AUTH_URL` | `https://przepisy-jacka-web.vercel.app` |
-| `AUTH_TRUSTED_ORIGINS` | `https://przepisy-jacka-web.vercel.app` |
+| `AUTH_TRUSTED_ORIGINS` | Najpierw wyłącznie `https://przepisy-jacka-web.vercel.app` (obecny origin Vercela). Dopisz `,mojakuchnia://` **dopiero po wdrożeniu wersji API**, która akceptuje dokładny schemat aplikacji (Better Auth `expo()` + walidacja w `parseTrustedOrigins`). Nie ustawiaj `mojakuchnia://` na Railway przed tym deployem. Bez `*`, bez `exp://`. |
 | `BETTER_AUTH_SECRET` | nowy trwały sekret (≥ 32 znaki), **nie** kopiuj z CI ani `.env.example` |
 | `ALLOW_DEMO_SEED` | `false` albo brak zmiennej |
 | `MEDIA_STORAGE_DRIVER` | `s3` (lub puste — wtedy S3 gdy pełna konfiguracja) |
@@ -99,3 +99,16 @@ Auth na preview wymaga osobnej decyzji o `AUTH_TRUSTED_ORIGINS` — brak wildcar
 2. Merge do `main` dopiero przy zielonym CI.
 3. Potwierdź `prisma migrate deploy` w logach release Railway (w tym seed katalogu USDA v1 — bez ręcznego `usda:sync-catalog`).
 4. Smoke: rejestracja / logowanie / `/api/me` przez origin weba.
+
+## Mobile Preview po merge (kolejność — nie pomijaj)
+
+Preview APK woła produkcyjne API. **Nie buduj** profilu `preview`, dopóki Railway nie ma API z PR mobile.
+
+1. Squash merge PR #21 (draft → ready → merge).
+2. Zielone CI na `main`.
+3. Railway: `prisma migrate deploy` (m.in. `20260829180000_stock_consumption_write_off`, `20260829190000_product_archived_at`) i start nowego API.
+4. Vercel: smoke weba (brak regresji).
+5. Railway: dopisz dokładne `mojakuchnia://` do istniejącego `AUTH_TRUSTED_ORIGINS`, **bez** usuwania originu Vercela.
+6. Ponowny deploy / restart API + `GET /api/health`.
+7. **Dopiero wtedy** jeden: `eas build -p android --profile preview` (APK, Node 24.13.0, HTTPS API, `versionCode: 2`).
+8. Instalacja Preview APK na telefonie i pełny smoke (bez Metro).

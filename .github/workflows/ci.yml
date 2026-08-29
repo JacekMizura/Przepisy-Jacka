@@ -121,3 +121,6 @@ jobs:
 
       - name: Mobile typecheck
         run: pnpm --filter @moja-kuchnia/mobile typecheck
+
+      - name: Mobile unit tests
+        run: pnpm --filter @moja-kuchnia/mobile test

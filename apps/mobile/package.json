@@ -12,8 +12,8 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "test": "jest",
-    "doctor": "expo-doctor",
-    "expo-doctor": "expo-doctor",
+    "doctor": "npx expo-doctor",
+    "expo-doctor": "npx expo-doctor",
     "export:android": "expo export --platform android --output-dir dist-android",
     "export:ios": "expo export --platform ios --output-dir dist-ios"
   },

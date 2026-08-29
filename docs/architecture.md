@@ -92,7 +92,7 @@ Cookies sesji:
 - `SameSite=Lax`,
 - `Secure` tylko w produkcji.
 
-`BETTER_AUTH_URL` to publiczny origin weba, nie origin Railway. `AUTH_TRUSTED_ORIGINS` zawiera jawne originy http(s) weba **oraz** schemat deep-link aplikacji (`mojakuchnia://`, opcjonalnie `mojakuchnia://*`). Wildcards w http(s) są zabronione (w tym preview Vercela). W `NODE_ENV=development` `create-auth` dokłada też `exp://` / `exp://**` dla Expo Go. Plugin serwerowy `expo()` z `@better-auth/expo` jest wymagany dla klienta mobilnego.
+`BETTER_AUTH_URL` to publiczny origin weba, nie origin Railway. `AUTH_TRUSTED_ORIGINS` zawiera wyłącznie jawne originy http(s) weba oraz dokładny schemat aplikacji mobilnej `mojakuchnia://` (bez `*`, bez hosta/ścieżki). Zabronione są m.in. `exp://`, `exps://`, `file:`, `javascript:` i wszelkie wildcardy — także w development; lokalny mobile powinien używać development build ze scheme z `app.json`, a nie otwierać produkcyjnego API na dowolne adresy Expo Go. Plugin serwerowy `expo()` z `@better-auth/expo` (Better Auth 1.7) jest wymagany dla klienta mobilnego. Brak nagłówka `Origin` w natywnym fetch nie jest traktowany jako zaufanie — sesja idzie przez Cookie z SecureStore.
 
 ## Model danych (ten etap)
 

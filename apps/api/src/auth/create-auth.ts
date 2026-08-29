@@ -10,20 +10,14 @@ export type AuthEnv = Pick<
   'NODE_ENV' | 'BETTER_AUTH_URL' | 'BETTER_AUTH_SECRET' | 'AUTH_TRUSTED_ORIGINS'
 >;
 
+/**
+ * Better Auth 1.7 + Expo: dokumentacja wymaga schematu aplikacji w
+ * `trustedOrigins` (deep-link po OAuth / callback). Schemat musi być
+ * jawnie podany w AUTH_TRUSTED_ORIGINS — bez auto-dopisywania wildcardów
+ * ani `exp://`.
+ */
 export function createAuth(prisma: PrismaClient, env: AuthEnv) {
-  const configuredOrigins = parseTrustedOrigins(env.AUTH_TRUSTED_ORIGINS);
-  const mobileDeepLinks = ['mojakuchnia://', 'mojakuchnia://*'] as const;
-  const developmentExpoOrigins =
-    env.NODE_ENV === 'development'
-      ? (['exp://', 'exp://**', 'exp://192.168.*.*:*/**'] as const)
-      : [];
-  const trustedOrigins = Array.from(
-    new Set([
-      ...configuredOrigins,
-      ...mobileDeepLinks,
-      ...developmentExpoOrigins,
-    ]),
-  );
+  const trustedOrigins = parseTrustedOrigins(env.AUTH_TRUSTED_ORIGINS);
   const useSecureCookies = env.NODE_ENV === 'production';
 
   return betterAuth({

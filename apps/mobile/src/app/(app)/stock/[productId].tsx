@@ -32,6 +32,7 @@ import {
   type StockBatch,
   type StockSummary,
 } from '@/lib/format';
+import { pickImage, uploadKitchenMedia } from '@/lib/media';
 import { useAuthKitchen } from '@/providers/auth-kitchen';
 import { ui } from '@/theme/ui';
 
@@ -41,6 +42,8 @@ export default function StockProductScreen() {
   const { kitchenId, signOut } = useAuthKitchen();
   const { productId } = useLocalSearchParams<{ productId: string }>();
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
 
   const query = useQuery({
     queryKey: ['stock-summary', kitchenId],
@@ -83,6 +86,49 @@ export default function StockProductScreen() {
       });
     },
   });
+
+  const attachProductPhoto = async (source: 'camera' | 'library') => {
+    if (!kitchenId || !product) {
+      return;
+    }
+    setPhotoError(null);
+    setPhotoBusy(true);
+    try {
+      const picked = await pickImage(source);
+      if (!picked.ok) {
+        if (picked.reason !== 'cancelled') {
+          setPhotoError(picked.message);
+        }
+        return;
+      }
+      const asset = await uploadKitchenMedia({
+        kitchenId,
+        image: picked.image,
+        purpose: 'product',
+        target: { productId: product.productId },
+      });
+      const client = createMobileApiClient();
+      const result = await client.POST(
+        '/api/kitchens/{kitchenId}/products/{productId}/image',
+        {
+          params: {
+            path: { kitchenId, productId: product.productId },
+          },
+          body: { mediaAssetId: asset.id },
+        },
+      );
+      if (apiStatus(result) === 401) {
+        await signOut();
+        throw new ApiRequestError(401, 'Sesja wygasła.');
+      }
+      requireApiData(result, 'Nie udało się przypisać zdjęcia produktu.');
+      Alert.alert('Gotowe', 'Zdjęcie produktu zostało zapisane.');
+    } catch (error) {
+      setPhotoError(readApiError(error, 'Nie udało się wysłać zdjęcia.'));
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
 
   if (!kitchenId || !productId) {
     return <EmptyState title="Brak produktu" />;
@@ -131,6 +177,25 @@ export default function StockProductScreen() {
             })
           }
         />
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <PrimaryButton
+            label={photoBusy ? 'Wysyłanie…' : 'Aparat'}
+            secondary
+            disabled={photoBusy}
+            onPress={() => void attachProductPhoto('camera')}
+          />
+          <PrimaryButton
+            label="Galeria"
+            secondary
+            disabled={photoBusy}
+            onPress={() => void attachProductPhoto('library')}
+          />
+        </View>
+        {photoError ? <Text style={ui.dangerText}>{photoError}</Text> : null}
+        <Text style={ui.muted}>
+          Zdjęcie trafia do katalogu produktu (API). Lista zapasów nie pokazuje
+          jeszcze miniatury — summary nie zwraca URL zdjęcia.
+        </Text>
         {product.batches.map((batch) => (
           <BatchCard
             key={batch.id}
@@ -212,6 +277,7 @@ function BatchCard({
       <Text style={ui.muted}>
         {batch.storeName ?? 'Sklep nieznany'} ·{' '}
         {formatMoneyMinor(batch.purchasePriceMinor)}
+        {batch.receiptMediaId ? ' · ma paragon' : ''}
       </Text>
       <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
         <Pressable

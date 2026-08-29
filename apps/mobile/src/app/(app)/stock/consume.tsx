@@ -328,6 +328,14 @@ export default function StockConsumeScreen() {
             ))}
           </View>
 
+          {mode === 'manual' ? (
+            <Text style={ui.muted}>
+              Tryb ręczny = jawny odpis z wybranych partii (w tym po terminie).
+              API nie przyjmuje osobnego pola „powód” — wybór partii i ilości
+              jest zapisem odpisu.
+            </Text>
+          ) : null}
+
           {mode === 'manual'
             ? product.batches.map((batch) => (
                 <View key={batch.id} style={ui.card}>

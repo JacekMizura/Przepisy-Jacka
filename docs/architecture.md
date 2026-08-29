@@ -42,11 +42,12 @@ Weryfikacja same-origin: `pnpm test:auth-blackbox` uruchamia prawdziwy NestJS or
 
 ### `apps/mobile`
 
-- uproszczone UI codziennych funkcji,
-- te same konta i to samo API,
-- bezpieczne przechowywanie danych sesji (`expo-secure-store`).
-
-W tym etapie mobile nie zostało zmienione funkcjonalnie.
+- uproszczone UI codziennych funkcji (Expo Router),
+- te same konta i to samo API (`EXPO_PUBLIC_API_URL` → origin Railway/API, bez proxy Next),
+- sesja Better Auth z pluginem Expo: cookies w `expo-secure-store`, wywołania domenowe z nagłówkiem `Cookie` i `credentials: omit`,
+- aktywna kuchnia w SecureStore; przy zmianie kuchni cache React Query jest czyszczony,
+- zapasy (podsumowanie, partie, zużycie FIFO/ręczne, historia), lista zakupów i checkout z opcjonalnym paragonem (media R2),
+- zakładka przepisów na razie jako placeholder kolejnego etapu.
 
 ## Przepływ danych
 
@@ -62,7 +63,7 @@ W tym etapie mobile nie zostało zmienione funkcjonalnie.
 
 1. NestJS wystawia REST i generuje dokument OpenAPI.
 2. `pnpm api:generate` buduje typy i klienta w `packages/api-client`.
-3. Web i mobile importują ten klient dla endpointów domenowych. Klient Better Auth (`better-auth/react`) obsługuje `/api/auth/*` na tym samym originie weba.
+3. Web i mobile importują ten klient dla endpointów domenowych. Web: Better Auth (`better-auth/react`) na same-origin `/api/auth/*` przez proxy. Mobile: `better-auth/react` + `@better-auth/expo/client` z `baseURL = EXPO_PUBLIC_API_URL`.
 
 ## Współdzielić wolno
 
@@ -91,7 +92,7 @@ Cookies sesji:
 - `SameSite=Lax`,
 - `Secure` tylko w produkcji.
 
-`BETTER_AUTH_URL` to publiczny origin weba, nie origin Railway. `AUTH_TRUSTED_ORIGINS` zawiera wyłącznie jawne originy (localhost i produkcyjny URL weba). Brak wildcardu dla preview Vercela.
+`BETTER_AUTH_URL` to publiczny origin weba, nie origin Railway. `AUTH_TRUSTED_ORIGINS` zawiera jawne originy http(s) weba **oraz** schemat deep-link aplikacji (`mojakuchnia://`, opcjonalnie `mojakuchnia://*`). Wildcards w http(s) są zabronione (w tym preview Vercela). W `NODE_ENV=development` `create-auth` dokłada też `exp://` / `exp://**` dla Expo Go. Plugin serwerowy `expo()` z `@better-auth/expo` jest wymagany dla klienta mobilnego.
 
 ## Model danych (ten etap)
 

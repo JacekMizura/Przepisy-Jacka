@@ -4,12 +4,8 @@
     "strict": true,
     "types": ["expo/types"],
     "paths": {
-      "@/*": [
-        "./src/*"
-      ],
-      "@/assets/*": [
-        "./assets/*"
-      ]
+      "@/*": ["./src/*"],
+      "@/assets/*": ["./assets/*"]
     }
   },
   "include": [
@@ -17,5 +13,6 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
-  ]
+  ],
+  "exclude": ["**/__tests__/**", "jest.setup.ts", "node_modules"]
 }

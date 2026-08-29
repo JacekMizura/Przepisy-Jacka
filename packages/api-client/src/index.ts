@@ -1,4 +1,4 @@
-import createClient from "openapi-fetch";
+import createClient, { type Middleware } from "openapi-fetch";
 
 import type { paths } from "./generated/schema";
 
@@ -10,16 +10,21 @@ export type CreateApiClientOptions = {
   getHeaders?: () => HeadersInit | Promise<HeadersInit>;
 };
 
-export function createApiClient(options: CreateApiClientOptions) {
+type BareClient = ReturnType<typeof createClient<paths>>;
+
+export function createApiClient(
+  options: CreateApiClientOptions,
+): BareClient {
   const client = createClient<paths>({
     baseUrl: options.baseUrl,
     credentials: options.credentials ?? "same-origin",
   });
 
   if (options.getHeaders) {
-    client.use({
+    const getHeaders = options.getHeaders;
+    const middleware: Middleware = {
       async onRequest({ request }) {
-        const headers = await options.getHeaders?.();
+        const headers = await getHeaders();
         if (!headers) {
           return request;
         }
@@ -31,10 +36,11 @@ export function createApiClient(options: CreateApiClientOptions) {
 
         return request;
       },
-    });
+    };
+    client.use(middleware);
   }
 
   return client;
 }
 
-export type ApiClient = ReturnType<typeof createApiClient>;
+export type ApiClient = BareClient;

@@ -1,3 +1,4 @@
+import { expo } from '@better-auth/expo';
 import { betterAuth } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 
@@ -10,7 +11,19 @@ export type AuthEnv = Pick<
 >;
 
 export function createAuth(prisma: PrismaClient, env: AuthEnv) {
-  const trustedOrigins = parseTrustedOrigins(env.AUTH_TRUSTED_ORIGINS);
+  const configuredOrigins = parseTrustedOrigins(env.AUTH_TRUSTED_ORIGINS);
+  const mobileDeepLinks = ['mojakuchnia://', 'mojakuchnia://*'] as const;
+  const developmentExpoOrigins =
+    env.NODE_ENV === 'development'
+      ? (['exp://', 'exp://**', 'exp://192.168.*.*:*/**'] as const)
+      : [];
+  const trustedOrigins = Array.from(
+    new Set([
+      ...configuredOrigins,
+      ...mobileDeepLinks,
+      ...developmentExpoOrigins,
+    ]),
+  );
   const useSecureCookies = env.NODE_ENV === 'production';
 
   return betterAuth({
@@ -24,6 +37,7 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
       enabled: true,
     },
     trustedOrigins,
+    plugins: [expo()],
     advanced: {
       useSecureCookies,
       defaultCookieAttributes: {

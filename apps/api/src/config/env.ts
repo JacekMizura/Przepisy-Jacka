@@ -147,12 +147,26 @@ export function parseCorsOrigins(origins: string): string[] {
     .filter((origin) => origin.length > 0);
 }
 
+/**
+ * Web: wyłącznie jawne http(s) originy (bez `*`).
+ * Mobile (Better Auth Expo): dozwolone schematy deep-link, np. `mojakuchnia://`,
+ * `mojakuchnia://*` oraz w development `exp://**` / zakresy LAN.
+ */
 export function parseTrustedOrigins(origins: string): string[] {
   const parsed = parseCorsOrigins(origins);
-  if (parsed.some((origin) => origin.includes('*'))) {
-    throw new Error(
-      'AUTH_TRUSTED_ORIGINS nie może zawierać wildcardu. Podaj jawne originy weba.',
-    );
+  for (const origin of parsed) {
+    const isHttpOrigin =
+      origin.startsWith('http://') || origin.startsWith('https://');
+    if (isHttpOrigin && origin.includes('*')) {
+      throw new Error(
+        'AUTH_TRUSTED_ORIGINS: originy http(s) nie mogą zawierać wildcardu. Podaj jawne originy weba.',
+      );
+    }
+    if (!isHttpOrigin && !/^[a-z][a-z0-9+.-]*:/i.test(origin)) {
+      throw new Error(
+        `AUTH_TRUSTED_ORIGINS: niepoprawny origin „${origin}”. Oczekiwano http(s) lub schematu deep-link (np. mojakuchnia://).`,
+      );
+    }
   }
   return parsed;
 }

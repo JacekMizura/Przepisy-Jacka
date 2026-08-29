@@ -9,7 +9,11 @@
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "pl.mojakuchnia.app"
+      "bundleIdentifier": "pl.mojakuchnia.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Moja Kuchnia potrzebuje aparatu do zdjęć produktów i paragonów.",
+        "NSPhotoLibraryUsageDescription": "Moja Kuchnia potrzebuje galerii do wyboru zdjęć produktów i paragonów."
+      }
     },
     "android": {
       "package": "pl.mojakuchnia.app",
@@ -19,6 +23,10 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES"
+      ],
       "predictiveBackGestureEnabled": false
     },
     "web": {
@@ -28,6 +36,13 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Moja Kuchnia potrzebuje galerii do zdjęć produktów i paragonów.",
+          "cameraPermission": "Moja Kuchnia potrzebuje aparatu do zdjęć produktów i paragonów."
+        }
+      ],
       [
         "expo-splash-screen",
         {

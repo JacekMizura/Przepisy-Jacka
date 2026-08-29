@@ -1,4 +1,8 @@
-import { isMediaStorageConfigured, validateEnv } from './env';
+import {
+  isMediaStorageConfigured,
+  parseTrustedOrigins,
+  validateEnv,
+} from './env';
 
 describe('media storage env', () => {
   const base = {
@@ -43,5 +47,26 @@ describe('media storage env', () => {
       MEDIA_S3_SECRET_ACCESS_KEY: 'secret',
     });
     expect(isMediaStorageConfigured(env)).toBe(false);
+  });
+});
+
+describe('parseTrustedOrigins', () => {
+  it('pozwala na deep-link Expo ze wildcardem', () => {
+    expect(
+      parseTrustedOrigins(
+        'http://localhost:3000,mojakuchnia://,mojakuchnia://*,exp://**',
+      ),
+    ).toEqual([
+      'http://localhost:3000',
+      'mojakuchnia://',
+      'mojakuchnia://*',
+      'exp://**',
+    ]);
+  });
+
+  it('odrzuca wildcard w originie http(s)', () => {
+    expect(() =>
+      parseTrustedOrigins('https://*.vercel.app,mojakuchnia://'),
+    ).toThrow(/http\(s\)/);
   });
 });

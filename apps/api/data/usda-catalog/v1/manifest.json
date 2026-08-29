@@ -1,0 +1,23 @@
+{
+  "catalogVersion": "2026-08-usda-v1",
+  "entryCount": 91,
+  "sources": [
+    {
+      "dataType": "Foundation Foods",
+      "release": "2025-12-18",
+      "file": "FoodData_Central_foundation_food_json_2025-12-18.json",
+      "sha256": "ed8b20fe378f815d4ec9add3f53d358c37212290340195dd20709efc2896ec39",
+      "url": "https://fdc.nal.usda.gov/download-datasets/"
+    },
+    {
+      "dataType": "SR Legacy",
+      "release": "2018-04",
+      "file": "FoodData_Central_sr_legacy_food_json_2018-04.json",
+      "sha256": "70d4235ae3a2bdf48a7b9eaa1286a83fa67b6f3270436c9ce8b008213f500129",
+      "url": "https://fdc.nal.usda.gov/download-datasets/"
+    }
+  ],
+  "missingFdcIds": [],
+  "incompleteFdcIds": [],
+  "entriesSha256": "acffaa81a15eb5556787e9dd0f49d2728c9aab89045917e0dedb50c781f3394f"
+}

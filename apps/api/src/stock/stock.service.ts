@@ -7,6 +7,7 @@ import { Prisma } from '../generated/prisma/client';
 import {
   NutritionDataSource,
   ProductPurchaseMode,
+  ProductUnit,
   StorageLocation,
   type MediaAsset,
   type Product,
@@ -235,21 +236,65 @@ export class StockService {
 
     const source = dto.source ?? NutritionDataSource.manual;
     if (
-      source === NutritionDataSource.open_food_facts &&
+      (source === NutritionDataSource.open_food_facts ||
+        source === NutritionDataSource.usda_fdc) &&
       (!dto.sourceFetchedAt || dto.sourceFetchedAt.trim().length === 0)
     ) {
       throw new BadRequestException(
-        'sourceFetchedAt jest wymagane przy zapisie danych z Open Food Facts.',
+        'sourceFetchedAt jest wymagane przy zapisie danych z Open Food Facts lub USDA.',
+      );
+    }
+    if (
+      source === NutritionDataSource.usda_fdc &&
+      (!dto.sourceGenericFoodId || dto.sourceGenericFoodId.trim().length === 0)
+    ) {
+      throw new BadRequestException(
+        'sourceGenericFoodId jest wymagane przy zapisie danych z katalogu USDA.',
+      );
+    }
+    if (
+      source === NutritionDataSource.usda_fdc &&
+      dto.baseUnit === ProductUnit.piece &&
+      (!dto.sourcePieceGrams || dto.sourcePieceGrams.trim().length === 0)
+    ) {
+      throw new BadRequestException(
+        'sourcePieceGrams jest wymagane przy zapisie USDA dla jednostki szt.',
       );
     }
 
     const sourceFetchedAt =
-      source === NutritionDataSource.open_food_facts && dto.sourceFetchedAt
+      (source === NutritionDataSource.open_food_facts ||
+        source === NutritionDataSource.usda_fdc) &&
+      dto.sourceFetchedAt
         ? new Date(dto.sourceFetchedAt)
         : null;
     if (sourceFetchedAt !== null && Number.isNaN(sourceFetchedAt.getTime())) {
       throw new BadRequestException(
         'sourceFetchedAt musi być poprawną datą ISO.',
+      );
+    }
+
+    let sourceGenericFoodId: string | null = null;
+    let sourceFdcId: number | null = null;
+    let sourcePieceGrams: Prisma.Decimal | null = null;
+    if (source === NutritionDataSource.usda_fdc) {
+      sourceGenericFoodId = dto.sourceGenericFoodId!.trim();
+      const catalogEntry = await this.prisma.usdaFoodCatalogEntry.findUnique({
+        where: { id: sourceGenericFoodId },
+        select: { id: true, fdcId: true },
+      });
+      if (!catalogEntry) {
+        throw new BadRequestException(
+          'sourceGenericFoodId nie wskazuje na istniejący wpis katalogu USDA.',
+        );
+      }
+      sourceFdcId =
+        dto.sourceFdcId !== undefined && dto.sourceFdcId !== null
+          ? dto.sourceFdcId
+          : catalogEntry.fdcId;
+      sourcePieceGrams = parseOptionalNutritionValue(
+        dto.sourcePieceGrams,
+        'sourcePieceGrams',
       );
     }
 
@@ -265,13 +310,17 @@ export class StockService {
       source,
       sourceFetchedAt,
       sourceLabel:
-        source === NutritionDataSource.open_food_facts
+        source === NutritionDataSource.open_food_facts ||
+        source === NutritionDataSource.usda_fdc
           ? dto.sourceLabel?.trim() || null
           : null,
       sourceBrand:
         source === NutritionDataSource.open_food_facts
           ? dto.sourceBrand?.trim() || null
           : null,
+      sourceGenericFoodId,
+      sourceFdcId,
+      sourcePieceGrams,
     };
 
     const nutrition = await this.prisma.productNutrition.upsert({
@@ -1256,6 +1305,12 @@ function toProductNutritionDto(
     sourceFetchedAt: nutrition.sourceFetchedAt?.toISOString() ?? null,
     sourceLabel: nutrition.sourceLabel,
     sourceBrand: nutrition.sourceBrand,
+    sourceGenericFoodId: nutrition.sourceGenericFoodId,
+    sourceFdcId: nutrition.sourceFdcId,
+    sourcePieceGrams:
+      nutrition.sourcePieceGrams !== null
+        ? formatQuantity(nutrition.sourcePieceGrams)
+        : null,
     updatedAt: nutrition.updatedAt.toISOString(),
   };
 }

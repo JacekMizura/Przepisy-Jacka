@@ -11,6 +11,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { RecipeModule } from './recipes/recipe.module';
 import { ShoppingModule } from './shopping/shopping.module';
 import { StockModule } from './stock/stock.module';
+import { UsdaCatalogModule } from './usda-catalog/usda-catalog.module';
 import { UsersModule } from './users/users.module';
 
 @Module({
@@ -28,6 +29,7 @@ import { UsersModule } from './users/users.module';
     KitchensModule,
     MediaModule,
     OpenFoodFactsModule,
+    UsdaCatalogModule,
     StockModule,
     ShoppingModule,
     RecipeModule,

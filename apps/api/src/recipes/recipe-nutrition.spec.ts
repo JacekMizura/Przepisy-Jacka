@@ -171,4 +171,38 @@ describe('computeRecipeNutrition', () => {
     expect(result.recipe).toBeNull();
     expect(result.missingIngredientNames).toEqual(['Mleko']);
   });
+
+  it('skaluje makro produktu (baza 100 g, jak po USDA) przy składniku w kg', () => {
+    const tomatoId = 'product-tomato';
+    const tomatoNutrition: ProductNutritionInput = {
+      baseQuantity: decimal('100'),
+      baseUnit: ProductUnit.gram,
+      kcal: decimal('18'),
+      proteinGrams: decimal('0.9'),
+      carbsGrams: decimal('3.9'),
+      fatGrams: decimal('0.2'),
+    };
+    const result = computeRecipeNutrition({
+      baseServings: 1,
+      servings: 1,
+      ingredients: [
+        ingredient({
+          name: 'Pomidor',
+          quantity: decimal('0.5'),
+          unit: RecipeIngredientUnit.kilogram,
+          productId: tomatoId,
+        }),
+      ],
+      nutritionByProductId: new Map([[tomatoId, tomatoNutrition]]),
+    });
+
+    // 0.5 kg = 500 g = 5 × wartości z 100 g
+    expect(result.isComplete).toBe(true);
+    expect(result.recipe).toEqual({
+      kcal: '90.00',
+      proteinGrams: '4.50',
+      carbsGrams: '19.50',
+      fatGrams: '1.00',
+    });
+  });
 });

@@ -87,6 +87,8 @@ Wartości odżywcze podaje się dla ilości odniesienia w jednostce bazowej prod
 
 Można też **pobrać podgląd z Open Food Facts po EAN** (wyłącznie przez NestJS API). Podgląd nie zapisuje się automatycznie — użytkownik zatwierdza „Użyj danych”, a zapis idzie istniejącym zapisem produktu/wartości. Brakujące pola nie są uzupełniane zerami. API nie przelicza g↔ml ani na sztuki. Przy zapisie z OFF zapisujemy źródło (`open_food_facts`), datę pobrania oraz etykietę/markę z podglądu. Nie wysyłamy do OFF prywatnych danych ani zdjęć użytkowników. Dane OFF podlegają ODbL / DbCL — w UI pokazujemy atrybucję.
 
+Dla produktów **bez EAN** można **wybrać wartości z wspólnego katalogu USDA** (Foundation Foods / SR Legacy, public domain/CC0). Wyszukiwanie po polsku (nazwy i aliasy) działa lokalnie w NestJS. Użytkownik wybiera dokładny wariant, widzi podgląd (baza 100 g części jadalnej, makro, źródło, braki) z oznaczeniem „Wartości referencyjne — szacunkowe”, zatwierdza „Użyj danych”, a dopiero zwykły zapis produktu kopiuje wartości do `ProductNutrition` (`source=usda_fdc`) wraz z identyfikatorem wpisu katalogu. Aktualizacja katalogu **nie** zmienia zapisanych produktów. Dla sztuki wymagana jest **jawna masa części jadalnej 1 szt. w gramach**. g↔kg przeliczamy bezpiecznie; ml/l oraz łyżki/szklanki — nie. Ręczna edycja po USDA ustawia `source=manual`. Szczegóły: `apps/api/data/usda-catalog/README.md`.
+
 ## Zdjęcia
 
 Zdjęcia produktów, okładek przepisów i kroków przepisu trzymamy w magazynie obiektowym (S3-kompatybilnym), nie w bazie. W bazie jest tylko `MediaAsset` z kluczem obiektu i statusem.

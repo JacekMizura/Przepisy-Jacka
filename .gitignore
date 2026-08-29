@@ -27,6 +27,15 @@ apps/api/src/generated/prisma/
 # Lokalny embedded Postgres (tylko maszyny deweloperskie)
 .embedded-pg/
 
+# Pełne archiwa USDA (nie commituj) — katalog startowy jest w apps/api/data/usda-catalog/
+apps/api/tmp-usda/
+
+# Lokalne artefakty odzysku / merge agenta
+.recovered-usda*/
+.usda-diffs/
+.merge-tmp*/
+apps/api/.recovered-usda/
+
 # Logs and caches
 *.log
 npm-debug.log*

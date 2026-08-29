@@ -9,6 +9,7 @@ import {
   NutritionEanLookup,
   type NutritionFormValues,
 } from "@/components/nutrition-ean-lookup";
+import { NutritionUsdaLookup } from "@/components/nutrition-usda-lookup";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -187,6 +188,13 @@ function NutritionSummary({
           {nutrition.sourceLabel ? ` · ${nutrition.sourceLabel}` : ""}
         </p>
       ) : null}
+      {nutrition.source === "usda_fdc" ? (
+        <p className="mt-2 text-[11px] text-sky-800">
+          Źródło: USDA FoodData Central (wartości referencyjne — szacunkowe)
+          {nutrition.sourceLabel ? ` · ${nutrition.sourceLabel}` : ""}
+          {nutrition.sourceFdcId ? ` · FDC ${nutrition.sourceFdcId}` : ""}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -231,6 +239,9 @@ function toDraft(
       sourceFetchedAt: null,
       sourceLabel: null,
       sourceBrand: null,
+      sourceGenericFoodId: null,
+      sourceFdcId: null,
+      sourcePieceGrams: null,
     };
   }
   return {
@@ -246,6 +257,11 @@ function toDraft(
     sourceFetchedAt: nutrition.sourceFetchedAt,
     sourceLabel: nutrition.sourceLabel,
     sourceBrand: nutrition.sourceBrand,
+    sourceGenericFoodId: nutrition.sourceGenericFoodId ?? null,
+    sourceFdcId: nutrition.sourceFdcId ?? null,
+    sourcePieceGrams: nutrition.sourcePieceGrams
+      ? formatNutritionNumber(nutrition.sourcePieceGrams, 3)
+      : null,
   };
 }
 
@@ -292,6 +308,9 @@ function NutritionEditor({
         next.sourceFetchedAt = null;
         next.sourceLabel = null;
         next.sourceBrand = null;
+        next.sourceGenericFoodId = null;
+        next.sourceFdcId = null;
+        next.sourcePieceGrams = null;
       }
       return next;
     });
@@ -362,6 +381,9 @@ function NutritionEditor({
       sourceFetchedAt: draft.sourceFetchedAt,
       sourceLabel: draft.sourceLabel,
       sourceBrand: draft.sourceBrand,
+      sourceGenericFoodId: draft.sourceGenericFoodId ?? null,
+      sourceFdcId: draft.sourceFdcId ?? null,
+      sourcePieceGrams: draft.sourcePieceGrams ?? null,
     });
   }
 
@@ -388,9 +410,24 @@ function NutritionEditor({
         onApply={applyLookup}
       />
 
+      <NutritionUsdaLookup
+        kitchenId={kitchenId}
+        productUnit={defaultUnit}
+        hasExistingValues={draftHasNutritionValues(draft)}
+        onApply={applyLookup}
+      />
+
       {draft.source === "open_food_facts" ? (
         <p className="text-xs text-emerald-700">
           Formularz wypełniony danymi Open Food Facts
+          {draft.sourceLabel ? ` („${draft.sourceLabel}”)` : ""}. Zapis
+          zatwierdzisz poniżej.
+        </p>
+      ) : null}
+
+      {draft.source === "usda_fdc" ? (
+        <p className="text-xs text-sky-800">
+          Formularz wypełniony danymi USDA (wartości referencyjne — szacunkowe)
           {draft.sourceLabel ? ` („${draft.sourceLabel}”)` : ""}. Zapis
           zatwierdzisz poniżej.
         </p>

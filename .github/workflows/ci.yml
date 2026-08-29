@@ -89,6 +89,9 @@ jobs:
       - name: Apply migrations
         run: pnpm --filter @moja-kuchnia/api exec prisma migrate deploy
 
+      - name: Check USDA catalog integrity
+        run: pnpm --filter @moja-kuchnia/api usda:check-catalog
+
       - name: Generate OpenAPI and API client
         run: pnpm api:generate
 

@@ -30,10 +30,13 @@ export type NutritionFormValues = {
   fatGrams: string;
   fiberGrams: string;
   saltGrams: string;
-  source: "manual" | "open_food_facts";
+  source: "manual" | "open_food_facts" | "usda_fdc";
   sourceFetchedAt: string | null;
   sourceLabel: string | null;
   sourceBrand: string | null;
+  sourceGenericFoodId?: string | null;
+  sourceFdcId?: number | null;
+  sourcePieceGrams?: string | null;
 };
 
 type NutritionEanLookupProps = {
@@ -136,6 +139,9 @@ export function NutritionEanLookup({
       sourceFetchedAt: preview.fetchedAt,
       sourceLabel: preview.productName ?? null,
       sourceBrand: preview.brand ?? null,
+      sourceGenericFoodId: null,
+      sourceFdcId: null,
+      sourcePieceGrams: null,
     });
     setConfirmOpen(false);
   }

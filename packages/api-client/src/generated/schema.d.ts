@@ -287,6 +287,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/kitchens/{kitchenId}/usda-foods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Wyszukiwanie wspólnego katalogu żywności USDA (PL + aliasy)
+         * @description Katalog tylko do odczytu. Nie tworzy produktów w kuchni. Działa lokalnie bez połączenia z USDA.
+         */
+        get: operations["UsdaCatalogController_search"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/usda-foods/{entryId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Szczegóły wpisu katalogu USDA */
+        get: operations["UsdaCatalogController_getById"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/usda-foods/{entryId}/suggest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Podgląd wartości odżywczych dopasowanych do jednostki produktu (bez zapisu) */
+        get: operations["UsdaCatalogController_suggest"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/kitchens/{kitchenId}/products": {
         parameters: {
             query?: never;
@@ -943,6 +997,88 @@ export interface components {
             /** @example Open Food Facts */
             attribution: string;
         };
+        UsdaCatalogSearchItemDto: {
+            id: string;
+            fdcId: number;
+            polishName: string;
+            variantLabel: string;
+            descriptionOriginal: string;
+            compositionMayVary: boolean;
+            /** @example 18.000 */
+            kcalPer100g: string;
+            basisLabel: string;
+            sourceDataset: string;
+        };
+        UsdaCatalogSearchResponseDto: {
+            query: string;
+            page: number;
+            pageSize: number;
+            total: number;
+            items: components["schemas"]["UsdaCatalogSearchItemDto"][];
+        };
+        UsdaCatalogNutritionPer100gDto: {
+            kcal: string;
+            proteinGrams: string;
+            carbsGrams: string;
+            fatGrams: string;
+            fiberGrams?: string | null;
+            saltGrams?: string | null;
+            sodiumMg?: string | null;
+        };
+        UsdaCatalogEntryDetailDto: {
+            id: string;
+            fdcId: number;
+            polishName: string;
+            aliases: string[];
+            descriptionOriginal: string;
+            variantLabel: string;
+            dataType: string;
+            category?: string | null;
+            compositionMayVary: boolean;
+            basisLabel: string;
+            sourceDataset: string;
+            sourceRelease: string;
+            sourceUrl: string;
+            catalogVersion: string;
+            /** Format: date-time */
+            importedAt: string;
+            publicationDate?: string | null;
+            nutritionPer100g: components["schemas"]["UsdaCatalogNutritionPer100gDto"];
+            energyField: string;
+            carbsMethod?: string | null;
+            carbsApproximate: boolean;
+            mappingWarnings: string[];
+            disclaimer: string;
+        };
+        UsdaCatalogSuggestedNutritionDto: {
+            baseQuantity: string;
+            /** @enum {string} */
+            baseUnit: "piece" | "gram" | "milliliter";
+            kcal: string;
+            proteinGrams: string;
+            carbsGrams: string;
+            fatGrams: string;
+            fiberGrams?: string | null;
+            saltGrams?: string | null;
+            /**
+             * @example usda_fdc
+             * @enum {string}
+             */
+            source: "manual" | "open_food_facts" | "usda_fdc";
+            sourceGenericFoodId: string;
+            sourceFdcId: number;
+            sourcePieceGrams?: string | null;
+            sourceLabel: string;
+            /** Format: date-time */
+            sourceFetchedAt: string;
+        };
+        UsdaCatalogSuggestValuesDto: {
+            entry: components["schemas"]["UsdaCatalogEntryDetailDto"];
+            disclaimer: string;
+            compositionMayVaryNote?: string | null;
+            suggested: components["schemas"]["UsdaCatalogSuggestedNutritionDto"];
+            missingOptional: string[];
+        };
         ProductNutritionDto: {
             productId: string;
             /** @example 100.000 */
@@ -957,11 +1093,15 @@ export interface components {
             fiberGrams: string | null;
             saltGrams: string | null;
             /** @enum {string} */
-            source: "manual" | "open_food_facts";
+            source: "manual" | "open_food_facts" | "usda_fdc";
             /** Format: date-time */
             sourceFetchedAt: string | null;
             sourceLabel: string | null;
             sourceBrand: string | null;
+            /** Format: uuid */
+            sourceGenericFoodId: string | null;
+            sourceFdcId: number | null;
+            sourcePieceGrams: string | null;
             /** Format: date-time */
             updatedAt: string;
         };
@@ -1066,17 +1206,26 @@ export interface components {
             /** @example 0.100 */
             saltGrams?: string | null;
             /**
-             * @description Pochodzenie zatwierdzonych danych. open_food_facts wymaga sourceFetchedAt.
+             * @description Pochodzenie zatwierdzonych danych. open_food_facts i usda_fdc wymagają sourceFetchedAt.
              * @enum {string}
              */
-            source?: "manual" | "open_food_facts";
+            source?: "manual" | "open_food_facts" | "usda_fdc";
             /**
              * Format: date-time
-             * @description Data pobrania z Open Food Facts (ISO-8601).
+             * @description Data pobrania / importu źródła (ISO-8601).
              */
             sourceFetchedAt?: string | null;
             sourceLabel?: string | null;
             sourceBrand?: string | null;
+            /**
+             * Format: uuid
+             * @description Id wpisu katalogu USDA w momencie zatwierdzenia (kopia).
+             */
+            sourceGenericFoodId?: string | null;
+            /** @description FDC ID zatwierdzonego wpisu USDA. */
+            sourceFdcId?: number | null;
+            /** @description Jawna masa części jadalnej 1 szt. (g), gdy baseUnit=piece. */
+            sourcePieceGrams?: string | null;
         };
         CreatePurchaseOptionDto: {
             /** @example Karton 1 l */
@@ -2428,6 +2577,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NutritionLookupResultDto"];
+                };
+            };
+        };
+    };
+    UsdaCatalogController_search: {
+        parameters: {
+            query: {
+                q: string;
+                page?: number;
+                pageSize?: number;
+            };
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsdaCatalogSearchResponseDto"];
+                };
+            };
+        };
+    };
+    UsdaCatalogController_getById: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                entryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsdaCatalogEntryDetailDto"];
+                };
+            };
+        };
+    };
+    UsdaCatalogController_suggest: {
+        parameters: {
+            query: {
+                productUnit: "piece" | "gram" | "milliliter";
+                /** @description Wymagane gdy productUnit=piece: masa części jadalnej 1 szt. w gramach. */
+                pieceGrams?: string;
+            };
+            header?: never;
+            path: {
+                kitchenId: string;
+                entryId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UsdaCatalogSuggestValuesDto"];
                 };
             };
         };

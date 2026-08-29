@@ -1,9 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsEnum,
+  IsInt,
   IsISO8601,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
   MinLength,
   ValidateIf,
@@ -62,7 +64,7 @@ export class UpsertProductNutritionDto {
   @ApiPropertyOptional({
     enum: NutritionDataSource,
     description:
-      'Pochodzenie zatwierdzonych danych. open_food_facts wymaga sourceFetchedAt.',
+      'Pochodzenie zatwierdzonych danych. open_food_facts i usda_fdc wymagają sourceFetchedAt.',
   })
   @IsOptional()
   @IsEnum(NutritionDataSource)
@@ -72,7 +74,7 @@ export class UpsertProductNutritionDto {
     type: String,
     format: 'date-time',
     nullable: true,
-    description: 'Data pobrania z Open Food Facts (ISO-8601).',
+    description: 'Data pobrania / importu źródła (ISO-8601).',
   })
   @IsOptional()
   @ValidateIf(isPresentOptional)
@@ -92,6 +94,37 @@ export class UpsertProductNutritionDto {
   @IsString()
   @MaxLength(200)
   sourceBrand?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: 'Id wpisu katalogu USDA w momencie zatwierdzenia (kopia).',
+  })
+  @IsOptional()
+  @ValidateIf(isPresentOptional)
+  @IsUUID()
+  sourceGenericFoodId?: string | null;
+
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    description: 'FDC ID zatwierdzonego wpisu USDA.',
+  })
+  @IsOptional()
+  @ValidateIf(isPresentOptional)
+  @IsInt()
+  sourceFdcId?: number | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'Jawna masa części jadalnej 1 szt. (g), gdy baseUnit=piece.',
+  })
+  @IsOptional()
+  @ValidateIf(isPresentOptional)
+  @IsString()
+  sourcePieceGrams?: string | null;
 }
 
 export class ProductNutritionDto {
@@ -133,6 +166,15 @@ export class ProductNutritionDto {
 
   @ApiProperty({ type: String, nullable: true })
   sourceBrand!: string | null;
+
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  sourceGenericFoodId!: string | null;
+
+  @ApiProperty({ type: Number, nullable: true })
+  sourceFdcId!: number | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  sourcePieceGrams!: string | null;
 
   @ApiProperty({ type: String, format: 'date-time' })
   updatedAt!: string;

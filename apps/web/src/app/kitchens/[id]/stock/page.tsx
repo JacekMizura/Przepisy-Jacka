@@ -25,6 +25,7 @@ import {
   NutritionEanLookup,
   type NutritionFormValues,
 } from "@/components/nutrition-ean-lookup";
+import { NutritionUsdaLookup } from "@/components/nutrition-usda-lookup";
 import { ProductNutritionSection } from "@/components/product-nutrition-section";
 import { ProductPhotoField } from "@/components/product-photo-field";
 import { ProductPurchaseOptions } from "@/components/product-purchase-options";
@@ -384,6 +385,9 @@ export default function StockPage() {
               sourceFetchedAt: draft.sourceFetchedAt,
               sourceLabel: draft.sourceLabel,
               sourceBrand: draft.sourceBrand,
+              sourceGenericFoodId: draft.sourceGenericFoodId ?? null,
+              sourceFdcId: draft.sourceFdcId ?? null,
+              sourcePieceGrams: draft.sourcePieceGrams ?? null,
             },
           },
         );
@@ -764,7 +768,7 @@ export default function StockPage() {
                     onChange={(event) => setProductEan(event.target.value)}
                   />
                 </div>
-                <div className="md:col-span-2">
+                <div className="md:col-span-2 space-y-3">
                   <NutritionEanLookup
                     kitchenId={kitchenId}
                     ean={productEan}
@@ -776,9 +780,19 @@ export default function StockPage() {
                     }
                     onApply={(values) => setProductNutritionDraft(values)}
                   />
+                  <NutritionUsdaLookup
+                    kitchenId={kitchenId}
+                    productUnit={productUnit}
+                    hasExistingValues={
+                      productNutritionDraft
+                        ? draftHasNutritionValues(productNutritionDraft)
+                        : false
+                    }
+                    onApply={(values) => setProductNutritionDraft(values)}
+                  />
                   {productNutritionDraft ? (
                     <p className="mt-2 text-xs text-emerald-700">
-                      Wartości odżywcze z Open Food Facts są w formularzu
+                      Wartości odżywcze są w formularzu
                       ({formatNutritionNumber(productNutritionDraft.kcal, 0)}{" "}
                       kcal /{" "}
                       {formatQuantityWithUnit(

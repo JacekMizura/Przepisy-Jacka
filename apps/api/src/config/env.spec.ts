@@ -91,8 +91,8 @@ describe('parseTrustedOrigins', () => {
   });
 
   it('odrzuca http(s) z poświadczeniami', () => {
-    expect(() =>
-      parseTrustedOrigins('https://user:pass@example.com'),
-    ).toThrow(/poświadczeń/);
+    expect(() => parseTrustedOrigins('https://user:pass@example.com')).toThrow(
+      /poświadczeń/,
+    );
   });
 });

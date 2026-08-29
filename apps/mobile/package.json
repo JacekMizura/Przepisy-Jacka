@@ -22,7 +22,7 @@
     "@moja-kuchnia/api-client": "workspace:*",
     "@moja-kuchnia/design-tokens": "workspace:*",
     "@tanstack/react-query": "^5.90.2",
-    "better-auth": "^1.7.1",
+    "better-auth": "^1.7.2",
     "expo": "~54.0.0",
     "expo-constants": "~18.0.10",
     "expo-font": "~14.0.9",

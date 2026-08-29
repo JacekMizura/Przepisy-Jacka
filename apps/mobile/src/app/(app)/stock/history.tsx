@@ -147,6 +147,10 @@ function ConsumptionRow({
         {item.productName ?? 'Produkt'} · {item.totalQuantity}
       </Text>
       <Text style={ui.muted}>
+        {item.kind === 'write_off' ? 'Odpis' : 'Zużycie'}
+        {item.reason ? ` · ${item.reason}` : ''}
+      </Text>
+      <Text style={ui.muted}>
         {formatDate(item.createdAt)}
         {item.isReversal ? ' · cofnięcie' : ''}
         {item.isReversed ? ' · już cofnięte' : ''}

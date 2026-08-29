@@ -155,6 +155,7 @@ export function StockConsumeDialog({
             quantity: preview.quantity,
             idempotencyKey: crypto.randomUUID(),
             previewFingerprint: preview.previewFingerprint,
+            kind: "consume",
             ...(manualLinesForCommit
               ? { manualLines: manualLinesForCommit }
               : {}),

@@ -55,6 +55,10 @@ export default function StockConsumeScreen() {
   const initialMode: Mode = params.mode === 'manual' ? 'manual' : 'auto';
 
   const [mode, setMode] = useState<Mode>(initialMode);
+  const [operationKind, setOperationKind] = useState<'consume' | 'write_off'>(
+    'consume',
+  );
+  const [reason, setReason] = useState('');
   const [quantity, setQuantity] = useState('');
   const [inputUnit, setInputUnit] = useState<InputUnit>('piece');
   const [manualQtyById, setManualQtyById] = useState<Record<string, string>>(
@@ -171,6 +175,10 @@ export default function StockConsumeScreen() {
       if (!preview || !product || !kitchenId) {
         throw new Error('Brak podglądu.');
       }
+      const trimmedReason = reason.trim();
+      if (operationKind === 'write_off' && trimmedReason.length === 0) {
+        throw new ApiRequestError(400, 'Powód odpisu jest wymagany.');
+      }
       const client = createMobileApiClient();
       const result = await client.POST(
         '/api/kitchens/{kitchenId}/products/{productId}/consume',
@@ -178,8 +186,12 @@ export default function StockConsumeScreen() {
           params: { path: { kitchenId, productId: product.productId } },
           body: {
             quantity: preview.quantity,
-            idempotencyKey: newIdempotencyKey('consume'),
+            idempotencyKey: newIdempotencyKey(
+              operationKind === 'write_off' ? 'writeoff' : 'consume',
+            ),
             previewFingerprint: preview.previewFingerprint,
+            kind: operationKind,
+            ...(trimmedReason ? { reason: trimmedReason } : {}),
             ...(manualLines ? { manualLines } : {}),
           },
         },
@@ -246,6 +258,70 @@ export default function StockConsumeScreen() {
           <Text style={ui.subtitle}>
             Stan: {formatQuantity(product.totalQuantity, product.defaultUnit)}
           </Text>
+
+          <Text style={ui.label}>Rodzaj operacji</Text>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Pressable
+              onPress={() => setOperationKind('consume')}
+              style={[
+                ui.button,
+                operationKind === 'consume' ? null : ui.buttonSecondary,
+                { flex: 1 },
+              ]}
+            >
+              <Text
+                style={
+                  operationKind === 'consume'
+                    ? ui.buttonText
+                    : ui.buttonTextSecondary
+                }
+              >
+                Zużycie
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => setOperationKind('write_off')}
+              style={[
+                ui.button,
+                operationKind === 'write_off' ? null : ui.buttonSecondary,
+                { flex: 1 },
+              ]}
+            >
+              <Text
+                style={
+                  operationKind === 'write_off'
+                    ? ui.buttonText
+                    : ui.buttonTextSecondary
+                }
+              >
+                Odpis
+              </Text>
+            </Pressable>
+          </View>
+          {operationKind === 'write_off' ? (
+            <>
+              <Text style={ui.label}>Powód odpisu (wymagany)</Text>
+              <TextInput
+                style={ui.input}
+                value={reason}
+                onChangeText={setReason}
+                maxLength={200}
+                accessibilityLabel="Powód odpisu"
+                placeholder="np. przeterminowane, zepsute"
+              />
+            </>
+          ) : (
+            <>
+              <Text style={ui.label}>Notatka (opcjonalna)</Text>
+              <TextInput
+                style={ui.input}
+                value={reason}
+                onChangeText={setReason}
+                maxLength={200}
+                accessibilityLabel="Notatka zużycia"
+              />
+            </>
+          )}
 
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <Pressable
@@ -330,9 +406,8 @@ export default function StockConsumeScreen() {
 
           {mode === 'manual' ? (
             <Text style={ui.muted}>
-              Tryb ręczny = jawny odpis z wybranych partii (w tym po terminie).
-              API nie przyjmuje osobnego pola „powód” — wybór partii i ilości
-              jest zapisem odpisu.
+              Ręczny wybór partii (w tym po terminie). Przy odpisie powód trafia
+              do historii API.
             </Text>
           ) : null}
 

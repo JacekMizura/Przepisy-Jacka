@@ -37,3 +37,7 @@ pnpm --filter @moja-kuchnia/mobile exec npx expo-doctor
 `expo export` (android/ios) na tym środowisku Windows może paść na `hermesc` / private class fields w zależności bundla — sprawdzane lokalnie; CI / EAS Build to inna ścieżka. Emulator Android nie był dostępny (`adb` brak) — placeholdery layoutu: `verification-screenshots/mobile/*.png` (390×844).
 
 Pełniejsze instrukcje monorepo: [README główny](../../README.md).
+
+Kontrole: `pnpm run typecheck`, `pnpm test`, `pnpm run doctor` (expo-doctor),
+`pnpm run export:android` / `export:ios`. Nie używaj samego `pnpm doctor` —
+to wbudowane narzędzie pnpm, nie Expo.

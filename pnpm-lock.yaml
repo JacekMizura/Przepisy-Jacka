@@ -277,6 +277,12 @@ importers:
       '@types/react':
         specifier: ~19.1.0
         version: 19.1.17
+      babel-jest:
+        specifier: 29.7.0
+        version: 29.7.0(@babel/core@7.29.7(supports-color@10.2.2))(supports-color@10.2.2)
+      babel-preset-expo:
+        specifier: ~54.0.12
+        version: 54.0.12(@babel/core@7.29.7(supports-color@10.2.2))(@babel/runtime@7.29.7)(expo@54.0.37)(react-refresh@0.14.2)(supports-color@10.2.2)
       eslint:
         specifier: ^9.31.0
         version: 9.39.5(jiti@2.7.0)(supports-color@10.2.2)

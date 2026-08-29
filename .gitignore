@@ -64,6 +64,9 @@ Thumbs.db
 *.mobileprovision
 *.orig.*
 eas-cli-*.log
+apps/mobile/dist-android/
+apps/mobile/dist-ios/
+apps/mobile/dist/
 
 # OS
 Desktop.ini

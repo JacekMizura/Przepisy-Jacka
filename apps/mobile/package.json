@@ -12,9 +12,10 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "test": "jest",
-    "doctor": "npx expo-doctor",
-    "export:android": "expo export --platform android",
-    "export:ios": "expo export --platform ios"
+    "doctor": "expo-doctor",
+    "expo-doctor": "expo-doctor",
+    "export:android": "expo export --platform android --output-dir dist-android",
+    "export:ios": "expo export --platform ios --output-dir dist-ios"
   },
   "dependencies": {
     "@better-auth/expo": "^1.7.2",
@@ -51,6 +52,8 @@
     "@testing-library/react-native": "^14.0.1",
     "@types/jest": "29.5.14",
     "@types/react": "~19.1.0",
+    "babel-jest": "29.7.0",
+    "babel-preset-expo": "~54.0.12",
     "eslint": "^9.31.0",
     "eslint-config-expo": "~10.0.0",
     "jest": "29.7.0",

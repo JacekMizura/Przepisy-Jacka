@@ -19,8 +19,7 @@
         "EXPO_PUBLIC_API_URL": "https://przepisy-jacka-production-ae86.up.railway.app"
       },
       "android": {
-        "buildType": "apk",
-        "versionCode": 2
+        "buildType": "apk"
       }
     },
     "production": {

@@ -84,6 +84,39 @@ export class CreateProductDto {
 }
 
 export class UpdateProductDto {
+  @ApiPropertyOptional({ example: 'Mleko UHT' })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  name?: string;
+
+  @ApiPropertyOptional({ enum: ProductUnit })
+  @IsOptional()
+  @IsEnum(ProductUnit)
+  defaultUnit?: ProductUnit;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: '5901234123457',
+  })
+  @IsOptional()
+  @ValidateIf(isPresentOptional)
+  @IsString()
+  @Matches(EAN_PATTERN, {
+    message: 'ean musi mieć 8, 12, 13 lub 14 cyfr.',
+  })
+  ean?: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true, example: 'Nabiał' })
+  @IsOptional()
+  @ValidateIf(isPresentOptional)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  category?: string | null;
+
   @ApiPropertyOptional({ enum: ProductPurchaseMode })
   @IsOptional()
   @IsEnum(ProductPurchaseMode)

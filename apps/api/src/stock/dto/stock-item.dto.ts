@@ -60,6 +60,18 @@ export class CreateStockItemDto {
   @Min(0)
   purchasePriceMinor?: number | null;
 
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    maxLength: 120,
+    description: 'Sklep / źródło (bez tworzenia Purchase).',
+  })
+  @IsOptional()
+  @ValidateIf(isPresentOptional)
+  @IsString()
+  @MaxLength(120)
+  storeName?: string | null;
+
   @ApiPropertyOptional({ example: 'PLN' })
   @IsOptional()
   @IsString()
@@ -161,6 +173,9 @@ export class StockItemDto {
 
   @ApiPropertyOptional({ example: 599, nullable: true })
   purchasePriceMinor!: number | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  storeName!: string | null;
 
   @ApiProperty({ example: 'PLN' })
   currency!: string;

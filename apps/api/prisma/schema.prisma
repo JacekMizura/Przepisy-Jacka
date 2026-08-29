@@ -179,6 +179,7 @@ model Kitchen {
   recipes         Recipe[]
   recipeCategories RecipeCategory[]
   mediaAssets     MediaAsset[]
+  productIntakeIdempotencies ProductIntakeIdempotency[]
 }
 
 model MediaAsset {
@@ -365,6 +366,8 @@ model StockItem {
   /// Oryginalna cena całej partii w groszach; null = nieznana.
   purchasePriceMinor Int?
   currency           String          @default("PLN") @db.VarChar(3)
+  /// Sklep / źródło ręczne (bez sztucznego Purchase).
+  storeName          String?         @db.VarChar(120)
   ean                String?         @db.VarChar(14)
   imageUrl           String?
   createdAt          DateTime        @default(now())
@@ -375,6 +378,18 @@ model StockItem {
 
   @@index([productId])
   @@index([location])
+}
+
+/// Idempotencja atomowego przyjęcia produktu (+ opcjonalnie zapas / nutrition).
+model ProductIntakeIdempotency {
+  id             String   @id @default(uuid())
+  kitchenId      String
+  idempotencyKey String   @unique
+  resultJson     Json
+  createdAt      DateTime @default(now())
+  kitchen        Kitchen  @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+
+  @@index([kitchenId])
 }
 
 /// Zatwierdzone zużycie zapasu (może obejmować wiele partii).

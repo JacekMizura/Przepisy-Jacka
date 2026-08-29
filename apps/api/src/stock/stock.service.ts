@@ -5,6 +5,8 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '../generated/prisma/client';
 import {
+  MediaPurpose,
+  MediaUploadStatus,
   NutritionDataSource,
   ProductPurchaseMode,
   ProductUnit,
@@ -27,6 +29,11 @@ import { PrismaService } from '../prisma/prisma.service';
 import { requireKitchenMember } from '../kitchens/kitchen-access';
 import { MediaImageDto } from '../media/dto/media.dto';
 import { MediaService } from '../media/media.service';
+import {
+  CreateProductIntakeDto,
+  ProductIntakeResultDto,
+  ProductMatchResultDto,
+} from './dto/product-intake.dto';
 import {
   ProductNutritionDto,
   UpsertProductNutritionDto,
@@ -65,6 +72,7 @@ import {
   type StockBatchRow,
 } from './stock-consume';
 import { resolveStockConsumptionKindAndReason } from './stock-consumption-kind';
+import { buildProductMatchMessage } from './product-match-message';
 
 const stockBatchInclude = {
   purchaseLineItem: {
@@ -212,7 +220,68 @@ export class StockService {
   ): Promise<ProductDto> {
     const product = await this.findKitchenProduct(userId, kitchenId, productId);
 
-    if (dto.purchaseMode === undefined) {
+    const data: Prisma.ProductUpdateInput = {};
+
+    if (dto.name !== undefined) {
+      const name = dto.name.trim();
+      const normalizedName = normalizeProductName(name);
+      if (!normalizedName) {
+        throw new BadRequestException('Nazwa produktu jest wymagana.');
+      }
+      const archivedByName = await this.prisma.product.findFirst({
+        where: {
+          kitchenId,
+          normalizedName,
+          archivedAt: { not: null },
+          id: { not: product.id },
+        },
+        select: { id: true },
+      });
+      if (archivedByName) {
+        throw archivedProductNameConflict(archivedByName.id);
+      }
+      data.name = name;
+      data.normalizedName = normalizedName;
+    }
+
+    if (dto.defaultUnit !== undefined) {
+      data.defaultUnit = dto.defaultUnit;
+    }
+
+    if (dto.ean !== undefined) {
+      const ean = normalizeOptionalEan(dto.ean);
+      if (ean) {
+        const archivedByEan = await this.prisma.product.findFirst({
+          where: {
+            kitchenId,
+            ean,
+            archivedAt: { not: null },
+            id: { not: product.id },
+          },
+          select: { id: true },
+        });
+        if (archivedByEan) {
+          throw archivedProductNameConflict(archivedByEan.id);
+        }
+      }
+      data.ean = ean;
+    }
+
+    if (dto.category !== undefined) {
+      data.category = normalizeOptionalCategory(dto.category);
+    }
+
+    if (dto.purchaseMode !== undefined) {
+      if (dto.purchaseMode === ProductPurchaseMode.packaged) {
+        await assertPackagedProductHasValidActiveOptions(
+          this.prisma,
+          product.id,
+        );
+      }
+      data.purchaseMode = dto.purchaseMode;
+    }
+
+    if (Object.keys(data).length === 0) {
       const options = await this.prisma.productPurchaseOption.findMany({
         where: { productId: product.id, isActive: true },
         orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
@@ -223,16 +292,16 @@ export class StockService {
       });
     }
 
-    if (dto.purchaseMode === ProductPurchaseMode.packaged) {
-      await assertPackagedProductHasValidActiveOptions(this.prisma, product.id);
+    try {
+      const updated = await this.prisma.product.update({
+        where: { id: product.id },
+        data,
+        include: productInclude,
+      });
+      return this.toProductDtoWithMedia(updated);
+    } catch (error) {
+      throw toProductWriteError(error);
     }
-
-    const updated = await this.prisma.product.update({
-      where: { id: product.id },
-      data: { purchaseMode: dto.purchaseMode },
-      include: productInclude,
-    });
-    return this.toProductDtoWithMedia(updated);
   }
 
   async getProductNutrition(
@@ -254,112 +323,353 @@ export class StockService {
     dto: UpsertProductNutritionDto,
   ): Promise<ProductNutritionDto> {
     const product = await this.findKitchenProduct(userId, kitchenId, productId);
-
-    const baseQuantity = parseQuantityString(dto.baseQuantity, 'baseQuantity');
-    if (baseQuantity.lte(0)) {
-      throw new BadRequestException('baseQuantity musi być większe od zera.');
-    }
-    if (dto.baseUnit !== product.defaultUnit) {
-      throw new BadRequestException(
-        'baseUnit musi być zgodne z defaultUnit produktu.',
-      );
-    }
-
-    const source = dto.source ?? NutritionDataSource.manual;
-    if (
-      (source === NutritionDataSource.open_food_facts ||
-        source === NutritionDataSource.usda_fdc) &&
-      (!dto.sourceFetchedAt || dto.sourceFetchedAt.trim().length === 0)
-    ) {
-      throw new BadRequestException(
-        'sourceFetchedAt jest wymagane przy zapisie danych z Open Food Facts lub USDA.',
-      );
-    }
-    if (
-      source === NutritionDataSource.usda_fdc &&
-      (!dto.sourceGenericFoodId || dto.sourceGenericFoodId.trim().length === 0)
-    ) {
-      throw new BadRequestException(
-        'sourceGenericFoodId jest wymagane przy zapisie danych z katalogu USDA.',
-      );
-    }
-    if (
-      source === NutritionDataSource.usda_fdc &&
-      dto.baseUnit === ProductUnit.piece &&
-      (!dto.sourcePieceGrams || dto.sourcePieceGrams.trim().length === 0)
-    ) {
-      throw new BadRequestException(
-        'sourcePieceGrams jest wymagane przy zapisie USDA dla jednostki szt.',
-      );
-    }
-
-    const sourceFetchedAt =
-      (source === NutritionDataSource.open_food_facts ||
-        source === NutritionDataSource.usda_fdc) &&
-      dto.sourceFetchedAt
-        ? new Date(dto.sourceFetchedAt)
-        : null;
-    if (sourceFetchedAt !== null && Number.isNaN(sourceFetchedAt.getTime())) {
-      throw new BadRequestException(
-        'sourceFetchedAt musi być poprawną datą ISO.',
-      );
-    }
-
-    let sourceGenericFoodId: string | null = null;
-    let sourceFdcId: number | null = null;
-    let sourcePieceGrams: Prisma.Decimal | null = null;
-    if (source === NutritionDataSource.usda_fdc) {
-      sourceGenericFoodId = dto.sourceGenericFoodId!.trim();
-      const catalogEntry = await this.prisma.usdaFoodCatalogEntry.findUnique({
-        where: { id: sourceGenericFoodId },
-        select: { id: true, fdcId: true },
-      });
-      if (!catalogEntry) {
-        throw new BadRequestException(
-          'sourceGenericFoodId nie wskazuje na istniejący wpis katalogu USDA.',
-        );
-      }
-      sourceFdcId =
-        dto.sourceFdcId !== undefined && dto.sourceFdcId !== null
-          ? dto.sourceFdcId
-          : catalogEntry.fdcId;
-      sourcePieceGrams = parseOptionalNutritionValue(
-        dto.sourcePieceGrams,
-        'sourcePieceGrams',
-      );
-    }
-
-    const data = {
-      baseQuantity,
-      baseUnit: dto.baseUnit,
-      kcal: parseQuantityString(dto.kcal, 'kcal'),
-      proteinGrams: parseQuantityString(dto.proteinGrams, 'proteinGrams'),
-      carbsGrams: parseQuantityString(dto.carbsGrams, 'carbsGrams'),
-      fatGrams: parseQuantityString(dto.fatGrams, 'fatGrams'),
-      fiberGrams: parseOptionalNutritionValue(dto.fiberGrams, 'fiberGrams'),
-      saltGrams: parseOptionalNutritionValue(dto.saltGrams, 'saltGrams'),
-      source,
-      sourceFetchedAt,
-      sourceLabel:
-        source === NutritionDataSource.open_food_facts ||
-        source === NutritionDataSource.usda_fdc
-          ? dto.sourceLabel?.trim() || null
-          : null,
-      sourceBrand:
-        source === NutritionDataSource.open_food_facts
-          ? dto.sourceBrand?.trim() || null
-          : null,
-      sourceGenericFoodId,
-      sourceFdcId,
-      sourcePieceGrams,
-    };
-
+    const data = await buildProductNutritionWriteData(
+      this.prisma,
+      product,
+      dto,
+    );
     const nutrition = await this.prisma.productNutrition.upsert({
       where: { productId: product.id },
       create: { productId: product.id, ...data },
       update: data,
     });
     return toProductNutritionDto(nutrition);
+  }
+
+  async deleteProductNutrition(
+    userId: string,
+    kitchenId: string,
+    productId: string,
+  ): Promise<{ deleted: true }> {
+    const product = await this.findKitchenProduct(userId, kitchenId, productId);
+    await this.prisma.productNutrition.deleteMany({
+      where: { productId: product.id },
+    });
+    return { deleted: true };
+  }
+
+  async matchProducts(
+    userId: string,
+    kitchenId: string,
+    query: { ean?: string; name?: string },
+  ): Promise<ProductMatchResultDto> {
+    await requireKitchenMember(this.prisma, kitchenId, userId);
+
+    const ean = normalizeOptionalEan(query.ean);
+    const nameQuery = query.name?.trim() ?? '';
+    const normalizedQuery = nameQuery ? normalizeProductName(nameQuery) : '';
+
+    let exactEan: ProductDto | null = null;
+    if (ean) {
+      const product = await this.prisma.product.findFirst({
+        where: { kitchenId, ean, archivedAt: null },
+        include: productInclude,
+      });
+      if (product) {
+        exactEan = await this.toProductDtoWithMedia(product);
+      }
+    }
+
+    let exactName: ProductDto | null = null;
+    if (normalizedQuery) {
+      const product = await this.prisma.product.findFirst({
+        where: { kitchenId, normalizedName: normalizedQuery, archivedAt: null },
+        include: productInclude,
+      });
+      if (product) {
+        exactName = await this.toProductDtoWithMedia(product);
+      }
+    }
+
+    let archivedMatch: ProductDto | null = null;
+    if (ean) {
+      const byEan = await this.prisma.product.findFirst({
+        where: { kitchenId, ean, archivedAt: { not: null } },
+        include: productInclude,
+      });
+      if (byEan) {
+        archivedMatch = await this.toProductDtoWithMedia(byEan);
+      }
+    }
+    if (!archivedMatch && normalizedQuery) {
+      const byName = await this.prisma.product.findFirst({
+        where: {
+          kitchenId,
+          normalizedName: normalizedQuery,
+          archivedAt: { not: null },
+        },
+        include: productInclude,
+      });
+      if (byName) {
+        archivedMatch = await this.toProductDtoWithMedia(byName);
+      }
+    }
+
+    const nameSuggestions: ProductDto[] = [];
+    if (normalizedQuery) {
+      const exactId = exactName?.id;
+      const candidates = await this.prisma.product.findMany({
+        where: {
+          kitchenId,
+          archivedAt: null,
+          ...(exactId ? { id: { not: exactId } } : {}),
+        },
+        include: productInclude,
+        orderBy: [{ name: 'asc' }],
+        take: 50,
+      });
+      for (const candidate of candidates) {
+        const candidateName = candidate.normalizedName;
+        if (
+          candidateName.includes(normalizedQuery) ||
+          normalizedQuery.includes(candidateName)
+        ) {
+          nameSuggestions.push(await this.toProductDtoWithMedia(candidate));
+          if (nameSuggestions.length >= 5) {
+            break;
+          }
+        }
+      }
+    }
+
+    return {
+      exactEan,
+      exactName,
+      archivedMatch,
+      nameSuggestions,
+      message: buildProductMatchMessage({
+        exactEan,
+        exactName,
+        archivedMatch,
+      }),
+    };
+  }
+
+  async createProductIntake(
+    userId: string,
+    kitchenId: string,
+    dto: CreateProductIntakeDto,
+  ): Promise<ProductIntakeResultDto> {
+    await requireKitchenMember(this.prisma, kitchenId, userId);
+
+    const hasNew = dto.newProduct !== undefined;
+    const hasExisting = dto.existingProductId !== undefined;
+    if (hasNew === hasExisting) {
+      throw new BadRequestException(
+        'Podaj dokładnie jedno z: newProduct albo existingProductId.',
+      );
+    }
+
+    const existingIdempotency =
+      await this.prisma.productIntakeIdempotency.findUnique({
+        where: { idempotencyKey: dto.idempotencyKey },
+      });
+    if (existingIdempotency) {
+      if (existingIdempotency.kitchenId !== kitchenId) {
+        throw new ConflictException('Klucz idempotencji jest już użyty.');
+      }
+      return replayIntakeResult(existingIdempotency.resultJson);
+    }
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const raced = await tx.productIntakeIdempotency.findUnique({
+          where: { idempotencyKey: dto.idempotencyKey },
+        });
+        if (raced) {
+          if (raced.kitchenId !== kitchenId) {
+            throw new ConflictException('Klucz idempotencji jest już użyty.');
+          }
+          return replayIntakeResult(raced.resultJson);
+        }
+
+        let product: Product;
+        let restoredFromArchive = false;
+
+        if (dto.existingProductId) {
+          const existing = await tx.product.findFirst({
+            where: { id: dto.existingProductId, kitchenId },
+          });
+          if (!existing) {
+            throw new BadRequestException(
+              'Nie znaleziono produktu w tej kuchni.',
+            );
+          }
+          if (existing.archivedAt !== null) {
+            if (!dto.restoreArchived) {
+              throw archivedProductNameConflict(existing.id);
+            }
+            product = await tx.product.update({
+              where: { id: existing.id },
+              data: { archivedAt: null },
+            });
+            restoredFromArchive = true;
+          } else {
+            product = existing;
+          }
+          assertProductNotArchived(product);
+        } else {
+          const newProduct = dto.newProduct!;
+          const name = newProduct.name.trim();
+          const normalizedName = normalizeProductName(name);
+          if (!normalizedName) {
+            throw new BadRequestException('Nazwa produktu jest wymagana.');
+          }
+          const ean = normalizeOptionalEan(newProduct.ean);
+          const category = normalizeOptionalCategory(newProduct.category);
+
+          const archivedByName = await tx.product.findFirst({
+            where: { kitchenId, normalizedName, archivedAt: { not: null } },
+            select: { id: true },
+          });
+          if (archivedByName) {
+            throw archivedProductNameConflict(archivedByName.id);
+          }
+          if (ean) {
+            const archivedByEan = await tx.product.findFirst({
+              where: { kitchenId, ean, archivedAt: { not: null } },
+              select: { id: true },
+            });
+            if (archivedByEan) {
+              throw archivedProductNameConflict(archivedByEan.id);
+            }
+          }
+
+          product = await tx.product.create({
+            data: {
+              kitchenId,
+              name,
+              normalizedName,
+              defaultUnit: newProduct.defaultUnit,
+              ean,
+              category,
+            },
+          });
+
+          if (
+            newProduct.imageMediaId !== undefined &&
+            newProduct.imageMediaId !== null &&
+            newProduct.imageMediaId !== ''
+          ) {
+            const asset = await tx.mediaAsset.findFirst({
+              where: {
+                id: newProduct.imageMediaId,
+                kitchenId,
+                purpose: MediaPurpose.product,
+                status: MediaUploadStatus.ready,
+              },
+            });
+            if (!asset) {
+              throw new BadRequestException(
+                'Zdjęcie produktu musi należeć do tej kuchni, mieć purpose=product i status ready.',
+              );
+            }
+            product = await tx.product.update({
+              where: { id: product.id },
+              data: { imageMediaId: asset.id },
+            });
+          }
+        }
+
+        if (dto.nutrition) {
+          const nutritionData = await buildProductNutritionWriteData(
+            tx,
+            product,
+            dto.nutrition,
+          );
+          await tx.productNutrition.upsert({
+            where: { productId: product.id },
+            create: { productId: product.id, ...nutritionData },
+            update: nutritionData,
+          });
+        }
+
+        let stockItem: StockItem | null = null;
+        if (dto.stock) {
+          const quantity = parseQuantityString(dto.stock.quantity, 'quantity');
+          assertStockQuantities(quantity, quantity);
+          const priceMinor =
+            dto.stock.purchasePriceMinor === undefined
+              ? null
+              : dto.stock.purchasePriceMinor;
+          if (priceMinor !== null && priceMinor < 0) {
+            throw new BadRequestException('Cena nie może być ujemna.');
+          }
+          const storeName =
+            dto.stock.storeName === undefined
+              ? null
+              : dto.stock.storeName?.trim() || null;
+          const purchasedAt = dto.stock.purchasedAt
+            ? new Date(dto.stock.purchasedAt)
+            : new Date();
+          const expiresAt =
+            dto.stock.expiresAt === undefined || dto.stock.expiresAt === null
+              ? null
+              : new Date(dto.stock.expiresAt);
+
+          stockItem = await tx.stockItem.create({
+            data: {
+              productId: product.id,
+              initialQuantity: quantity,
+              quantity,
+              location: dto.stock.location,
+              purchasePriceMinor: priceMinor,
+              storeName,
+              purchasedAt,
+              expiresAt,
+              currency: 'PLN',
+            },
+          });
+        }
+
+        const productWithRelations = await tx.product.findFirstOrThrow({
+          where: { id: product.id },
+          include: productInclude,
+        });
+        const productDto =
+          await this.toProductDtoWithMedia(productWithRelations);
+        const result: ProductIntakeResultDto = {
+          product: productDto,
+          stockItem: stockItem ? toStockItemDto(stockItem) : null,
+          replayed: false,
+          restoredFromArchive,
+        };
+
+        await tx.productIntakeIdempotency.create({
+          data: {
+            kitchenId,
+            idempotencyKey: dto.idempotencyKey,
+            resultJson: result as unknown as Prisma.InputJsonValue,
+          },
+        });
+
+        return result;
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        const targetMeta = error.meta?.target;
+        const target = Array.isArray(targetMeta)
+          ? targetMeta.map(String).join(',')
+          : typeof targetMeta === 'string'
+            ? targetMeta
+            : '';
+        if (target.includes('idempotencyKey')) {
+          const stored = await this.prisma.productIntakeIdempotency.findUnique({
+            where: { idempotencyKey: dto.idempotencyKey },
+          });
+          if (stored) {
+            if (stored.kitchenId !== kitchenId) {
+              throw new ConflictException('Klucz idempotencji jest już użyty.');
+            }
+            return replayIntakeResult(stored.resultJson);
+          }
+        }
+      }
+      throw toProductWriteError(error);
+    }
   }
 
   async configureProductPurchase(
@@ -618,6 +928,10 @@ export class StockService {
             expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : null,
             purchasedAt: dto.purchasedAt ? new Date(dto.purchasedAt) : null,
             purchasePriceMinor: priceMinor,
+            storeName:
+              dto.storeName === undefined
+                ? null
+                : dto.storeName?.trim() || null,
             currency,
             ean,
             imageUrl,
@@ -1521,7 +1835,8 @@ function toStockBatchDetailDto(
       item.initialQuantity,
       item.purchasePriceMinor,
     ),
-    storeName: item.purchaseLineItem?.purchase.storeName ?? null,
+    storeName:
+      item.purchaseLineItem?.purchase.storeName ?? item.storeName ?? null,
     purchaseId: item.purchaseLineItem?.purchase.id ?? null,
     receiptMediaId: item.purchaseLineItem?.purchase.receiptMediaId ?? null,
     isExpired: item.expiresAt !== null && item.expiresAt <= now,
@@ -1567,10 +1882,148 @@ function toStockItemDto(item: StockItem): StockItemDto {
     expiresAt: item.expiresAt?.toISOString() ?? null,
     purchasedAt: item.purchasedAt?.toISOString() ?? null,
     purchasePriceMinor: item.purchasePriceMinor,
+    storeName: item.storeName ?? null,
     currency: item.currency,
     ean: item.ean,
     imageUrl: item.imageUrl,
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),
+  };
+}
+
+type ProductNutritionWriteData = {
+  baseQuantity: Prisma.Decimal;
+  baseUnit: ProductUnit;
+  kcal: Prisma.Decimal;
+  proteinGrams: Prisma.Decimal;
+  carbsGrams: Prisma.Decimal;
+  fatGrams: Prisma.Decimal;
+  fiberGrams: Prisma.Decimal | null;
+  saltGrams: Prisma.Decimal | null;
+  source: NutritionDataSource;
+  sourceFetchedAt: Date | null;
+  sourceLabel: string | null;
+  sourceBrand: string | null;
+  sourceGenericFoodId: string | null;
+  sourceFdcId: number | null;
+  sourcePieceGrams: Prisma.Decimal | null;
+};
+
+async function buildProductNutritionWriteData(
+  client: Prisma.TransactionClient | PrismaService,
+  product: Pick<Product, 'defaultUnit'>,
+  dto: UpsertProductNutritionDto,
+): Promise<ProductNutritionWriteData> {
+  const baseQuantity = parseQuantityString(dto.baseQuantity, 'baseQuantity');
+  if (baseQuantity.lte(0)) {
+    throw new BadRequestException('baseQuantity musi być większe od zera.');
+  }
+  if (dto.baseUnit !== product.defaultUnit) {
+    throw new BadRequestException(
+      'baseUnit musi być zgodne z defaultUnit produktu.',
+    );
+  }
+
+  const source = dto.source ?? NutritionDataSource.manual;
+  if (
+    (source === NutritionDataSource.open_food_facts ||
+      source === NutritionDataSource.usda_fdc) &&
+    (!dto.sourceFetchedAt || dto.sourceFetchedAt.trim().length === 0)
+  ) {
+    throw new BadRequestException(
+      'sourceFetchedAt jest wymagane przy zapisie danych z Open Food Facts lub USDA.',
+    );
+  }
+  if (
+    source === NutritionDataSource.usda_fdc &&
+    (!dto.sourceGenericFoodId || dto.sourceGenericFoodId.trim().length === 0)
+  ) {
+    throw new BadRequestException(
+      'sourceGenericFoodId jest wymagane przy zapisie danych z katalogu USDA.',
+    );
+  }
+  if (
+    source === NutritionDataSource.usda_fdc &&
+    dto.baseUnit === ProductUnit.piece &&
+    (!dto.sourcePieceGrams || dto.sourcePieceGrams.trim().length === 0)
+  ) {
+    throw new BadRequestException(
+      'sourcePieceGrams jest wymagane przy zapisie USDA dla jednostki szt.',
+    );
+  }
+
+  const sourceFetchedAt =
+    (source === NutritionDataSource.open_food_facts ||
+      source === NutritionDataSource.usda_fdc) &&
+    dto.sourceFetchedAt
+      ? new Date(dto.sourceFetchedAt)
+      : null;
+  if (sourceFetchedAt !== null && Number.isNaN(sourceFetchedAt.getTime())) {
+    throw new BadRequestException(
+      'sourceFetchedAt musi być poprawną datą ISO.',
+    );
+  }
+
+  let sourceGenericFoodId: string | null = null;
+  let sourceFdcId: number | null = null;
+  let sourcePieceGrams: Prisma.Decimal | null = null;
+  if (source === NutritionDataSource.usda_fdc) {
+    sourceGenericFoodId = dto.sourceGenericFoodId!.trim();
+    const catalogEntry = await client.usdaFoodCatalogEntry.findUnique({
+      where: { id: sourceGenericFoodId },
+      select: { id: true, fdcId: true },
+    });
+    if (!catalogEntry) {
+      throw new BadRequestException(
+        'sourceGenericFoodId nie wskazuje na istniejący wpis katalogu USDA.',
+      );
+    }
+    sourceFdcId =
+      dto.sourceFdcId !== undefined && dto.sourceFdcId !== null
+        ? dto.sourceFdcId
+        : catalogEntry.fdcId;
+    sourcePieceGrams = parseOptionalNutritionValue(
+      dto.sourcePieceGrams,
+      'sourcePieceGrams',
+    );
+  }
+
+  // Manual edits clear OFF/USDA provenance fields.
+  return {
+    baseQuantity,
+    baseUnit: dto.baseUnit,
+    kcal: parseQuantityString(dto.kcal, 'kcal'),
+    proteinGrams: parseQuantityString(dto.proteinGrams, 'proteinGrams'),
+    carbsGrams: parseQuantityString(dto.carbsGrams, 'carbsGrams'),
+    fatGrams: parseQuantityString(dto.fatGrams, 'fatGrams'),
+    fiberGrams: parseOptionalNutritionValue(dto.fiberGrams, 'fiberGrams'),
+    saltGrams: parseOptionalNutritionValue(dto.saltGrams, 'saltGrams'),
+    source,
+    sourceFetchedAt,
+    sourceLabel:
+      source === NutritionDataSource.open_food_facts ||
+      source === NutritionDataSource.usda_fdc
+        ? dto.sourceLabel?.trim() || null
+        : null,
+    sourceBrand:
+      source === NutritionDataSource.open_food_facts
+        ? dto.sourceBrand?.trim() || null
+        : null,
+    sourceGenericFoodId,
+    sourceFdcId,
+    sourcePieceGrams,
+  };
+}
+
+function replayIntakeResult(value: Prisma.JsonValue): ProductIntakeResultDto {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new ConflictException(
+      'Uszkodzony wynik idempotencji przyjęcia produktu.',
+    );
+  }
+  const stored = value as unknown as ProductIntakeResultDto;
+  return {
+    ...stored,
+    replayed: true,
   };
 }

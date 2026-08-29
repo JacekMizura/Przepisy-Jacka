@@ -2,65 +2,40 @@
 
 import type { components } from "@moja-kuchnia/api-client";
 import {
-  Calendar,
   ChefHat,
   ChevronDown,
-  MapPin,
   Package,
   Plus,
   ShoppingBasket,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { type FormEvent, Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { AppShell } from "@/components/app-shell";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { ImageField } from "@/components/image-field";
 import { ImageLightbox } from "@/components/image-lightbox";
-import { MediaImageField } from "@/components/media-image-field";
-import {
-  draftHasNutritionValues,
-  NutritionEanLookup,
-  type NutritionFormValues,
-} from "@/components/nutrition-ean-lookup";
-import { NutritionUsdaLookup } from "@/components/nutrition-usda-lookup";
-import { ProductNutritionSection } from "@/components/product-nutrition-section";
-import { ProductPhotoField } from "@/components/product-photo-field";
 import { ProductPurchaseOptions } from "@/components/product-purchase-options";
 import { StockConsumeDialog } from "@/components/stock-consume-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { createWebApiClient } from "@/lib/api";
 import { LOCATION_LABELS, UNIT_LABELS, readApiError } from "@/lib/errors";
 import {
   formatNutritionNumber,
   formatQuantityWithUnit,
-  toApiQuantityString,
 } from "@/lib/format-quantity";
+import { isDisplayableUrl, mediaDisplayUrl } from "@/lib/media-upload";
+import { PRODUCT_CATEGORY_OPTIONS } from "@/lib/product-media";
 import {
-  deleteKitchenMedia,
-  isDisplayableUrl,
-  mediaDisplayUrl,
-} from "@/lib/media-upload";
-import {
-  PRODUCT_CATEGORY_OPTIONS,
-  validateOptionalEan,
-} from "@/lib/product-media";
-import {
-  convertToBaseQuantity,
   inputUnitsFor,
-  minorFromZloty,
   zlotyFromMinor,
   type BaseUnit,
-  type InputUnit,
 } from "@/lib/quantity-input";
 import { cn } from "@/lib/utils";
 
 type Product = components["schemas"]["ProductDto"];
-type CreateStockItemBody = components["schemas"]["CreateStockItemDto"];
 type StockSummary = components["schemas"]["StockProductSummaryDto"];
 type LocationFilter = "" | keyof typeof LOCATION_LABELS;
 type UnitFilter = "" | BaseUnit;
@@ -88,6 +63,9 @@ const UNIT_OPTION_LABELS: Record<BaseUnit, string> = {
 
 const UNCATEGORIZED = "Bez kategorii";
 
+const linkButtonSmClass =
+  "inline-flex h-9 items-center justify-center rounded-xl border border-gray-200 bg-white px-3 text-xs font-medium text-gray-800 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500";
+
 export default function StockPage() {
   const params = useParams<{ id: string }>();
   const kitchenId = params.id;
@@ -96,35 +74,11 @@ export default function StockPage() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [unitFilter, setUnitFilter] = useState<UnitFilter>("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [productName, setProductName] = useState("");
-  const [productUnit, setProductUnit] = useState<BaseUnit>("gram");
-  const [productEan, setProductEan] = useState("");
-  const [productNutritionDraft, setProductNutritionDraft] =
-    useState<NutritionFormValues | null>(null);
-  const [productMediaAssetId, setProductMediaAssetId] = useState<string | null>(
-    null,
-  );
-  const [productCategory, setProductCategory] = useState("");
-  const [selectedProductId, setSelectedProductId] = useState("");
-  const [quantity, setQuantity] = useState("");
-  const [inputUnit, setInputUnit] = useState<InputUnit>("gram");
-  const [location, setLocation] =
-    useState<keyof typeof LOCATION_LABELS>("pantry");
-  const [price, setPrice] = useState("");
-  const [expiresAt, setExpiresAt] = useState("");
-  const [purchasedAt, setPurchasedAt] = useState("");
-  const [stockEan, setStockEan] = useState("");
-  const [stockImageUrl, setStockImageUrl] = useState("");
-  const [formError, setFormError] = useState<string | null>(null);
   const [productToArchive, setProductToArchive] = useState<{
     id: string;
     name: string;
   } | null>(null);
   const [showArchivedCatalog, setShowArchivedCatalog] = useState(false);
-  const [archivedNameConflict, setArchivedNameConflict] = useState<{
-    productId: string;
-    message: string;
-  } | null>(null);
   const [batchToDelete, setBatchToDelete] = useState<{
     id: string;
     label: string;
@@ -137,8 +91,6 @@ export default function StockPage() {
     string | undefined
   >();
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [productFormOpen, setProductFormOpen] = useState(false);
-  const [stockFormOpen, setStockFormOpen] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [listFeedback, setListFeedback] = useState<string | null>(null);
   const [listFeedbackError, setListFeedbackError] = useState(false);
@@ -155,6 +107,9 @@ export default function StockPage() {
   const [preview, setPreview] = useState<{ src: string; alt: string } | null>(
     null,
   );
+
+  const newProductWithStockHref = `/kitchens/${kitchenId}/products/new?stock=1&from=stock`;
+  const newProductCatalogHref = `/kitchens/${kitchenId}/products/new?stock=0&from=catalog`;
 
   const productsQuery = useQuery({
     queryKey: ["products", kitchenId],
@@ -262,12 +217,6 @@ export default function StockPage() {
     },
   });
 
-  const selectedProduct = useMemo(
-    () =>
-      productsQuery.data?.find((product) => product.id === selectedProductId),
-    [productsQuery.data, selectedProductId],
-  );
-
   const categoryOptions = useMemo(() => {
     const fromCatalog = new Set<string>(PRODUCT_CATEGORY_OPTIONS);
     for (const product of productsQuery.data ?? []) {
@@ -328,212 +277,6 @@ export default function StockPage() {
       return next;
     });
   };
-
-  const createProduct = useMutation({
-    mutationFn: async () => {
-      const eanError = validateOptionalEan(productEan);
-      if (eanError) {
-        throw new Error(eanError);
-      }
-      const client = createWebApiClient();
-      const { data, error, response } = await client.POST(
-        "/api/kitchens/{kitchenId}/products",
-        {
-          params: { path: { kitchenId } },
-          body: {
-            name: productName.trim(),
-            defaultUnit: productUnit,
-            ean: productEan.trim() || null,
-            category: productCategory.trim() || null,
-          },
-        },
-      );
-      if (response.status === 409) {
-        const payload = error as unknown as {
-          message?:
-            | string
-            | { code?: string; productId?: string; message?: string };
-          code?: string;
-          productId?: string;
-        } | null;
-        const detail =
-          payload &&
-          typeof payload.message === "object" &&
-          payload.message !== null
-            ? payload.message
-            : payload;
-        if (
-          detail &&
-          (detail.code === "PRODUCT_ARCHIVED_EXISTS" ||
-            (typeof detail.message === "string" &&
-              detail.message.includes("archiwum")))
-        ) {
-          throw Object.assign(
-            new Error(
-              typeof detail.message === "string"
-                ? detail.message
-                : "Produkt o tej nazwie jest w archiwum.",
-            ),
-            {
-              code: "PRODUCT_ARCHIVED_EXISTS",
-              productId: detail.productId,
-            },
-          );
-        }
-      }
-      if (error) {
-        throw new Error(readApiError(error, "Nie udało się dodać produktu."));
-      }
-      // Zdjęcie wysłane przed zapisem nie ma jeszcze właściciela — przypisz je teraz.
-      if (data && productMediaAssetId) {
-        const { error: attachError } = await client.POST(
-          "/api/kitchens/{kitchenId}/products/{productId}/image",
-          {
-            params: { path: { kitchenId, productId: data.id } },
-            body: { mediaAssetId: productMediaAssetId },
-          },
-        );
-        if (attachError) {
-          throw new Error(
-            readApiError(
-              attachError,
-              "Produkt powstał, ale nie udało się przypisać zdjęcia.",
-            ),
-          );
-        }
-      }
-      if (data && productNutritionDraft) {
-        const draft = productNutritionDraft;
-        const { error: nutritionError } = await client.PUT(
-          "/api/kitchens/{kitchenId}/products/{productId}/nutrition",
-          {
-            params: { path: { kitchenId, productId: data.id } },
-            body: {
-              baseQuantity: toApiQuantityString(draft.baseQuantity),
-              baseUnit: draft.baseUnit,
-              kcal: toApiQuantityString(draft.kcal),
-              proteinGrams: toApiQuantityString(draft.proteinGrams),
-              carbsGrams: toApiQuantityString(draft.carbsGrams),
-              fatGrams: toApiQuantityString(draft.fatGrams),
-              fiberGrams: draft.fiberGrams.trim()
-                ? toApiQuantityString(draft.fiberGrams)
-                : null,
-              saltGrams: draft.saltGrams.trim()
-                ? toApiQuantityString(draft.saltGrams)
-                : null,
-              source: draft.source,
-              sourceFetchedAt: draft.sourceFetchedAt,
-              sourceLabel: draft.sourceLabel,
-              sourceBrand: draft.sourceBrand,
-              sourceGenericFoodId: draft.sourceGenericFoodId ?? null,
-              sourceFdcId: draft.sourceFdcId ?? null,
-              sourcePieceGrams: draft.sourcePieceGrams ?? null,
-            },
-          },
-        );
-        if (nutritionError) {
-          throw new Error(
-            readApiError(
-              nutritionError,
-              "Produkt powstał, ale nie udało się zapisać wartości odżywczych.",
-            ),
-          );
-        }
-      }
-      return data;
-    },
-    onSuccess: async (product) => {
-      await queryClient.invalidateQueries({ queryKey: ["products", kitchenId] });
-      setProductName("");
-      setProductEan("");
-      setProductNutritionDraft(null);
-      setProductMediaAssetId(null);
-      setProductCategory("");
-      setProductFormOpen(false);
-      setArchivedNameConflict(null);
-      if (product) {
-        setSelectedProductId(product.id);
-        const units = inputUnitsFor(product.defaultUnit);
-        setInputUnit(units[0]?.value ?? "gram");
-        setStockFormOpen(true);
-      }
-    },
-    onError: (error: Error & { code?: string; productId?: string }) => {
-      if (error.code === "PRODUCT_ARCHIVED_EXISTS" && error.productId) {
-        setArchivedNameConflict({
-          productId: error.productId,
-          message: error.message,
-        });
-        return;
-      }
-      setFormError(error.message);
-    },
-  });
-
-  const createStock = useMutation({
-    mutationFn: async () => {
-      if (!selectedProduct) {
-        throw new Error("Wybierz produkt.");
-      }
-      const eanError = validateOptionalEan(stockEan);
-      if (eanError) {
-        throw new Error(eanError);
-      }
-      const converted = convertToBaseQuantity(
-        quantity,
-        inputUnit,
-        selectedProduct.defaultUnit,
-      );
-      if (!converted.ok) {
-        throw new Error(converted.message);
-      }
-      const purchasePriceMinor = price.trim()
-        ? minorFromZloty(price)
-        : null;
-      if (price.trim() && purchasePriceMinor === null) {
-        throw new Error("Podaj cenę w złotych, np. 5,99, albo zostaw puste.");
-      }
-      const client = createWebApiClient();
-      const { data, error } = await client.POST(
-        "/api/kitchens/{kitchenId}/stock-items",
-        {
-          params: { path: { kitchenId } },
-          body: {
-            productId: selectedProduct.id,
-            quantity: converted.quantity,
-            location,
-            ...(purchasePriceMinor !== null ? { purchasePriceMinor } : {}),
-            expiresAt: expiresAt ? new Date(expiresAt).toISOString() : undefined,
-            purchasedAt: purchasedAt
-              ? new Date(purchasedAt).toISOString()
-              : undefined,
-            ean: stockEan.trim() || null,
-            imageUrl: stockImageUrl.trim() || null,
-          } as CreateStockItemBody,
-        },
-      );
-      if (error) {
-        throw new Error(readApiError(error, "Nie udało się dodać partii."));
-      }
-      return data;
-    },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["stock", kitchenId] });
-      await queryClient.invalidateQueries({
-        queryKey: ["stock-summary", kitchenId],
-      });
-      await queryClient.invalidateQueries({ queryKey: ["products", kitchenId] });
-      setQuantity("");
-      setPrice("");
-      setStockEan("");
-      setStockImageUrl("");
-      setFormError(null);
-      setStockFormOpen(false);
-    },
-    onError: (error) => {
-      setFormError(readApiError(error));
-    },
-  });
 
   const deleteStock = useMutation({
     mutationFn: async (stockItemId: string) => {
@@ -615,7 +358,6 @@ export default function StockPage() {
       await queryClient.invalidateQueries({
         queryKey: ["stock-summary", kitchenId],
       });
-      setArchivedNameConflict(null);
       setShowArchivedCatalog(true);
     },
   });
@@ -669,15 +411,6 @@ export default function StockPage() {
     },
   });
 
-  /** Wysyłka bez zapisanego produktu zostawiłaby zdjęcie bez właściciela. */
-  function discardPendingProductMedia() {
-    const assetId = productMediaAssetId;
-    setProductMediaAssetId(null);
-    if (assetId) {
-      void deleteKitchenMedia(kitchenId, assetId).catch(() => undefined);
-    }
-  }
-
   function toggleProductDetails(productId: string) {
     setExpandedProductIds((current) => {
       const next = new Set(current);
@@ -694,17 +427,6 @@ export default function StockPage() {
     setListFeedback(null);
     setListFeedbackError(false);
     addToShoppingList.mutate({ productId: product.id });
-  }
-
-  function onCreateProduct(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    createProduct.mutate();
-  }
-
-  function onCreateStock(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setFormError(null);
-    createStock.mutate();
   }
 
   return (
@@ -730,44 +452,20 @@ export default function StockPage() {
               </h1>
             </div>
             <div className="flex flex-col gap-2 sm:items-end">
-              <button
-                type="button"
-                onClick={() => {
-                  setStockFormOpen((open) => !open);
-                  if (!stockFormOpen) {
-                    setProductFormOpen(false);
-                  }
-                }}
-                className={cn(
-                  "inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold shadow-sm transition-all",
-                  stockFormOpen
-                    ? "bg-amber-100 text-amber-900 ring-1 ring-amber-200"
-                    : "bg-amber-500 text-white shadow-amber-200 hover:bg-amber-600",
-                )}
+              <Link
+                href={newProductWithStockHref}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-amber-500 px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-amber-200 transition-all hover:bg-amber-600"
               >
                 <ShoppingBasket size={18} />
-                {stockFormOpen ? "Zamknij dodawanie na półkę" : "Odłóż na półkę"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setProductFormOpen((open) => !open);
-                  if (!productFormOpen) {
-                    setStockFormOpen(false);
-                  }
-                }}
-                className={cn(
-                  "inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-medium transition-all",
-                  productFormOpen
-                    ? "bg-emerald-100 text-emerald-900 ring-1 ring-emerald-200"
-                    : "bg-white text-emerald-800 ring-1 ring-emerald-200 hover:bg-emerald-50",
-                )}
+                Dodaj zakupiony produkt
+              </Link>
+              <Link
+                href={newProductCatalogHref}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-medium text-emerald-800 ring-1 ring-emerald-200 transition-all hover:bg-emerald-50"
               >
                 <Plus size={18} />
-                {productFormOpen
-                  ? "Zamknij nowy produkt"
-                  : "Nowy produkt w katalogu"}
-              </button>
+                Dodaj produkt
+              </Link>
             </div>
           </div>
         </header>
@@ -784,364 +482,6 @@ export default function StockPage() {
           >
             {listFeedback}
           </div>
-        ) : null}
-
-        {productFormOpen ? (
-          <section className="overflow-hidden rounded-3xl border border-emerald-100 bg-white shadow-sm">
-            <div className="border-b border-emerald-50 bg-emerald-50/40 px-5 py-4">
-              <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
-                <Plus size={20} className="text-emerald-600" /> Nowy produkt w
-                katalogu
-              </h2>
-              <p className="mt-1 text-sm text-gray-500">
-                Najpierw dodaj rzecz do katalogu (np. mleko, ryż), potem możesz
-                odłożyć konkretną partię na półkę.
-              </p>
-            </div>
-            <div className="p-6">
-              <form
-                onSubmit={onCreateProduct}
-                className="grid grid-cols-1 gap-6 md:grid-cols-2"
-              >
-                <div>
-                  <Label htmlFor="product-name">Nazwa produktu</Label>
-                  <Input
-                    id="product-name"
-                    placeholder="np. Mleko UHT 3.2%"
-                    value={productName}
-                    onChange={(event) => setProductName(event.target.value)}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="product-unit">Jednostka bazowa</Label>
-                  <select
-                    id="product-unit"
-                    className="field-input"
-                    value={productUnit}
-                    onChange={(event) =>
-                      setProductUnit(event.target.value as BaseUnit)
-                    }
-                  >
-                    {(Object.keys(UNIT_OPTION_LABELS) as BaseUnit[]).map(
-                      (unit) => (
-                        <option key={unit} value={unit}>
-                          {UNIT_OPTION_LABELS[unit]}
-                        </option>
-                      ),
-                    )}
-                  </select>
-                </div>
-                <div>
-                  <Label htmlFor="product-category">Kategoria</Label>
-                  <select
-                    id="product-category"
-                    className="field-input"
-                    value={productCategory}
-                    onChange={(event) => setProductCategory(event.target.value)}
-                  >
-                    <option value="">Bez kategorii</option>
-                    {categoryOptions.map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <Label htmlFor="product-ean">EAN (opcjonalnie)</Label>
-                  <Input
-                    id="product-ean"
-                    inputMode="numeric"
-                    placeholder="np. 5901234123457"
-                    value={productEan}
-                    onChange={(event) => setProductEan(event.target.value)}
-                  />
-                </div>
-                <div className="md:col-span-2 space-y-3">
-                  <NutritionEanLookup
-                    kitchenId={kitchenId}
-                    ean={productEan}
-                    productUnit={productUnit}
-                    hasExistingValues={
-                      productNutritionDraft
-                        ? draftHasNutritionValues(productNutritionDraft)
-                        : false
-                    }
-                    onApply={(values) => setProductNutritionDraft(values)}
-                  />
-                  <NutritionUsdaLookup
-                    kitchenId={kitchenId}
-                    productUnit={productUnit}
-                    hasExistingValues={
-                      productNutritionDraft
-                        ? draftHasNutritionValues(productNutritionDraft)
-                        : false
-                    }
-                    onApply={(values) => setProductNutritionDraft(values)}
-                  />
-                  {productNutritionDraft ? (
-                    <p className="mt-2 text-xs text-emerald-700">
-                      Wartości odżywcze są w formularzu
-                      ({formatNutritionNumber(productNutritionDraft.kcal, 0)}{" "}
-                      kcal /{" "}
-                      {formatQuantityWithUnit(
-                        productNutritionDraft.baseQuantity,
-                        productNutritionDraft.baseUnit,
-                      )}
-                      ). Zapiszesz je przyciskiem „Dodaj do katalogu”. Nazwa,
-                      jednostka i zdjęcie nie zostały zmienione.
-                    </p>
-                  ) : null}
-                </div>
-                <div className="md:col-span-2">
-                  <MediaImageField
-                    kitchenId={kitchenId}
-                    purpose="product"
-                    currentImage={null}
-                    label="Zdjęcie produktu (opcjonalnie)"
-                    onUploaded={(mediaAssetId) =>
-                      setProductMediaAssetId(mediaAssetId)
-                    }
-                    onRemoved={async () => {
-                      if (productMediaAssetId) {
-                        await deleteKitchenMedia(
-                          kitchenId,
-                          productMediaAssetId,
-                        );
-                      }
-                      setProductMediaAssetId(null);
-                    }}
-                  />
-                </div>
-                <div className="flex justify-end gap-2 md:col-span-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      discardPendingProductMedia();
-                      setProductNutritionDraft(null);
-                      setProductFormOpen(false);
-                    }}
-                  >
-                    Anuluj
-                  </Button>
-                  <Button type="submit" disabled={createProduct.isPending}>
-                    {createProduct.isPending
-                      ? "Dodawanie…"
-                      : "Dodaj do katalogu"}
-                  </Button>
-                </div>
-              </form>
-              {createProduct.error ? (
-                <p className="mt-3 text-sm text-red-600" role="alert">
-                  {readApiError(createProduct.error)}
-                </p>
-              ) : null}
-            </div>
-          </section>
-        ) : null}
-
-        {stockFormOpen ? (
-          <section className="overflow-hidden rounded-3xl border border-amber-100 bg-white shadow-sm">
-            <div className="border-b border-amber-50 bg-amber-50/50 px-5 py-4">
-              <h2 className="flex items-center gap-2 text-lg font-bold text-gray-900">
-                <Package size={20} className="text-amber-600" /> Odłóż na półkę
-              </h2>
-            </div>
-            <div className="p-6">
-              <form
-                onSubmit={onCreateStock}
-                className="grid grid-cols-1 gap-6 md:grid-cols-2"
-              >
-                <div className="md:col-span-2">
-                  <Label htmlFor="stock-product" className="sr-only">
-                    Produkt
-                  </Label>
-                  <select
-                    id="stock-product"
-                    className="field-input"
-                    value={selectedProductId}
-                    required
-                    onChange={(event) => {
-                      const nextId = event.target.value;
-                      setSelectedProductId(nextId);
-                      const product = productsQuery.data?.find(
-                        (item) => item.id === nextId,
-                      );
-                      if (product) {
-                        setInputUnit(
-                          inputUnitsFor(product.defaultUnit)[0]?.value ??
-                            "gram",
-                        );
-                        setStockEan(product.ean ?? "");
-                        setStockImageUrl(product.imageUrl ?? "");
-                      }
-                    }}
-                  >
-                    <option value="" disabled>
-                      -- Wybierz produkt --
-                    </option>
-                    {(productsQuery.data ?? []).map((product) => (
-                      <option key={product.id} value={product.id}>
-                        {product.name} ({UNIT_LABELS[product.defaultUnit]}
-                        {product.category ? ` · ${product.category}` : ""})
-                      </option>
-                    ))}
-                  </select>
-                  {(productsQuery.data ?? []).length === 0 ? (
-                    <p className="mt-2 text-sm text-amber-800">
-                      Katalog jest pusty.{" "}
-                      <button
-                        type="button"
-                        className="font-semibold underline"
-                        onClick={() => {
-                          setStockFormOpen(false);
-                          setProductFormOpen(true);
-                        }}
-                      >
-                        Dodaj najpierw produkt
-                      </button>
-                      .
-                    </p>
-                  ) : null}
-                </div>
-                <div>
-                  <Label htmlFor="stock-qty">Ilość</Label>
-                  <Input
-                    id="stock-qty"
-                    inputMode="decimal"
-                    placeholder="0"
-                    value={quantity}
-                    onChange={(event) => setQuantity(event.target.value)}
-                    required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="stock-unit">Jednostka wpisywana</Label>
-                  <select
-                    id="stock-unit"
-                    className="field-input"
-                    value={inputUnit}
-                    onChange={(event) =>
-                      setInputUnit(event.target.value as InputUnit)
-                    }
-                  >
-                    {inputUnitsFor(selectedProduct?.defaultUnit ?? "gram").map(
-                      (unit) => (
-                        <option key={unit.value} value={unit.value}>
-                          {unit.label}
-                        </option>
-                      ),
-                    )}
-                  </select>
-                </div>
-                <div>
-                  <Label
-                    htmlFor="stock-location"
-                    className="flex items-center gap-2"
-                  >
-                    <MapPin size={16} className="text-gray-400" /> Miejsce
-                  </Label>
-                  <select
-                    id="stock-location"
-                    className="field-input"
-                    value={location}
-                    onChange={(event) =>
-                      setLocation(
-                        event.target.value as keyof typeof LOCATION_LABELS,
-                      )
-                    }
-                  >
-                    {Object.entries(LOCATION_LABELS).map(([value, label]) => (
-                      <option key={value} value={value}>
-                        {label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <Label htmlFor="stock-price">
-                    Cena zakupu za całość (zł, opcjonalnie)
-                  </Label>
-                  <Input
-                    id="stock-price"
-                    inputMode="decimal"
-                    placeholder="0.00"
-                    value={price}
-                    onChange={(event) => setPrice(event.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label
-                    htmlFor="stock-expires"
-                    className="flex items-center gap-2"
-                  >
-                    <Calendar size={16} className="text-gray-400" /> Data
-                    ważności
-                  </Label>
-                  <Input
-                    id="stock-expires"
-                    type="date"
-                    value={expiresAt}
-                    onChange={(event) => setExpiresAt(event.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label
-                    htmlFor="stock-purchased"
-                    className="flex items-center gap-2"
-                  >
-                    <Calendar size={16} className="text-gray-400" /> Data zakupu
-                  </Label>
-                  <Input
-                    id="stock-purchased"
-                    type="date"
-                    value={purchasedAt}
-                    onChange={(event) => setPurchasedAt(event.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="stock-ean">EAN (opcjonalnie)</Label>
-                  <Input
-                    id="stock-ean"
-                    inputMode="numeric"
-                    placeholder="np. 5901234123457"
-                    value={stockEan}
-                    onChange={(event) => setStockEan(event.target.value)}
-                  />
-                </div>
-                <div className="md:col-span-2">
-                  <ImageField
-                    id="stock-image"
-                    value={stockImageUrl}
-                    onChange={setStockImageUrl}
-                  />
-                </div>
-                <div className="flex justify-end gap-2 md:col-span-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setStockFormOpen(false)}
-                  >
-                    Anuluj
-                  </Button>
-                  <Button
-                    type="submit"
-                    variant="amber"
-                    disabled={createStock.isPending}
-                  >
-                    {createStock.isPending ? "Dodawanie…" : "Odłóż na półkę"}
-                  </Button>
-                </div>
-              </form>
-              {formError || createStock.error ? (
-                <p className="mt-3 text-sm text-red-600" role="alert">
-                  {formError ?? readApiError(createStock.error)}
-                </p>
-              ) : null}
-            </div>
-          </section>
         ) : null}
 
         <section className="space-y-4">
@@ -1236,29 +576,22 @@ export default function StockPage() {
                   Spiżarnia czeka na pierwsze produkty
                 </p>
                 <p className="mx-auto mt-2 max-w-md text-sm text-gray-500">
-                  Dodaj produkt do katalogu, a potem odłóż partię na półkę —
+                  Dodaj zakupiony produkt z partią albo sam wpis do katalogu —
                   zobaczysz tu ilości, miejsca i daty ważności.
                 </p>
                 <div className="mt-6 flex flex-wrap justify-center gap-3">
-                  <Button
-                    type="button"
-                    onClick={() => {
-                      setProductFormOpen(true);
-                      setStockFormOpen(false);
-                    }}
+                  <Link
+                    href={newProductWithStockHref}
+                    className="inline-flex h-11 items-center justify-center rounded-xl bg-amber-500 px-6 text-sm font-medium text-white shadow-sm shadow-amber-200 transition-colors hover:bg-amber-600"
                   >
-                    Nowy produkt
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="amber"
-                    onClick={() => {
-                      setStockFormOpen(true);
-                      setProductFormOpen(false);
-                    }}
+                    Dodaj zakupiony produkt
+                  </Link>
+                  <Link
+                    href={newProductCatalogHref}
+                    className="inline-flex h-11 items-center justify-center rounded-xl border border-emerald-200 bg-white px-6 text-sm font-medium text-emerald-800 transition-colors hover:bg-emerald-50"
                   >
-                    Odłóż na półkę
-                  </Button>
+                    Dodaj produkt
+                  </Link>
                 </div>
               </div>
             ) : null}
@@ -1345,6 +678,18 @@ export default function StockPage() {
                               </div>
                             </div>
                             <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
+                              <Link
+                                href={`/kitchens/${kitchenId}/products/${summary.productId}/edit`}
+                                className={linkButtonSmClass}
+                              >
+                                Edytuj
+                              </Link>
+                              <Link
+                                href={`/kitchens/${kitchenId}/products/${summary.productId}/add-batch`}
+                                className={linkButtonSmClass}
+                              >
+                                Dodaj kolejną partię
+                              </Link>
                               <Button
                                 type="button"
                                 size="sm"
@@ -1665,7 +1010,14 @@ export default function StockPage() {
             <div className="border-t border-gray-100">
               {(productsQuery.data ?? []).length === 0 ? (
                 <div className="p-8 text-center text-gray-500">
-                  Katalog jest pusty. Dodaj pierwszy produkt przyciskiem u góry.
+                  Katalog jest pusty.{" "}
+                  <Link
+                    href={newProductCatalogHref}
+                    className="font-semibold text-emerald-700 hover:underline"
+                  >
+                    Dodaj produkt
+                  </Link>
+                  .
                 </div>
               ) : (
                 <ul>
@@ -1733,6 +1085,18 @@ export default function StockPage() {
                             </div>
                           </div>
                           <div className="flex flex-wrap gap-2">
+                            <Link
+                              href={`/kitchens/${kitchenId}/products/${product.id}/edit`}
+                              className={linkButtonSmClass}
+                            >
+                              Edytuj
+                            </Link>
+                            <Link
+                              href={`/kitchens/${kitchenId}/products/${product.id}/add-batch`}
+                              className={linkButtonSmClass}
+                            >
+                              Dodaj kolejną partię
+                            </Link>
                             <Button
                               size="sm"
                               variant="outline"
@@ -1776,29 +1140,12 @@ export default function StockPage() {
                           </div>
                         </div>
                         {detailsOpen ? (
-                          <>
-                            <div className="mt-3 rounded-xl border border-gray-100 bg-gray-50/60 p-4">
-                              <ProductPhotoField
-                                kitchenId={kitchenId}
-                                productId={product.id}
-                                image={product.image}
-                              />
-                            </div>
-                            <ProductNutritionSection
-                              kitchenId={kitchenId}
-                              productId={product.id}
-                              productName={product.name}
-                              productEan={product.ean}
-                              defaultUnit={product.defaultUnit as BaseUnit}
-                              nutrition={product.nutrition}
-                            />
-                            <ProductPurchaseOptions
-                              kitchenId={kitchenId}
-                              productId={product.id}
-                              defaultUnit={product.defaultUnit as BaseUnit}
-                              purchaseMode={product.purchaseMode}
-                            />
-                          </>
+                          <ProductPurchaseOptions
+                            kitchenId={kitchenId}
+                            productId={product.id}
+                            defaultUnit={product.defaultUnit as BaseUnit}
+                            purchaseMode={product.purchaseMode}
+                          />
                         ) : null}
                       </li>
                     );
@@ -1868,19 +1215,6 @@ export default function StockPage() {
           pending={archiveProduct.isPending}
           onCancel={() => setProductToArchive(null)}
           onConfirm={() => archiveProduct.mutate()}
-        />
-      ) : null}
-
-      {archivedNameConflict ? (
-        <ConfirmDialog
-          title="Produkt jest w archiwum"
-          description={archivedNameConflict.message}
-          confirmLabel="Przywróć produkt"
-          pending={restoreProduct.isPending}
-          onCancel={() => setArchivedNameConflict(null)}
-          onConfirm={() =>
-            restoreProduct.mutate(archivedNameConflict.productId)
-          }
         />
       ) : null}
 

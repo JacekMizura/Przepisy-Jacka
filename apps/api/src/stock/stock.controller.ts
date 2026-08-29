@@ -21,6 +21,12 @@ import type { UserSession } from '@thallesp/nestjs-better-auth';
 
 import { StorageLocation } from '../generated/prisma/client';
 import {
+  CreateProductIntakeDto,
+  ProductIntakeResultDto,
+  ProductMatchQueryDto,
+  ProductMatchResultDto,
+} from './dto/product-intake.dto';
+import {
   ProductNutritionDto,
   UpsertProductNutritionDto,
 } from './dto/product-nutrition.dto';
@@ -87,8 +93,43 @@ export class StockController {
     return this.stockService.createProduct(session.user.id, kitchenId, body);
   }
 
+  @Get('products/match')
+  @ApiOperation({
+    summary:
+      'Dopasowanie produktu po EAN/nazwie (bez automatycznego scalania podobnych nazw)',
+  })
+  @ApiOkResponse({ type: ProductMatchResultDto })
+  matchProducts(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Query() query: ProductMatchQueryDto,
+  ): Promise<ProductMatchResultDto> {
+    return this.stockService.matchProducts(session.user.id, kitchenId, query);
+  }
+
+  @Post('product-intakes')
+  @ApiOperation({
+    summary:
+      'Atomowe przyjęcie produktu (nowy lub istniejący) z opcjonalnym zapasem i nutrition',
+  })
+  @ApiOkResponse({ type: ProductIntakeResultDto })
+  createProductIntake(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Body() body: CreateProductIntakeDto,
+  ): Promise<ProductIntakeResultDto> {
+    return this.stockService.createProductIntake(
+      session.user.id,
+      kitchenId,
+      body,
+    );
+  }
+
   @Patch('products/:productId')
-  @ApiOperation({ summary: 'Aktualizacja produktu (m.in. purchaseMode)' })
+  @ApiOperation({
+    summary:
+      'Aktualizacja produktu (name, defaultUnit, ean, category, purchaseMode)',
+  })
   @ApiOkResponse({ type: ProductDto })
   updateProduct(
     @Session() session: UserSession,
@@ -190,6 +231,26 @@ export class StockController {
       kitchenId,
       productId,
       body,
+    );
+  }
+
+  @Delete('products/:productId/nutrition')
+  @ApiOperation({ summary: 'Usunięcie wartości odżywczych produktu' })
+  @ApiOkResponse({
+    schema: {
+      type: 'object',
+      properties: { deleted: { type: 'boolean', example: true } },
+    },
+  })
+  deleteProductNutrition(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Param('productId', ParseUUIDPipe) productId: string,
+  ): Promise<{ deleted: true }> {
+    return this.stockService.deleteProductNutrition(
+      session.user.id,
+      kitchenId,
+      productId,
     );
   }
 

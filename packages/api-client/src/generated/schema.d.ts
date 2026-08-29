@@ -359,6 +359,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/kitchens/{kitchenId}/products/match": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Dopasowanie produktu po EAN/nazwie (bez automatycznego scalania podobnych nazw) */
+        get: operations["StockController_matchProducts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/product-intakes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Atomowe przyjęcie produktu (nowy lub istniejący) z opcjonalnym zapasem i nutrition */
+        post: operations["StockController_createProductIntake"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/kitchens/{kitchenId}/products/{productId}": {
         parameters: {
             query?: never;
@@ -373,7 +407,7 @@ export interface paths {
         delete: operations["StockController_deleteProduct"];
         options?: never;
         head?: never;
-        /** Aktualizacja produktu (m.in. purchaseMode) */
+        /** Aktualizacja produktu (name, defaultUnit, ean, category, purchaseMode) */
         patch: operations["StockController_updateProduct"];
         trace?: never;
     };
@@ -423,7 +457,8 @@ export interface paths {
         /** Zapis wartości odżywczych produktu */
         put: operations["StockController_upsertProductNutrition"];
         post?: never;
-        delete?: never;
+        /** Usunięcie wartości odżywczych produktu */
+        delete: operations["StockController_deleteProductNutrition"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1184,27 +1219,27 @@ export interface components {
             /** @example Nabiał */
             category?: string | null;
         };
-        UpdateProductDto: {
-            /** @enum {string} */
-            purchaseMode?: "unconfigured" | "packaged" | "exact";
+        ProductMatchResultDto: {
+            exactEan: components["schemas"]["ProductDto"] | null;
+            exactName: components["schemas"]["ProductDto"] | null;
+            archivedMatch: components["schemas"]["ProductDto"] | null;
+            /** @description Sugestie podobnych nazw — nie scalają automatycznie produktów. */
+            nameSuggestions: components["schemas"]["ProductDto"][];
+            /** @example Ten produkt jest już w katalogu. Możesz odłożyć nową kupioną ilość do zapasów. */
+            message: Record<string, never> | null;
         };
-        ConfigureProductPurchaseOptionDto: {
-            /** @example Karton 1 l */
+        ProductIntakeNewProductDto: {
+            /** @example Mleko */
             name: string;
-            /** @example 1000.000 */
-            contentQuantity: string;
             /** @enum {string} */
-            contentUnit: "piece" | "gram" | "milliliter";
-            /** @default true */
-            isDefault: boolean;
-        };
-        ConfigureProductPurchaseDto: {
+            defaultUnit: "piece" | "gram" | "milliliter";
+            ean?: string | null;
+            category?: string | null;
             /**
-             * @description packaged wymaga pierwszej opcji; exact nie wymaga opcji; unconfigured czyści tryb bez usuwania opcji.
-             * @enum {string}
+             * Format: uuid
+             * @description Gotowy MediaAsset (purpose=product) z tej kuchni — bez base64.
              */
-            mode: "unconfigured" | "packaged" | "exact";
-            option?: components["schemas"]["ConfigureProductPurchaseOptionDto"];
+            imageMediaId?: string | null;
         };
         UpsertProductNutritionDto: {
             /**
@@ -1251,6 +1286,108 @@ export interface components {
             /** @description Jawna masa części jadalnej 1 szt. (g), gdy baseUnit=piece. */
             sourcePieceGrams?: string | null;
         };
+        ProductIntakeStockDto: {
+            /** @example 1000.000 */
+            quantity: string;
+            /**
+             * @default pantry
+             * @enum {string}
+             */
+            location: "pantry" | "fridge" | "freezer" | "other";
+            /**
+             * @description Łączna cena w groszach; pominięcie / null = nieznana.
+             * @example 599
+             */
+            purchasePriceMinor?: Record<string, never> | null;
+            storeName?: string | null;
+            /** Format: date-time */
+            purchasedAt?: string;
+            /** Format: date-time */
+            expiresAt?: string | null;
+        };
+        CreateProductIntakeDto: {
+            /** @description Klucz idempotencji (UUID lub własny). Unikalny globalnie. */
+            idempotencyKey: string;
+            /** @description Nowy produkt — wzajemnie wykluczające się z existingProductId. */
+            newProduct?: components["schemas"]["ProductIntakeNewProductDto"];
+            /**
+             * Format: uuid
+             * @description Istniejący produkt — wzajemnie wykluczające się z newProduct.
+             */
+            existingProductId?: string;
+            /**
+             * @description Gdy istniejący produkt jest w archiwum: przywróć przed dodaniem zapasu.
+             * @default false
+             */
+            restoreArchived: boolean;
+            /** @description Wartości odżywcze do zapisu w tej samej transakcji (tylko gdy kompletne). */
+            nutrition?: components["schemas"]["UpsertProductNutritionDto"];
+            /** @description Gdy podane — tworzy partię zapasu w tej samej transakcji. */
+            stock?: components["schemas"]["ProductIntakeStockDto"];
+        };
+        StockItemDto: {
+            id: string;
+            productId: string;
+            /** @example 500.000 */
+            initialQuantity: string;
+            /** @example 500.000 */
+            quantity: string;
+            /** @enum {string} */
+            location: "pantry" | "fridge" | "freezer" | "other";
+            /** Format: date-time */
+            expiresAt: string | null;
+            /** Format: date-time */
+            purchasedAt: string | null;
+            /** @example 599 */
+            purchasePriceMinor?: Record<string, never> | null;
+            storeName: string | null;
+            /** @example PLN */
+            currency: string;
+            ean: string | null;
+            imageUrl: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        ProductIntakeResultDto: {
+            product: components["schemas"]["ProductDto"];
+            stockItem: components["schemas"]["StockItemDto"] | null;
+            /** @description true gdy odpowiedź pochodzi z cache idempotencji. */
+            replayed: boolean;
+            /** @description true gdy produkt był przywrócony z archiwum w tym żądaniu. */
+            restoredFromArchive: boolean;
+        };
+        UpdateProductDto: {
+            /** @example Mleko UHT */
+            name?: string;
+            /** @enum {string} */
+            defaultUnit?: "piece" | "gram" | "milliliter";
+            /** @example 5901234123457 */
+            ean?: string | null;
+            /** @example Nabiał */
+            category?: string | null;
+            /** @enum {string} */
+            purchaseMode?: "unconfigured" | "packaged" | "exact";
+        };
+        ConfigureProductPurchaseOptionDto: {
+            /** @example Karton 1 l */
+            name: string;
+            /** @example 1000.000 */
+            contentQuantity: string;
+            /** @enum {string} */
+            contentUnit: "piece" | "gram" | "milliliter";
+            /** @default true */
+            isDefault: boolean;
+        };
+        ConfigureProductPurchaseDto: {
+            /**
+             * @description packaged wymaga pierwszej opcji; exact nie wymaga opcji; unconfigured czyści tryb bez usuwania opcji.
+             * @enum {string}
+             */
+            mode: "unconfigured" | "packaged" | "exact";
+            option?: components["schemas"]["ConfigureProductPurchaseOptionDto"];
+        };
         CreatePurchaseOptionDto: {
             /** @example Karton 1 l */
             name: string;
@@ -1271,30 +1408,6 @@ export interface components {
             isDefault?: boolean;
             isActive?: boolean;
         };
-        StockItemDto: {
-            id: string;
-            productId: string;
-            /** @example 500.000 */
-            initialQuantity: string;
-            /** @example 500.000 */
-            quantity: string;
-            /** @enum {string} */
-            location: "pantry" | "fridge" | "freezer" | "other";
-            /** Format: date-time */
-            expiresAt: string | null;
-            /** Format: date-time */
-            purchasedAt: string | null;
-            /** @example 599 */
-            purchasePriceMinor?: Record<string, never> | null;
-            /** @example PLN */
-            currency: string;
-            ean: string | null;
-            imageUrl: string | null;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-        };
         CreateStockItemDto: {
             productId: string;
             /**
@@ -1313,6 +1426,8 @@ export interface components {
              * @example 599
              */
             purchasePriceMinor?: Record<string, never> | null;
+            /** @description Sklep / źródło (bez tworzenia Purchase). */
+            storeName?: string | null;
             /** @example PLN */
             currency?: string;
             /**
@@ -2742,6 +2857,55 @@ export interface operations {
             };
         };
     };
+    StockController_matchProducts: {
+        parameters: {
+            query?: {
+                ean?: string;
+                name?: string;
+            };
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductMatchResultDto"];
+                };
+            };
+        };
+    };
+    StockController_createProductIntake: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateProductIntakeDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductIntakeResultDto"];
+                };
+            };
+        };
+    };
     StockController_deleteProduct: {
         parameters: {
             query?: {
@@ -2884,6 +3048,31 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductNutritionDto"];
+                };
+            };
+        };
+    };
+    StockController_deleteProductNutrition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @example true */
+                        deleted?: boolean;
+                    };
                 };
             };
         };

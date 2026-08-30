@@ -3,8 +3,8 @@ import { describe, it } from "node:test";
 
 import { formatGroupTotalQuantity } from "./format-quantity.ts";
 import {
-  buildGroupThumbCollage,
   formatGroupStockSubtitle,
+  groupHeaderShowsProductPhotos,
   pluralizeVariants,
 } from "./stock-group-presentation.ts";
 
@@ -25,15 +25,8 @@ describe("stock-group-presentation", () => {
     assert.match(pluralizeVariants(1), /1 wariant/);
   });
 
-  it("keeps collage images inside fixed 2x2 slots", () => {
-    const two = buildGroupThumbCollage(["a", "b"]);
-    assert.equal(two.layout, "grid");
-    assert.equal(two.slots.length, 4);
-    assert.ok(!two.overflowLabel);
-
-    const many = buildGroupThumbCollage(["a", "b", "c", "d", "e"]);
-    assert.equal(many.overflowLabel, "+1");
-    assert.equal(many.slots.filter((s) => s.type === "image").length, 4);
+  it("group header never uses variant photo collage", () => {
+    assert.equal(groupHeaderShowsProductPhotos(), false);
   });
 
   it("aggregates group quantity for display", () => {

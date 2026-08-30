@@ -19,6 +19,7 @@ import {
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { MediaImageField } from "@/components/media-image-field";
 import { ProductCategorySelector } from "@/components/product-entry/product-category-selector";
 import {
@@ -36,13 +37,12 @@ import {
   ProductNutritionEditor,
   type NutritionFormDraft,
 } from "@/components/product-entry/product-nutrition-editor";
-import { ProductPhotoField } from "@/components/product-photo-field";
 import {
   PurchaseModeField,
   type PurchaseModeChoice,
 } from "@/components/product-entry/purchase-mode-field";
-import { ProductPurchaseOptions } from "@/components/product-purchase-options";
-import { ConfirmDialog } from "@/components/confirm-dialog";
+import { ProductPhotoField } from "@/components/product-photo-field";
+import { StoreNameCombobox } from "@/components/store-name-combobox";
 import { Toast } from "@/components/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,9 +54,6 @@ import {
   formatQuantityWithUnit,
 } from "@/lib/format-quantity";
 import { coercePurchaseModeChoice } from "@/lib/purchase-mode";
-import {
-  formatEditStockSummary,
-} from "@/lib/stock-package-display";
 import { deleteKitchenMedia, MEDIA_FILE_HINT } from "@/lib/media-upload";
 import {
   PACKAGE_UNIT_OPTIONS,
@@ -81,8 +78,8 @@ import {
   type BaseUnit,
   type InputUnit,
 } from "@/lib/quantity-input";
+import { formatEditStockSummary } from "@/lib/stock-package-display";
 import { cn } from "@/lib/utils";
-import { StoreNameCombobox } from "@/components/store-name-combobox";
 
 const FIELD_CLASS =
   "w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm disabled:bg-gray-50 disabled:text-gray-500";
@@ -216,14 +213,30 @@ export function ProductEntryForm({
   const [variantLabel, setVariantLabel] = useState(
     initialProduct?.variantLabel ?? "",
   );
-  const [packageQuantity, setPackageQuantity] = useState(
-    initialProduct?.packageQuantity
+  const [packageQuantity, setPackageQuantity] = useState(() => {
+    const mode = coercePurchaseModeChoice(
+      initialProduct?.purchaseMode,
+      Boolean(initialProduct?.packageQuantity && initialProduct?.packageUnit),
+    );
+    if (mode === "exact") {
+      return "";
+    }
+    return initialProduct?.packageQuantity
       ? String(Number(initialProduct.packageQuantity))
-      : "",
-  );
-  const [packageUnit, setPackageUnit] = useState<PackageUnit | "">(
-    (initialProduct?.packageUnit as PackageUnit | null | undefined) ?? "",
-  );
+      : "";
+  });
+  const [packageUnit, setPackageUnit] = useState<PackageUnit | "">(() => {
+    const mode = coercePurchaseModeChoice(
+      initialProduct?.purchaseMode,
+      Boolean(initialProduct?.packageQuantity && initialProduct?.packageUnit),
+    );
+    if (mode === "exact") {
+      return "";
+    }
+    return (
+      (initialProduct?.packageUnit as PackageUnit | null | undefined) ?? ""
+    );
+  });
   const [kind, setKind] = useState<ProductKindSelection>(() =>
     mode === "edit" || initialProduct
       ? initialKindFromProduct(initialProduct)
@@ -525,10 +538,11 @@ export function ProductEntryForm({
   ]);
 
   const packageConfigured =
-    Boolean(packageQuantity.trim()) && Boolean(packageUnit);
+    purchaseMode === "packaged" &&
+    Boolean(packageQuantity.trim()) &&
+    Boolean(packageUnit);
 
-  const stockByPackages =
-    packageConfigured && purchaseMode !== "exact";
+  const stockByPackages = packageConfigured;
 
   function applyPurchaseMode(next: PurchaseModeChoice) {
     setPurchaseMode(next);
@@ -1168,12 +1182,22 @@ export function ProductEntryForm({
     setCategory(catalogHit.category ?? "");
     setBrand(catalogHit.brand ?? "");
     setVariantLabel(catalogHit.variantLabel ?? "");
-    setPackageQuantity(
-      catalogHit.packageQuantity
-        ? String(Number(catalogHit.packageQuantity))
-        : "",
+    const nextMode = coercePurchaseModeChoice(
+      catalogHit.purchaseMode,
+      Boolean(catalogHit.packageQuantity && catalogHit.packageUnit),
     );
-    setPackageUnit((catalogHit.packageUnit as PackageUnit | null) ?? "");
+    setPurchaseMode(nextMode);
+    if (nextMode === "exact") {
+      setPackageQuantity("");
+      setPackageUnit("");
+    } else {
+      setPackageQuantity(
+        catalogHit.packageQuantity
+          ? String(Number(catalogHit.packageQuantity))
+          : "",
+      );
+      setPackageUnit((catalogHit.packageUnit as PackageUnit | null) ?? "");
+    }
     setKind(initialKindFromProduct(catalogHit));
   }
 
@@ -1641,6 +1665,7 @@ export function ProductEntryForm({
                   kitchenId={kitchenId}
                   productUnit={defaultUnit}
                   ean={ean}
+                  productName={name}
                   value={nutrition}
                   onChange={setNutrition}
                 />
@@ -2119,14 +2144,12 @@ export function ProductEntryForm({
               value={
                 purchaseMode === "packaged" || purchaseMode === "exact"
                   ? purchaseMode
-                  : packageConfigured
-                    ? "packaged"
-                    : "exact"
+                  : null
               }
               onChange={requestPurchaseModeChange}
             />
 
-            {purchaseMode !== "exact" ? (
+            {purchaseMode === "packaged" ? (
               <div>
                 <label
                   htmlFor="product-entry-package-qty"
@@ -2183,6 +2206,7 @@ export function ProductEntryForm({
             kitchenId={kitchenId}
             productUnit={defaultUnit}
             ean={ean}
+            productName={name}
             value={nutrition}
             onChange={setNutrition}
             defaultOpen={hadNutritionInitially}
@@ -2204,14 +2228,6 @@ export function ProductEntryForm({
                 batches: productStock.batches,
               })}
             </p>
-            {packageConfigured ? (
-              <p className="mt-1 text-xs text-gray-600">
-                Wielkość produktu: {packageQuantity.trim()}{" "}
-                {PACKAGE_UNIT_OPTIONS.find((o) => o.value === packageUnit)
-                  ?.label ?? packageUnit}{" "}
-                w opakowaniu
-              </p>
-            ) : null}
             {productStock.nearestExpiry ? (
               <p className="mt-1 text-xs text-amber-700">
                 Najbliższa ważność:{" "}
@@ -2230,16 +2246,6 @@ export function ProductEntryForm({
         >
           Dodaj kolejną partię
         </Link>
-        {resolvedProduct ? (
-          <ProductPurchaseOptions
-            kitchenId={kitchenId}
-            productId={resolvedProduct.id}
-            defaultUnit={resolvedProduct.defaultUnit as BaseUnit}
-            purchaseMode={resolvedProduct.purchaseMode}
-            packageQuantity={resolvedProduct.packageQuantity}
-            packageUnit={resolvedProduct.packageUnit}
-          />
-        ) : null}
       </section>
 
       {formError ? (

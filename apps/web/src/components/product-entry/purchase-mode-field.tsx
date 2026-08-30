@@ -81,8 +81,7 @@ export function PurchaseModeField({
       </div>
       {value === "exact" ? (
         <p className="text-xs text-gray-500">
-          100&nbsp;g w wartościach odżywczych jest ilością odniesienia, a nie
-          opakowaniem.
+          Bez stałego opakowania — ilość wpisujesz przy każdym zakupie.
         </p>
       ) : null}
     </div>

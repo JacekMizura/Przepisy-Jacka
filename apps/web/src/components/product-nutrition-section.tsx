@@ -136,6 +136,7 @@ export function ProductNutritionSection({
         <NutritionEditor
           kitchenId={kitchenId}
           productId={productId}
+          productName={productName}
           ean={eanDraft}
           onEanChange={setEanDraft}
           defaultUnit={defaultUnit}
@@ -268,6 +269,7 @@ function toDraft(
 function NutritionEditor({
   kitchenId,
   productId,
+  productName,
   ean,
   onEanChange,
   defaultUnit,
@@ -279,6 +281,7 @@ function NutritionEditor({
 }: {
   kitchenId: string;
   productId: string;
+  productName: string;
   ean: string;
   onEanChange: (value: string) => void;
   defaultUnit: BaseUnit;
@@ -413,6 +416,7 @@ function NutritionEditor({
       <NutritionUsdaLookup
         kitchenId={kitchenId}
         productUnit={defaultUnit}
+        productName={productName}
         hasExistingValues={draftHasNutritionValues(draft)}
         onApply={applyLookup}
       />
@@ -463,8 +467,9 @@ function NutritionEditor({
               ))}
             </select>
           </div>
-          <p className="mt-1 text-xs text-gray-400">
-            Zwykle 100 g / 100 ml albo 1 szt.
+          <p className="mt-1 text-xs text-gray-500">
+            100&nbsp;g (lub inna ilość odniesienia) dotyczy wartości
+            odżywczych — to nie jest wielkość opakowania produktu.
           </p>
         </div>
         <div>

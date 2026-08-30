@@ -1,6 +1,6 @@
 /**
- * Generuje migration.sql z danymi katalogu USDA v1 (tylko narzędzie deweloperskie).
- * Wynik: prisma/migrations/20260829121000_usda_catalog_v1_seed/migration.sql
+ * Generuje migration.sql z danymi katalogu USDA v2 (tylko narzędzie deweloperskie).
+ * Nie nadpisuje migracji v1. Wynik: prisma/migrations/20260830180000_usda_catalog_v2_upsert/
  *
  *   node scripts/generate-usda-catalog-migration.mjs
  */
@@ -11,11 +11,11 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const API_ROOT = join(__dirname, '..');
-const CATALOG_DIR = join(API_ROOT, 'data', 'usda-catalog', 'v1');
-const MIGRATION_NAME = '20260829121000_usda_catalog_v1_seed';
+const CATALOG_DIR = join(API_ROOT, 'data', 'usda-catalog', 'v2');
+const MIGRATION_NAME = '20260830180000_usda_catalog_v2_upsert';
 const OUT_DIR = join(API_ROOT, 'prisma', 'migrations', MIGRATION_NAME);
 
-/** Namespace UUID for deterministic catalog row ids (v5-style via HMAC). */
+/** Ten sam namespace co v1 — stabilne id po fdcId (upsert bez duplikatów). */
 const ID_NAMESPACE = 'moja-kuchnia:usda-catalog:v1';
 
 function stableUuidFromFdcId(fdcId) {
@@ -43,8 +43,11 @@ function normalizeSearchText(name) {
     .replace(/\s+/g, ' ');
 }
 
-function buildSearchText(polishName, aliases) {
-  return [polishName, ...aliases].map(normalizeSearchText).join(' ');
+function buildSearchText(polishName, aliases, descriptionOriginal) {
+  return [polishName, ...aliases, descriptionOriginal ?? '']
+    .filter(Boolean)
+    .map(normalizeSearchText)
+    .join(' ');
 }
 
 function sqlString(value) {
@@ -79,13 +82,15 @@ function hashFile(path) {
 const catalog = JSON.parse(
   readFileSync(join(CATALOG_DIR, 'entries.json'), 'utf8'),
 );
-if (catalog.entries.length !== 91) {
-  throw new Error(`Oczekiwano 91 rekordów, jest ${catalog.entries.length}`);
+if (catalog.entries.length < 200) {
+  throw new Error(
+    `Oczekiwano co najmniej 200 rekordów v2, jest ${catalog.entries.length}`,
+  );
 }
 
 const importedAt = `${catalog.importedAt}T00:00:00.000Z`;
 const lines = [];
-lines.push('-- Seed katalogu USDA v1 (Foundation Foods + SR Legacy).');
+lines.push('-- Upsert katalogu USDA v2 (Foundation Foods + SR Legacy).');
 lines.push('-- Dane wbudowane w migrację — bez sieci, Node i tmp-usda.');
 lines.push('-- Idempotentne: ON CONFLICT (fdcId); nie zmienia ProductNutrition.');
 lines.push('-- Stabilne id: HMAC-SHA256(namespace, fdcId) → UUID v5-style.');
@@ -100,7 +105,11 @@ for (const entry of catalog.entries) {
       : 'SR Legacy';
   const sourceRelease = sourceDataset === 'Foundation Foods' ? '2025-12-18' : '2018-04';
   const id = stableUuidFromFdcId(entry.fdcId);
-  const searchText = buildSearchText(entry.polishName, aliases);
+  const searchText = buildSearchText(
+    entry.polishName,
+    aliases,
+    entry.descriptionOriginal,
+  );
 
   lines.push(`INSERT INTO "UsdaFoodCatalogEntry" (`);
   lines.push(
@@ -199,7 +208,7 @@ const srArchiveUrl =
   'https://fdc.nal.usda.gov/fdc-datasets/FoodData_Central_sr_legacy_food_json_2018-04.zip';
 
 const manifest = {
-  formatVersion: 'usda-catalog-v1',
+  formatVersion: 'usda-catalog-v2',
   catalogVersion: catalog.catalogVersion,
   entryCount: catalog.entries.length,
   importedAt: catalog.importedAt,

@@ -60,6 +60,15 @@ export class UsdaCatalogSearchItemDto {
   @ApiProperty({ type: String, example: '18.000' })
   kcalPer100g!: string;
 
+  @ApiProperty({ type: String, example: '0.990' })
+  proteinGramsPer100g!: string;
+
+  @ApiProperty({ type: String, example: '3.900' })
+  carbsGramsPer100g!: string;
+
+  @ApiProperty({ type: String, example: '0.300' })
+  fatGramsPer100g!: string;
+
   @ApiProperty()
   basisLabel!: string;
 

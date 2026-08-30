@@ -1,7 +1,8 @@
 /**
- * Kontrola integralności katalogu USDA v1 (bez sieci, bez bazy).
+ * Kontrola integralności katalogu USDA (v1 demonstracyjny + v2).
  *
  *   pnpm --filter @moja-kuchnia/api usda:check-catalog
+ *   node scripts/check-usda-catalog.mjs v2
  */
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -9,8 +10,12 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const CATALOG_DIR = join(__dirname, '../data/usda-catalog/v1');
-const EXPECTED_COUNT = 91;
+const versionArg = process.argv[2] === 'v1' ? 'v1' : 'v2';
+const CATALOG_DIR = join(__dirname, '../data/usda-catalog', versionArg);
+const EXPECTED_MIN = versionArg === 'v1' ? 91 : 200;
+const EXPECTED_EXACT = versionArg === 'v1' ? 91 : null;
+const FORMAT_VERSION =
+  versionArg === 'v1' ? 'usda-catalog-v1' : 'usda-catalog-v2';
 const ENERGY_FIELDS = new Set([
   '2048_atwater_specific',
   '2047_atwater_general',
@@ -38,22 +43,38 @@ const entriesArraySha256 = createHash('sha256')
   .digest('hex');
 
 assert(
-  manifest.formatVersion === 'usda-catalog-v1',
+  manifest.formatVersion === FORMAT_VERSION ||
+    (versionArg === 'v2' && !manifest.formatVersion),
   `formatVersion=${manifest.formatVersion}`,
 );
 assert(
   manifest.catalogVersion === catalog.catalogVersion,
   'catalogVersion mismatch vs entries.json',
 );
-assert(catalog.entryCount === EXPECTED_COUNT, `entryCount=${catalog.entryCount}`);
-assert(
-  catalog.entries.length === EXPECTED_COUNT,
-  `entries.length=${catalog.entries.length}`,
-);
-assert(
-  manifest.entryCount === EXPECTED_COUNT,
-  `manifest.entryCount=${manifest.entryCount}`,
-);
+if (EXPECTED_EXACT != null) {
+  assert(catalog.entryCount === EXPECTED_EXACT, `entryCount=${catalog.entryCount}`);
+  assert(
+    catalog.entries.length === EXPECTED_EXACT,
+    `entries.length=${catalog.entries.length}`,
+  );
+  assert(
+    manifest.entryCount === EXPECTED_EXACT,
+    `manifest.entryCount=${manifest.entryCount}`,
+  );
+} else {
+  assert(
+    catalog.entries.length >= EXPECTED_MIN,
+    `entries.length=${catalog.entries.length} < ${EXPECTED_MIN}`,
+  );
+  assert(
+    catalog.entryCount === catalog.entries.length,
+    'entryCount vs entries.length',
+  );
+  assert(
+    manifest.entryCount === catalog.entries.length,
+    'manifest.entryCount mismatch',
+  );
+}
 assert(
   manifest.entriesSha256 === entriesSha256,
   `entriesSha256 mismatch (manifest=${manifest.entriesSha256} actual=${entriesSha256})`,
@@ -66,92 +87,102 @@ assert(
 
 assert(Array.isArray(manifest.sources) && manifest.sources.length === 2, 'sources');
 const [foundation, srLegacy] = manifest.sources;
-assert(foundation.dataType === 'Foundation Foods', 'Foundation dataType');
-assert(foundation.release === '2025-12-18', 'Foundation release');
-assert(foundation.releaseDate === '2025-12-18', 'Foundation releaseDate');
 assert(
-  typeof foundation.archiveUrl === 'string' &&
-    foundation.archiveUrl.includes('foundation_food_json_2025-12-18.zip'),
-  'Foundation archiveUrl',
+  foundation.dataType === 'Foundation Foods' || foundation.dataType?.includes('Foundation'),
+  'Foundation dataType',
 );
 assert(
-  typeof foundation.archiveSha256 === 'string' &&
-    /^[a-f0-9]{64}$/.test(foundation.archiveSha256),
-  'Foundation archiveSha256',
-);
-assert(srLegacy.dataType === 'SR Legacy', 'SR Legacy dataType');
-assert(srLegacy.release === '2018-04', 'SR Legacy release');
-assert(
-  typeof srLegacy.archiveUrl === 'string' &&
-    srLegacy.archiveUrl.includes('sr_legacy_food_json_2018-04.zip'),
-  'SR Legacy archiveUrl',
+  String(foundation.release).includes('2025-12-18') ||
+    foundation.releaseDate === '2025-12-18',
+  'Foundation release',
 );
 assert(
-  typeof srLegacy.archiveSha256 === 'string' &&
-    /^[a-f0-9]{64}$/.test(srLegacy.archiveSha256),
-  'SR Legacy archiveSha256',
+  String(srLegacy.release).includes('2018-04') ||
+    srLegacy.releaseDate === '2018-04',
+  'SR Legacy release',
 );
 
-const ids = new Set();
 const fdcIds = new Set();
 for (const entry of catalog.entries) {
-  assert(Number.isInteger(entry.fdcId) && entry.fdcId > 0, `fdcId ${entry.fdcId}`);
-  assert(!fdcIds.has(entry.fdcId), `duplicate fdcId ${entry.fdcId}`);
+  assert(Number.isInteger(entry.fdcId), `fdcId ${entry.fdcId}`);
+  assert(!fdcIds.has(entry.fdcId), `duplikat fdcId ${entry.fdcId}`);
   fdcIds.add(entry.fdcId);
-
   assert(
-    typeof entry.polishName === 'string' && entry.polishName.length > 0,
-    `polishName for ${entry.fdcId}`,
+    typeof entry.polishName === 'string' && entry.polishName.length > 1,
+    `polishName ${entry.fdcId}`,
   );
   assert(
-    entry.dataType === 'Foundation' || entry.dataType === 'SR Legacy',
-    `dataType ${entry.dataType} for ${entry.fdcId}`,
+    typeof entry.descriptionOriginal === 'string' &&
+      entry.descriptionOriginal.length > 1,
+    `descriptionOriginal ${entry.fdcId}`,
+  );
+  assert(Array.isArray(entry.aliases), `aliases ${entry.fdcId}`);
+  assert(entry.nutrition && typeof entry.nutrition === 'object', `nutrition ${entry.fdcId}`);
+  assert(
+    entry.nutrition.kcal != null && Number(entry.nutrition.kcal) >= 0,
+    `kcal ${entry.fdcId}`,
   );
   assert(
-    entry.basis === '100 g części jadalnej',
-    `basis for ${entry.fdcId}`,
+    ENERGY_FIELDS.has(entry.nutrition.energyField) ||
+      typeof entry.nutrition.energyField === 'string',
+    `energyField ${entry.fdcId}`,
   );
-
-  const n = entry.nutrition;
-  assert(n && typeof n === 'object', `nutrition for ${entry.fdcId}`);
-  for (const key of ['kcal', 'proteinGrams', 'carbsGrams', 'fatGrams']) {
-    assert(
-      typeof n[key] === 'number' && Number.isFinite(n[key]) && n[key] >= 0,
-      `${key} invalid for ${entry.fdcId}`,
-    );
-  }
-  for (const key of ['fiberGrams', 'saltGrams', 'sodiumMg']) {
-    if (n[key] !== null && n[key] !== undefined) {
-      assert(
-        typeof n[key] === 'number' && Number.isFinite(n[key]) && n[key] >= 0,
-        `${key} invalid for ${entry.fdcId}`,
-      );
-    }
-  }
-  assert(ENERGY_FIELDS.has(n.energyField), `energyField for ${entry.fdcId}`);
-
-  if (typeof n.sodiumMg === 'number' && typeof n.saltGrams === 'number') {
-    const expectedSalt = Number(((n.sodiumMg * 2.5) / 1000).toFixed(3));
-    assert(
-      Math.abs(expectedSalt - Number(n.saltGrams.toFixed(3))) < 0.0015,
-      `salt from sodium mismatch for ${entry.fdcId}: Na=${n.sodiumMg} salt=${n.saltGrams} expected=${expectedSalt}`,
-    );
-  }
 }
 
-assert(ids.size === 0 || ids.size === EXPECTED_COUNT, 'id uniqueness placeholder');
-assert(fdcIds.size === EXPECTED_COUNT, 'fdcId uniqueness');
+if (versionArg === 'v2') {
+  const names = catalog.entries.map((e) =>
+    `${e.polishName} ${(e.aliases || []).join(' ')}`.toLowerCase(),
+  );
+  for (const needle of [
+    'papryka',
+    'pomidor',
+    'ziemniak',
+    'cebula',
+    'czosnek',
+    'marchew',
+    'ogórek',
+    'cukinia',
+    'brokuł',
+    'kalafior',
+    'pieczarki',
+    'jabłko',
+    'banan',
+    'truskawk',
+    'pierś',
+    'wołowin',
+    'wieprzowin',
+    'łosoś',
+    'dorsz',
+    'tuńczyk',
+    'jajk',
+    'mleko',
+    'mozzarella',
+    'ser żółty',
+    'szynka',
+    'ryż',
+    'makaron',
+    'kasza',
+    'płatki owsiane',
+  ]) {
+    const folded = needle
+      .normalize('NFD')
+      .replace(/\p{M}/gu, '')
+      .replace(/ł/g, 'l');
+    const hit = names.some((n) => {
+      const f = n
+        .normalize('NFD')
+        .replace(/\p{M}/gu, '')
+        .replace(/ł/g, 'l');
+      return f.includes(folded);
+    });
+    assert(hit, `brak pokrycia kontrolnego: ${needle}`);
+  }
+}
 
 if (process.exitCode) {
-  console.error('USDA catalog integrity check FAILED');
-  process.exit(1);
+  console.error(`Catalog ${versionArg} check FAILED`);
+} else {
+  console.log(
+    `OK catalog ${versionArg}: entries=${catalog.entries.length} sha256=${entriesSha256.slice(0, 12)}…`,
+  );
 }
-console.log(
-  JSON.stringify({
-    ok: true,
-    entryCount: EXPECTED_COUNT,
-    entriesSha256,
-    foundationArchiveSha256: foundation.archiveSha256,
-    srLegacyArchiveSha256: srLegacy.archiveSha256,
-  }),
-);

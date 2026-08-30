@@ -2,10 +2,14 @@
 
 import type { components } from "@moja-kuchnia/api-client";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import type { NutritionFormValues } from "@/components/nutrition-ean-lookup";
+import {
+  usdaLookupUi,
+  usdaVariantStateLabel,
+} from "@/components/nutrition-usda-lookup-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -27,6 +31,8 @@ type NutritionUsdaLookupProps = {
   productUnit: BaseUnit;
   hasExistingValues: boolean;
   onApply: (values: NutritionFormValues) => void;
+  /** Nazwa tworzonego/edytowanego produktu — prefill + auto-search. */
+  productName?: string;
 };
 
 export function NutritionUsdaLookup({
@@ -34,13 +40,31 @@ export function NutritionUsdaLookup({
   productUnit,
   hasExistingValues,
   onApply,
+  productName = "",
 }: NutritionUsdaLookupProps) {
-  const [query, setQuery] = useState("");
-  const [submittedQuery, setSubmittedQuery] = useState("");
+  const seed = productName.trim();
+  const [editedQuery, setEditedQuery] = useState<string | null>(null);
+  const query = editedQuery ?? seed;
+  const [submittedQuery, setSubmittedQuery] = useState(
+    seed.length >= 2 ? seed : "",
+  );
   const [selected, setSelected] = useState<SearchItem | null>(null);
   const [pieceGrams, setPieceGrams] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [preview, setPreview] = useState<SuggestResponse | null>(null);
+
+  useEffect(() => {
+    const trimmed = query.trim();
+    if (trimmed.length < 2) {
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      setSelected(null);
+      setPreview(null);
+      setSubmittedQuery(trimmed);
+    }, 300);
+    return () => window.clearTimeout(handle);
+  }, [query]);
 
   const search = useQuery({
     queryKey: ["usda-foods", kitchenId, submittedQuery],
@@ -146,23 +170,28 @@ export function NutritionUsdaLookup({
     setConfirmOpen(false);
   }
 
+  const showEmpty =
+    search.isSuccess &&
+    !search.isFetching &&
+    search.data.items.length === 0;
+
   return (
     <div className="space-y-3 rounded-xl border border-sky-100 bg-sky-50/40 p-3">
       <div>
         <p className="text-sm font-medium text-gray-900">
-          Wybierz wartości z bazy
+          {usdaLookupUi.buttonLabel}
         </p>
         <p className="text-xs text-gray-500">
-          Katalog USDA (Foundation / SR Legacy) — wartości referencyjne,
-          szacunkowe. Nazwa, EAN, jednostka i zapasy nie zmieniają się.
+          Katalog USDA (Foundation / SR Legacy) — wartości referencyjne.
+          Nazwa, EAN, jednostka, zdjęcie i opakowanie nie zmieniają się.
         </p>
       </div>
 
       <div className="flex flex-wrap gap-2">
         <Input
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="np. pomidor, jabłko, łosoś…"
+          onChange={(event) => setEditedQuery(event.target.value)}
+          placeholder="np. papryka, jabłko, łosoś…"
           aria-label="Szukaj w katalogu żywności"
           onKeyDown={(event) => {
             if (event.key === "Enter") {
@@ -203,44 +232,65 @@ export function NutritionUsdaLookup({
         </div>
       ) : null}
 
+      {search.isFetching ? (
+        <p className="text-sm text-gray-600" role="status">
+          Szukam w katalogu…
+        </p>
+      ) : null}
+
       {search.isError ? (
         <p className="text-sm text-red-600" role="alert">
           {readApiError(search.error)}
         </p>
       ) : null}
 
-      {search.isSuccess && search.data.items.length === 0 ? (
-        <p className="text-sm text-gray-600">Brak wyników dla „{submittedQuery}”.</p>
+      {showEmpty ? (
+        <p className="text-sm text-gray-600">
+          Brak wyników dla „{submittedQuery}”.
+        </p>
       ) : null}
 
-      {search.isSuccess && search.data.items.length > 0 ? (
-        <ul className="max-h-48 space-y-1 overflow-y-auto rounded-lg border border-white bg-white/80 p-2 text-sm">
-          {search.data.items.map((item) => (
-            <li key={item.id}>
-              <button
-                type="button"
-                className={`w-full rounded-md px-2 py-1.5 text-left hover:bg-sky-50 ${
-                  selected?.id === item.id ? "bg-sky-100" : ""
-                }`}
-                onClick={() => {
-                  setSelected(item);
-                  setPreview(null);
-                  if (productUnit === "piece" && !pieceGrams.trim()) {
-                    return;
-                  }
-                  suggest.mutate(item.id);
-                }}
-              >
-                <span className="font-medium text-gray-900">
-                  {item.polishName}
-                </span>
-                <span className="block text-xs text-gray-500">
-                  {item.variantLabel} · {formatNutritionNumber(item.kcalPer100g, 0)}{" "}
-                  kcal/100 g · {item.sourceDataset}
-                </span>
-              </button>
-            </li>
-          ))}
+      {search.isSuccess && !search.isFetching && search.data.items.length > 0 ? (
+        <ul className="max-h-64 space-y-2 overflow-y-auto rounded-lg border border-white bg-white/80 p-2 text-sm">
+          {search.data.items.map((item) => {
+            const state = usdaVariantStateLabel(item.variantLabel);
+            const protein = item.proteinGramsPer100g ?? null;
+            const fat = item.fatGramsPer100g ?? null;
+            const carbs = item.carbsGramsPer100g ?? null;
+            return (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  className={`w-full rounded-md px-2 py-2 text-left hover:bg-sky-50 ${
+                    selected?.id === item.id ? "bg-sky-100" : ""
+                  }`}
+                  onClick={() => {
+                    setSelected(item);
+                    setPreview(null);
+                    if (productUnit === "piece" && !pieceGrams.trim()) {
+                      return;
+                    }
+                    suggest.mutate(item.id);
+                  }}
+                >
+                  <span className="font-medium text-gray-900">
+                    {item.polishName}
+                  </span>
+                  <span className="mt-0.5 block text-xs text-gray-600">
+                    {state ? `${state} · ` : null}
+                    {item.basisLabel || "na 100 g"} ·{" "}
+                    {formatNutritionNumber(item.kcalPer100g, 0)} kcal
+                    {protein && fat && carbs
+                      ? ` · B ${formatNutritionNumber(protein)} / T ${formatNutritionNumber(fat)} / W ${formatNutritionNumber(carbs)}`
+                      : null}
+                  </span>
+                  <span className="mt-0.5 block text-[11px] text-gray-500">
+                    {usdaLookupUi.sourceNote}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
         </ul>
       ) : null}
 
@@ -259,7 +309,7 @@ export function NutritionUsdaLookup({
       {preview ? (
         <div className="space-y-2 rounded-lg border border-white bg-white/80 p-3 text-sm">
           <p className="text-xs font-medium uppercase tracking-wide text-amber-800">
-            Wartości referencyjne — szacunkowe
+            Podgląd wartości
           </p>
           <p className="font-medium text-gray-900">
             {preview.entry.polishName}
@@ -278,7 +328,8 @@ export function NutritionUsdaLookup({
               preview.suggested.baseQuantity,
               preview.suggested.baseUnit,
             )}{" "}
-            (produkt: {unitLabel(productUnit)})
+            (produkt: {unitLabel(productUnit)}) — to baza nutrition, nie
+            wielkość opakowania.
           </p>
           <dl className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-700">
             <div>
@@ -294,57 +345,20 @@ export function NutritionUsdaLookup({
               </span>
             </div>
             <div>
-              węglowodany:{" "}
-              <span className="font-medium">
-                {formatNutritionNumber(preview.suggested.carbsGrams)} g
-              </span>
-            </div>
-            <div>
               tłuszcz:{" "}
               <span className="font-medium">
                 {formatNutritionNumber(preview.suggested.fatGrams)} g
               </span>
             </div>
-            {preview.suggested.fiberGrams ? (
-              <div>
-                błonnik:{" "}
-                <span className="font-medium">
-                  {formatNutritionNumber(preview.suggested.fiberGrams)} g
-                </span>
-              </div>
-            ) : (
-              <div className="text-amber-700">błonnik: brak w źródle</div>
-            )}
-            {preview.suggested.saltGrams ? (
-              <div>
-                sól:{" "}
-                <span className="font-medium">
-                  {formatNutritionNumber(preview.suggested.saltGrams)} g
-                </span>
-              </div>
-            ) : (
-              <div className="text-amber-700">sól: brak (brak sodu)</div>
-            )}
+            <div>
+              węglowodany:{" "}
+              <span className="font-medium">
+                {formatNutritionNumber(preview.suggested.carbsGrams)} g
+              </span>
+            </div>
           </dl>
-          {preview.entry.carbsApproximate ? (
-            <p className="text-[11px] text-gray-500">
-              Węglowodany przybliżone ({preview.entry.carbsMethod ?? "—"})
-            </p>
-          ) : null}
-          <p className="text-[11px] text-gray-400">
-            Źródło: {preview.entry.sourceDataset} {preview.entry.sourceRelease}{" "}
-            · FDC {preview.entry.fdcId} ·{" "}
-            <a
-              className="underline"
-              href={preview.entry.sourceUrl}
-              target="_blank"
-              rel="noreferrer"
-            >
-              FoodData Central
-            </a>
-          </p>
           <Button type="button" size="sm" onClick={tryApply}>
-            Użyj danych
+            {usdaLookupUi.applyLabel}
           </Button>
         </div>
       ) : null}

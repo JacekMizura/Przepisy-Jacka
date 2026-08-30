@@ -18,7 +18,6 @@ import { formatGroupTotalQuantity } from "@/lib/format-quantity";
 import { StockGroupThumb } from "@/components/stock/stock-group-thumb";
 import {
   StockProductRow,
-  productImageUrls,
 } from "@/components/stock/stock-product-row";
 import { newPurchaseHref } from "@/components/stock/stock-view";
 import { PRODUCT_CATEGORY_OPTIONS } from "@/lib/product-media";
@@ -265,9 +264,6 @@ export function StockTab({
               (sum, item) => sum + item.summary.batchCount,
               0,
             );
-            const covers = entry.items.map(
-              (item) => productImageUrls(item.product).thumbnail,
-            );
             const subtitle = formatGroupStockSubtitle({
               variantCount: entry.items.length,
               batchCount: batchTotal,
@@ -285,7 +281,7 @@ export function StockTab({
                   aria-expanded={groupExpanded}
                   onClick={() => toggleGroupExpanded(entry.groupId)}
                 >
-                  <StockGroupThumb imageUrls={covers} />
+                  <StockGroupThumb />
                   <div className="min-w-0">
                     <p className="font-semibold text-gray-900">
                       {entry.groupName}

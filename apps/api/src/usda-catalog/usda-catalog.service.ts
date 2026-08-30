@@ -5,7 +5,6 @@ import {
 } from '@nestjs/common';
 import { Prisma, ProductUnit } from '../generated/prisma/client';
 
-import { normalizeSearchText } from '../common/normalize';
 import { requireKitchenMember } from '../kitchens/kitchen-access';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -17,9 +16,19 @@ import {
   UsdaCatalogSearchResponseDto,
   UsdaCatalogSuggestValuesDto,
 } from './dto/usda-catalog.dto';
+import {
+  filterAndRankUsdaEntries,
+  tokenizeUsdaQuery,
+} from './usda-search-rank';
 
 function fmt(value: Prisma.Decimal | null): string | null {
   return value === null ? null : formatDecimal3(value);
+}
+
+function aliasesOf(value: Prisma.JsonValue): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string')
+    : [];
 }
 
 @Injectable()
@@ -46,34 +55,48 @@ export class UsdaCatalogService {
         ? Math.floor(pageSize)
         : 20;
 
-    const folded = normalizeSearchText(q);
-    const tokens = folded.split(' ').filter((t) => t.length > 0);
+    const tokens = tokenizeUsdaQuery(q);
     if (tokens.length === 0) {
       throw new BadRequestException('query jest puste po normalizacji.');
     }
 
+    // Szeroki prefiltr SQL: każde słowo (lub jego prefiks 3+) może być w searchText.
+    // Dokładne dopasowanie, literówki i ranking — w pamięci.
     const where: Prisma.UsdaFoodCatalogEntryWhereInput = {
-      AND: tokens.map((token) => ({
-        searchText: { contains: token },
-      })),
+      OR: tokens.flatMap((token) => {
+        const prefix = token.length >= 3 ? token.slice(0, 3) : token;
+        return [
+          { searchText: { contains: token } },
+          ...(prefix !== token ? [{ searchText: { contains: prefix } }] : []),
+        ];
+      }),
     };
 
-    const [total, rows] = await Promise.all([
-      this.prisma.usdaFoodCatalogEntry.count({ where }),
-      this.prisma.usdaFoodCatalogEntry.findMany({
-        where,
-        orderBy: [{ polishName: 'asc' }, { variantLabel: 'asc' }],
-        skip: (safePage - 1) * safeSize,
-        take: safeSize,
-      }),
-    ]);
+    const candidates = await this.prisma.usdaFoodCatalogEntry.findMany({
+      where,
+      take: 400,
+    });
+
+    const ranked = filterAndRankUsdaEntries(
+      candidates.map((row) => ({
+        ...row,
+        aliases: aliasesOf(row.aliases),
+      })),
+      q,
+    );
+
+    const total = ranked.length;
+    const pageRows = ranked.slice(
+      (safePage - 1) * safeSize,
+      safePage * safeSize,
+    );
 
     return {
       query: q,
       page: safePage,
       pageSize: safeSize,
       total,
-      items: rows.map((row) => ({
+      items: pageRows.map((row) => ({
         id: row.id,
         fdcId: row.fdcId,
         polishName: row.polishName,
@@ -81,6 +104,9 @@ export class UsdaCatalogService {
         descriptionOriginal: row.descriptionOriginal,
         compositionMayVary: row.compositionMayVary,
         kcalPer100g: formatDecimal3(row.kcal),
+        proteinGramsPer100g: formatDecimal3(row.proteinGrams),
+        carbsGramsPer100g: formatDecimal3(row.carbsGrams),
+        fatGramsPer100g: formatDecimal3(row.fatGrams),
         basisLabel: row.basisLabel,
         sourceDataset: row.sourceDataset,
       })),
@@ -169,7 +195,7 @@ export class UsdaCatalogService {
   private toDetail(
     row: Prisma.UsdaFoodCatalogEntryGetPayload<object>,
   ): UsdaCatalogEntryDetailDto {
-    const aliases = Array.isArray(row.aliases) ? (row.aliases as string[]) : [];
+    const aliases = aliasesOf(row.aliases);
     const warnings = Array.isArray(row.mappingWarnings)
       ? (row.mappingWarnings as string[])
       : [];

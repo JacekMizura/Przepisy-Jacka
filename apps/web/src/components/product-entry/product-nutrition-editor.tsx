@@ -10,6 +10,7 @@ import {
   type NutritionFormValues,
 } from "@/components/nutrition-ean-lookup";
 import { NutritionUsdaLookup } from "@/components/nutrition-usda-lookup";
+import { usdaLookupUi } from "@/components/nutrition-usda-lookup-ui";
 import { UNIT_LABELS } from "@/lib/errors";
 import { unitLabel } from "@/lib/format-quantity";
 import {
@@ -41,6 +42,8 @@ type ProductNutritionEditorProps = {
   kitchenId: string;
   productUnit: BaseUnit;
   ean: string;
+  /** Nazwa produktu — prefill wyszukiwarki USDA. */
+  productName?: string;
   value: NutritionFormDraft;
   onChange: (next: NutritionFormDraft) => void;
   className?: string;
@@ -68,6 +71,7 @@ export function ProductNutritionEditor({
   kitchenId,
   productUnit,
   ean,
+  productName = "",
   value,
   onChange,
   className,
@@ -150,7 +154,7 @@ export function ProductNutritionEditor({
           onClick={() => toggleMode("db")}
           className={cn(modeButtonClass(mode === "db"), "flex items-center gap-2")}
         >
-          <Search className="h-4 w-4" /> Wybierz z bazy produktów
+          <Search className="h-4 w-4" /> {usdaLookupUi.buttonLabel}
         </button>
       </div>
 
@@ -171,6 +175,7 @@ export function ProductNutritionEditor({
           <NutritionUsdaLookup
             kitchenId={kitchenId}
             productUnit={productUnit}
+            productName={productName}
             hasExistingValues={lookupDraftHasValues(toLookupValues(value))}
             onApply={applyLookup}
           />
@@ -229,8 +234,9 @@ export function ProductNutritionEditor({
                   ))}
                 </select>
               </div>
-              <p className="mt-1 text-xs text-gray-400">
-                Zwykle 100 g / 100 ml albo 1 szt.
+              <p className="mt-1 text-xs text-gray-500">
+                100&nbsp;g (lub inna ilość odniesienia) dotyczy wartości
+                odżywczych — to nie jest wielkość opakowania produktu.
               </p>
             </div>
             <div>

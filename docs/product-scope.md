@@ -55,7 +55,7 @@ Partia zapasu (`StockItem`) ma:
 
 Cena nie zmienia znaczenia po częściowym zużyciu. Ilości w JSON są decimal stringami z maksymalnie 3 miejscami, np. `"500.000"`.
 
-Ten sam produkt z katalogu może mieć wiele partii (np. zakupy w różnych sklepach). W widoku zbiorczym zapasów grupujemy po `productId` — jedna pozycja na produkt z łączną ilością i rozwinięciem partii (sklep, data, termin ważności, cena jednostkowa, odnośnik do zakupu). Nie scalamy automatycznie produktów o podobnych nazwach.
+Ten sam produkt z katalogu może mieć wiele partii (np. zakupy w różnych sklepach). W widoku zbiorczym zapasów grupujemy po `productId` — jedna pozycja na produkt z łączną ilością i rozwinięciem partii (sklep, data, termin ważności, cena opakowania/razem, odnośnik do zakupu). Produkty przypisane do tego samego `ProductGroup` (rodzaju) są na liście zapasów prezentowane jako jedna karta rodzaju z zagnieżdżonymi wariantami (bez zmiany API). Ilości w UI mogą być skalowane prezentacyjnie (np. `2400 g` → `2,4 kg`). Nie scalamy automatycznie produktów o podobnych nazwach.
 
 Zmiana pozostałej ilości odbywa się wyłącznie przez akcję **„Zużyj”** / **„Odpisz”** (`StockConsumption` z `kind`: `consume` | `write_off`, opcjonalny `reason` wymagany przy odpisie, + linie pobrania z konkretnych partii). Edycja partii nie pozwala nadpisać `quantity` — tylko metadane (miejsce, daty, EAN, zdjęcie). Koszt zatwierdzonego zużycia liczymy narastająco z cen partii: `round(cena × zużytePo / początkowa) − round(cena × zużytePrzed / początkowa)` (grosze), dzięki czemu kolejne częściowe odpisy sumują się do ceny zakupu. Brak ceny w partii oznacza niekompletny koszt, nie zero. Szacunek kosztu przepisu z ostatnich zakupów pozostaje bez zmian.
 
@@ -65,11 +65,13 @@ Nazwy produktów są unikalne w kuchni po normalizacji (trim, lowercase, zbiciu 
 
 Produkt może mieć **sposób zakupu** (`purchaseMode`):
 
-- `unconfigured` — domyślny dla nowych produktów; wymaga konfiguracji przed dodaniem braków do listy i przed checkoutem,
-- `packaged` — zakup w opakowaniach (`ProductPurchaseOption`); wymaga ≥1 aktywnej opcji i dokładnie jednej domyślnej,
-- `exact` — zakup dokładnej ilości (opcje mogą istnieć historycznie, ale nie są używane).
+- `packaged` — zakup w opakowaniach o stałej zawartości (`packageQuantity` / `packageUnit` + domyślna `ProductPurchaseOption`);
+- `exact` — na wagę / luzem: bez stałego opakowania; każda partia ma rzeczywistą ilość z zakupu; `packageQuantity`/`packageUnit` oraz snapshot opakowania na partii są `null`; `packageCount` jest odrzucany;
+- `unconfigured` — historyczny stan wymagający konfiguracji przed brakami/listą/checkoutem (nie oferowany jako wybór przy nowym produkcie).
 
-Istniejące produkty z dowolną opcją zakupu migracja ustawia na `packaged`; bez opcji pozostają `unconfigured` (nigdy auto-`exact`).
+Nowe produkty przyjmują jawnie `packaged` albo `exact` (albo inferencję: opakowanie → packaged, brak → exact). Istniejących produktów nie klasyfikujemy automatycznie po nazwie.
+
+Wartości odżywcze na `100 g` / `100 ml` to wyłącznie ilość odniesienia — nie wielkość opakowania.
 
 Produkt może mieć konfigurowalne **warianty zakupu** (`ProductPurchaseOption`): np. „Karton 1 l” = 1000 ml. Jeden wariant może być domyślny (unikalnie w bazie).
 

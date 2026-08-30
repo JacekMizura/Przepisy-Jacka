@@ -37,7 +37,12 @@ import {
   type NutritionFormDraft,
 } from "@/components/product-entry/product-nutrition-editor";
 import { ProductPhotoField } from "@/components/product-photo-field";
+import {
+  PurchaseModeField,
+  type PurchaseModeChoice,
+} from "@/components/product-entry/purchase-mode-field";
 import { ProductPurchaseOptions } from "@/components/product-purchase-options";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Toast } from "@/components/toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -48,6 +53,7 @@ import {
   formatMoneyMinor,
   formatQuantityWithUnit,
 } from "@/lib/format-quantity";
+import { coercePurchaseModeChoice } from "@/lib/purchase-mode";
 import {
   formatEditStockSummary,
 } from "@/lib/stock-package-display";
@@ -223,9 +229,14 @@ export function ProductEntryForm({
       ? initialKindFromProduct(initialProduct)
       : initialKindFromGroupId(initialGroupId, initialGroupName),
   );
-  const [purchaseMode, setPurchaseMode] = useState<
-    UpdateProduct["purchaseMode"]
-  >(initialProduct?.purchaseMode ?? "unconfigured");
+  const [purchaseMode, setPurchaseMode] = useState<PurchaseModeChoice | null>(
+    () =>
+      coercePurchaseModeChoice(
+        initialProduct?.purchaseMode,
+        Boolean(initialProduct?.packageQuantity && initialProduct?.packageUnit),
+      ),
+  );
+  const [confirmClearPackage, setConfirmClearPackage] = useState(false);
   const [mediaAssetId, setMediaAssetId] = useState<string | null>(null);
   const [nutrition, setNutrition] = useState<NutritionFormDraft>(() =>
     initialNutritionDraft(
@@ -239,19 +250,6 @@ export function ProductEntryForm({
 
   const [quantity, setQuantity] = useState(initialQuantity);
   const [packageCount, setPackageCount] = useState("");
-  const [stockByPackages, setStockByPackages] = useState(() => {
-    const hasPackage =
-      Boolean(initialProduct?.packageQuantity) &&
-      Boolean(initialProduct?.packageUnit);
-    if (!hasPackage) {
-      return false;
-    }
-    return (
-      mode === "add-batch" ||
-      initialProduct?.purchaseMode === "packaged" ||
-      mode === "create"
-    );
-  });
   const [inputUnit, setInputUnit] = useState<InputUnit>(
     () =>
       inputUnitsFor(
@@ -529,6 +527,33 @@ export function ProductEntryForm({
   const packageConfigured =
     Boolean(packageQuantity.trim()) && Boolean(packageUnit);
 
+  const stockByPackages =
+    packageConfigured && purchaseMode !== "exact";
+
+  function applyPurchaseMode(next: PurchaseModeChoice) {
+    setPurchaseMode(next);
+    if (next === "exact") {
+      setPackageQuantity("");
+      setPackageUnit("");
+      setPackageCount("");
+    }
+  }
+
+  function requestPurchaseModeChange(next: PurchaseModeChoice) {
+    if (next === purchaseMode) {
+      return;
+    }
+    if (
+      next === "exact" &&
+      purchaseMode === "packaged" &&
+      (packageQuantity.trim() || packageUnit)
+    ) {
+      setConfirmClearPackage(true);
+      return;
+    }
+    applyPurchaseMode(next);
+  }
+
   const stockUnit =
     mode === "add-batch"
       ? ((resolvedProduct?.defaultUnit as BaseUnit | undefined) ?? defaultUnit)
@@ -669,6 +694,9 @@ export function ProductEntryForm({
     packageQuantity?: string | null;
     packageUnit?: PackageUnit | null;
   } {
+    if (purchaseMode === "exact") {
+      return { packageQuantity: null, packageUnit: null };
+    }
     if (!packageQuantity.trim() && !packageUnit) {
       return { packageQuantity: null, packageUnit: null };
     }
@@ -831,14 +859,23 @@ export function ProductEntryForm({
         }
         body.existingProductId = id;
       } else {
+        if (purchaseMode !== "packaged" && purchaseMode !== "exact") {
+          throw new Error("Wybierz sposób zakupu produktu.");
+        }
+        if (purchaseMode === "packaged" && !packageConfigured) {
+          throw new Error(
+            "Podaj zawartość opakowania (ilość i jednostkę) albo wybierz „Na wagę / luzem”.",
+          );
+        }
         const kindFields = buildKindFields();
         const packageFields = buildPackageFields();
         if (
-          (packageQuantity.trim() && !packageUnit) ||
-          (!packageQuantity.trim() && packageUnit)
+          purchaseMode === "packaged" &&
+          ((packageQuantity.trim() && !packageUnit) ||
+            (!packageQuantity.trim() && packageUnit))
         ) {
           throw new Error(
-            "Podaj zarówno ilość w opakowaniu, jak i jednostkę — albo wyczyść oba pola.",
+            "Podaj zarówno zawartość opakowania, jak i jednostkę.",
           );
         }
         body.newProduct = {
@@ -848,6 +885,7 @@ export function ProductEntryForm({
           category: category.trim() || null,
           brand: brand.trim() || null,
           variantLabel: variantLabel.trim() || null,
+          purchaseMode,
           ...packageFields,
           ...(kindFields.groupId !== undefined
             ? { groupId: kindFields.groupId }
@@ -943,12 +981,21 @@ export function ProductEntryForm({
       }
 
       const client = createWebApiClient();
+      if (purchaseMode !== "packaged" && purchaseMode !== "exact") {
+        throw new Error("Wybierz sposób zakupu produktu.");
+      }
+      if (purchaseMode === "packaged" && !packageConfigured) {
+        throw new Error(
+          "Podaj zawartość opakowania albo wybierz „Na wagę / luzem”.",
+        );
+      }
       if (
-        (packageQuantity.trim() && !packageUnit) ||
-        (!packageQuantity.trim() && packageUnit)
+        purchaseMode === "packaged" &&
+        ((packageQuantity.trim() && !packageUnit) ||
+          (!packageQuantity.trim() && packageUnit))
       ) {
         throw new Error(
-          "Podaj zarówno ilość w opakowaniu, jak i jednostkę — albo wyczyść oba pola.",
+          "Podaj zarówno zawartość opakowania, jak i jednostkę.",
         );
       }
       const packageFields = buildPackageFields();
@@ -1247,7 +1294,6 @@ export function ProductEntryForm({
         <PurchaseCard
           packageConfigured={packageConfigured}
           stockByPackages={stockByPackages}
-          setStockByPackages={setStockByPackages}
           packageCount={packageCount}
           setPackageCount={setPackageCount}
           packageQuantity={packageQuantity}
@@ -1281,6 +1327,19 @@ export function ProductEntryForm({
           cancelHref={cancelHref}
           disableSubmit={pending}
         />
+        {confirmClearPackage ? (
+          <ConfirmDialog
+            title="Wyczyścić dane opakowania?"
+            description="Przejście na „Na wagę / luzem” usunie zapisaną zawartość opakowania. Wartości odżywcze (np. na 100 g) pozostaną bez zmian."
+            confirmLabel="Wyczyść i przełącz"
+            confirmVariant="amber"
+            onConfirm={() => {
+              setConfirmClearPackage(false);
+              applyPurchaseMode("exact");
+            }}
+            onCancel={() => setConfirmClearPackage(false)}
+          />
+        ) : null}
         <Toast
           message={toast?.message ?? null}
           onDismiss={() => setToast(null)}
@@ -1514,55 +1573,57 @@ export function ProductEntryForm({
                     </div>
                   </div>
 
-                  <div>
-                    <label
-                      htmlFor="product-entry-package-qty"
-                      className="mb-1 block text-sm font-medium text-gray-700"
-                    >
-                      Ilość w opakowaniu
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        id="product-entry-package-qty"
-                        inputMode="decimal"
-                        value={packageQuantity}
-                        onChange={(event) => {
-                          setPackageQuantity(event.target.value);
-                          if (!event.target.value.trim()) {
-                            setStockByPackages(false);
-                          }
-                        }}
-                        placeholder="np. 125"
-                        disabled={lockCatalogFields}
-                        className="w-32 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm disabled:bg-gray-50"
-                      />
-                      <select
-                        aria-label="Jednostka opakowania"
-                        value={packageUnit}
-                        onChange={(event) =>
-                          setPackageUnit(
-                            event.target.value as PackageUnit | "",
-                          )
-                        }
-                        disabled={lockCatalogFields}
-                        className="w-24 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm bg-gray-50"
+                  <PurchaseModeField
+                    value={purchaseMode}
+                    onChange={requestPurchaseModeChange}
+                    disabled={lockCatalogFields}
+                  />
+
+                  {purchaseMode === "packaged" ? (
+                    <div>
+                      <label
+                        htmlFor="product-entry-package-qty"
+                        className="mb-1 block text-sm font-medium text-gray-700"
                       >
-                        <option value="">—</option>
-                        {PACKAGE_UNIT_OPTIONS.filter((option) =>
-                          suggestedPackageUnitsFor(defaultUnit).includes(
-                            option.value,
-                          ),
-                        ).map((option) => (
-                          <option key={option.value} value={option.value}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
+                        Zawartość opakowania
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          id="product-entry-package-qty"
+                          inputMode="decimal"
+                          value={packageQuantity}
+                          onChange={(event) => {
+                            setPackageQuantity(event.target.value);
+                          }}
+                          placeholder="np. 125"
+                          disabled={lockCatalogFields}
+                          className="w-32 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm disabled:bg-gray-50"
+                        />
+                        <select
+                          aria-label="Jednostka opakowania"
+                          value={packageUnit}
+                          onChange={(event) =>
+                            setPackageUnit(
+                              event.target.value as PackageUnit | "",
+                            )
+                          }
+                          disabled={lockCatalogFields}
+                          className="w-24 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm bg-gray-50"
+                        >
+                          <option value="">—</option>
+                          {PACKAGE_UNIT_OPTIONS.filter((option) =>
+                            suggestedPackageUnitsFor(defaultUnit).includes(
+                              option.value,
+                            ),
+                          ).map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
-                    <p className="mt-1.5 text-xs text-gray-500">
-                      Opcjonalnie — ułatwia odkładanie zapasu w opakowaniach.
-                    </p>
-                  </div>
+                  ) : null}
 
                   <ProductCategorySelector
                     value={category}
@@ -1624,7 +1685,9 @@ export function ProductEntryForm({
                           htmlFor="entry-qty"
                           className="mb-1 block text-sm font-medium text-gray-700"
                         >
-                          Ilość
+                          {stockByPackages && packageConfigured
+                            ? "Liczba opakowań"
+                            : "Kupiona ilość"}
                         </label>
                         <div className="flex gap-2">
                           {stockByPackages && packageConfigured ? (
@@ -1652,32 +1715,26 @@ export function ProductEntryForm({
                               className={FIELD_ORANGE_CLASS}
                             />
                           )}
-                          <select
-                            aria-label="Jednostka ilości"
-                            value={
-                              stockByPackages && packageConfigured
-                                ? "__pkg__"
-                                : inputUnit
-                            }
-                            onChange={(event) => {
-                              if (event.target.value === "__pkg__") {
-                                setStockByPackages(true);
-                                return;
+                          {stockByPackages && packageConfigured ? (
+                            <span className="inline-flex w-32 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-700">
+                              opak.
+                            </span>
+                          ) : (
+                            <select
+                              aria-label="Jednostka ilości"
+                              value={inputUnit}
+                              onChange={(event) =>
+                                setInputUnit(event.target.value as InputUnit)
                               }
-                              setStockByPackages(false);
-                              setInputUnit(event.target.value as InputUnit);
-                            }}
-                            className="w-32 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 sm:text-sm bg-white"
-                          >
-                            {inputUnitsFor(stockUnit).map((unit) => (
-                              <option key={unit.value} value={unit.value}>
-                                {unit.label}
-                              </option>
-                            ))}
-                            {packageConfigured ? (
-                              <option value="__pkg__">opak.</option>
-                            ) : null}
-                          </select>
+                              className="w-32 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 sm:text-sm bg-white"
+                            >
+                              {inputUnitsFor(stockUnit).map((unit) => (
+                                <option key={unit.value} value={unit.value}>
+                                  {unit.label}
+                                </option>
+                              ))}
+                            </select>
+                          )}
                         </div>
                         {stockByPackages &&
                         packageConfigured &&
@@ -1903,6 +1960,19 @@ export function ProductEntryForm({
           </div>
         </div>
 
+        {confirmClearPackage ? (
+          <ConfirmDialog
+            title="Wyczyścić dane opakowania?"
+            description="Przejście na „Na wagę / luzem” usunie zapisaną zawartość opakowania. Wartości odżywcze (np. na 100 g) pozostaną bez zmian."
+            confirmLabel="Wyczyść i przełącz"
+            confirmVariant="amber"
+            onConfirm={() => {
+              setConfirmClearPackage(false);
+              applyPurchaseMode("exact");
+            }}
+            onCancel={() => setConfirmClearPackage(false)}
+          />
+        ) : null}
         <Toast
           message={toast?.message ?? null}
           onDismiss={() => setToast(null)}
@@ -2045,79 +2115,64 @@ export function ProductEntryForm({
               </div>
             </div>
 
-            <div>
-              <label
-                htmlFor="product-entry-package-qty"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Ilość w opakowaniu
-              </label>
-              <div className="flex gap-2">
-                <input
-                  id="product-entry-package-qty"
-                  inputMode="decimal"
-                  value={packageQuantity}
-                  onChange={(event) =>
-                    setPackageQuantity(event.target.value)
-                  }
-                  placeholder="np. 125"
-                  className="w-32 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
-                />
-                <select
-                  aria-label="Jednostka opakowania"
-                  value={packageUnit}
-                  onChange={(event) =>
-                    setPackageUnit(event.target.value as PackageUnit | "")
-                  }
-                  className="w-24 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm bg-gray-50"
+            <PurchaseModeField
+              value={
+                purchaseMode === "packaged" || purchaseMode === "exact"
+                  ? purchaseMode
+                  : packageConfigured
+                    ? "packaged"
+                    : "exact"
+              }
+              onChange={requestPurchaseModeChange}
+            />
+
+            {purchaseMode !== "exact" ? (
+              <div>
+                <label
+                  htmlFor="product-entry-package-qty"
+                  className="mb-1 block text-sm font-medium text-gray-700"
                 >
-                  <option value="">—</option>
-                  {PACKAGE_UNIT_OPTIONS.filter((option) =>
-                    suggestedPackageUnitsFor(defaultUnit).includes(
-                      option.value,
-                    ),
-                  ).map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                  Zawartość opakowania
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    id="product-entry-package-qty"
+                    inputMode="decimal"
+                    value={packageQuantity}
+                    onChange={(event) =>
+                      setPackageQuantity(event.target.value)
+                    }
+                    placeholder="np. 125"
+                    className="w-32 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
+                  />
+                  <select
+                    aria-label="Jednostka opakowania"
+                    value={packageUnit}
+                    onChange={(event) =>
+                      setPackageUnit(event.target.value as PackageUnit | "")
+                    }
+                    className="w-24 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm bg-gray-50"
+                  >
+                    <option value="">—</option>
+                    {PACKAGE_UNIT_OPTIONS.filter((option) =>
+                      suggestedPackageUnitsFor(defaultUnit).includes(
+                        option.value,
+                      ),
+                    ).map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-            </div>
+            ) : null}
 
             <ProductCategorySelector
               value={category}
               onChange={setCategory}
               extraOptions={categoryOptions}
             />
-
-            <div>
-              <label
-                htmlFor="product-entry-purchase-mode"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Sposób zakupu
-              </label>
-              <select
-                id="product-entry-purchase-mode"
-                value={
-                  purchaseMode === "exact" || purchaseMode === "packaged"
-                    ? purchaseMode
-                    : packageConfigured
-                      ? "packaged"
-                      : "exact"
-                }
-                onChange={(event) =>
-                  setPurchaseMode(
-                    event.target.value as UpdateProduct["purchaseMode"],
-                  )
-                }
-                className={cn(FIELD_CLASS, "bg-white")}
-              >
-                <option value="packaged">W opakowaniach</option>
-                <option value="exact">Na dokładną ilość / luzem</option>
-              </select>
-            </div>
           </div>
         </section>
       ) : null}
@@ -2201,6 +2256,19 @@ export function ProductEntryForm({
         disableSubmit={pending || !isDirty}
       />
 
+      {confirmClearPackage ? (
+        <ConfirmDialog
+          title="Wyczyścić dane opakowania?"
+          description="Przejście na „Na wagę / luzem” usunie zapisaną zawartość opakowania. Wartości odżywcze (np. na 100 g) pozostaną bez zmian."
+          confirmLabel="Wyczyść i przełącz"
+          confirmVariant="amber"
+          onConfirm={() => {
+            setConfirmClearPackage(false);
+            applyPurchaseMode("exact");
+          }}
+          onCancel={() => setConfirmClearPackage(false)}
+        />
+      ) : null}
       <Toast
         message={toast?.message ?? null}
         onDismiss={() => setToast(null)}
@@ -2254,7 +2322,6 @@ function StickyFooter({
 function PurchaseCard({
   packageConfigured,
   stockByPackages,
-  setStockByPackages,
   packageCount,
   setPackageCount,
   packageQuantity,
@@ -2278,7 +2345,6 @@ function PurchaseCard({
 }: {
   packageConfigured: boolean;
   stockByPackages: boolean;
-  setStockByPackages: (value: boolean) => void;
   packageCount: string;
   setPackageCount: (value: string) => void;
   packageQuantity: string;
@@ -2312,31 +2378,6 @@ function PurchaseCard({
         </h2>
       </div>
 
-      {packageConfigured ? (
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-sm text-gray-800">
-            <input
-              type="radio"
-              name="stock-qty-mode"
-              className="text-emerald-600 focus:ring-emerald-500"
-              checked={stockByPackages}
-              onChange={() => setStockByPackages(true)}
-            />
-            Liczba opakowań
-          </label>
-          <label className="flex items-center gap-2 text-sm text-gray-800">
-            <input
-              type="radio"
-              name="stock-qty-mode"
-              className="text-emerald-600 focus:ring-emerald-500"
-              checked={!stockByPackages}
-              onChange={() => setStockByPackages(false)}
-            />
-            Ilość
-          </label>
-        </div>
-      ) : null}
-
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {stockByPackages && packageConfigured ? (
           <div>
@@ -2349,6 +2390,12 @@ function PurchaseCard({
               placeholder="np. 2"
               required
             />
+            {packageQuantity && packageUnit ? (
+              <p className="mt-1 text-xs text-gray-500">
+                Zawartość:{" "}
+                {formatQuantityWithUnit(packageQuantity, packageUnit)}
+              </p>
+            ) : null}
             {computedPackageStock?.ok ? (
               <p className="mt-1 text-xs text-emerald-700">
                 {formatPackagePurchaseSummary({
@@ -2371,7 +2418,7 @@ function PurchaseCard({
           </div>
         ) : (
           <div>
-            <Label htmlFor="entry-qty">Ilość</Label>
+            <Label htmlFor="entry-qty">Kupiona ilość</Label>
             <div className="flex gap-2">
               <Input
                 id="entry-qty"

@@ -18,6 +18,7 @@ import {
 
 import {
   PackageContentUnit,
+  ProductPurchaseMode,
   ProductUnit,
   StorageLocation,
 } from '../../generated/prisma/client';
@@ -43,6 +44,16 @@ export class ProductIntakeNewProductDto extends ProductPackageFieldsDto {
   @ApiProperty({ enum: ProductUnit })
   @IsEnum(ProductUnit)
   defaultUnit!: ProductUnit;
+
+  @ApiPropertyOptional({
+    enum: ProductPurchaseMode,
+    description:
+      'Sposób zakupu: packaged (stałe opakowanie) albo exact (na wagę / luzem). ' +
+      'Gdy pominięte — packaged jeśli podano package*, inaczej exact.',
+  })
+  @IsOptional()
+  @IsEnum(ProductPurchaseMode)
+  purchaseMode?: ProductPurchaseMode;
 
   @ApiPropertyOptional({ type: String, nullable: true })
   @IsOptional()

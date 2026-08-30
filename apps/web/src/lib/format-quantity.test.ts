@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  formatDisplayQuantityWithUnit,
+  formatGroupTotalQuantity,
   formatMoneyMinor,
   formatNutritionNumber,
   formatPackagePurchase,
@@ -56,5 +58,48 @@ describe("format-quantity", () => {
     assert.equal(formatNutritionNumber("384.00", 0), "384");
     assert.equal(formatNutritionNumber("19.20"), "19,2");
     assert.equal(formatNutritionNumber(null), "");
+  });
+});
+
+describe("formatDisplayQuantityWithUnit", () => {
+  it("converts 2400 g to 2,4 kg", () => {
+    assert.equal(formatDisplayQuantityWithUnit("2400", "gram"), "2,4\u00A0kg");
+    assert.equal(
+      formatDisplayQuantityWithUnit("2400.000", "gram"),
+      "2,4\u00A0kg",
+    );
+  });
+
+  it("keeps 250 g as grams", () => {
+    assert.equal(formatDisplayQuantityWithUnit("250", "gram"), "250\u00A0g");
+  });
+
+  it("converts 1500 ml to 1,5 l", () => {
+    assert.equal(
+      formatDisplayQuantityWithUnit("1500", "milliliter"),
+      "1,5\u00A0l",
+    );
+  });
+
+  it("keeps piece counts unchanged", () => {
+    assert.equal(formatDisplayQuantityWithUnit("10", "piece"), "10\u00A0szt.");
+  });
+
+  it("does not convert below 1000 g / ml", () => {
+    assert.equal(formatDisplayQuantityWithUnit("999", "gram"), "999\u00A0g");
+    assert.equal(
+      formatDisplayQuantityWithUnit("999", "milliliter"),
+      "999\u00A0ml",
+    );
+  });
+
+  it("aggregates group totals with kg conversion", () => {
+    assert.equal(
+      formatGroupTotalQuantity([
+        { totalQuantity: "400.000", defaultUnit: "gram" },
+        { totalQuantity: "2000.000", defaultUnit: "gram" },
+      ]),
+      "2,4\u00A0kg",
+    );
   });
 });

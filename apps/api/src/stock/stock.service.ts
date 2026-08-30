@@ -86,6 +86,10 @@ import {
   parsePackageFields,
 } from './product-package-fields';
 import {
+  assertPackageCountAllowedForProduct,
+  resolveNewProductPurchase,
+} from './purchase-mode';
+import {
   canUndoProductAddition,
   resolveProductRemovalMode,
   type ProductRemovalFacts,
@@ -309,16 +313,31 @@ export class StockService {
       data.category = normalizeOptionalCategory(dto.category);
     }
 
+    applyOptionalPackageFieldUpdates(data, dto);
+
     if (dto.purchaseMode !== undefined) {
       if (dto.purchaseMode === ProductPurchaseMode.packaged) {
+        const nextProduct = {
+          ...product,
+          packageQuantity:
+            (data.packageQuantity as Prisma.Decimal | null | undefined) ??
+            product.packageQuantity,
+          packageUnit:
+            (data.packageUnit as PackageContentUnit | null | undefined) ??
+            product.packageUnit,
+        };
         await ensureDefaultPurchaseOptionFromProductPackage(
           this.prisma,
-          product,
+          nextProduct,
         );
         await assertPackagedProductHasValidActiveOptions(
           this.prisma,
           product.id,
         );
+      }
+      if (dto.purchaseMode === ProductPurchaseMode.exact) {
+        data.packageQuantity = null;
+        data.packageUnit = null;
       }
       data.purchaseMode = dto.purchaseMode;
     }
@@ -336,8 +355,6 @@ export class StockService {
           ? { disconnect: true }
           : { connect: { id: dto.groupId } };
     }
-
-    applyOptionalPackageFieldUpdates(data, dto);
 
     if (Object.keys(data).length === 0) {
       const current = await this.prisma.product.findFirstOrThrow({
@@ -581,6 +598,10 @@ export class StockService {
           const ean = normalizeOptionalEan(newProduct.ean);
           const category = normalizeOptionalCategory(newProduct.category);
           const packageFields = parsePackageFields(newProduct);
+          const purchase = resolveNewProductPurchase({
+            requestedMode: newProduct.purchaseMode,
+            packageFields,
+          });
 
           const hasGroupId =
             newProduct.groupId !== undefined &&
@@ -639,20 +660,14 @@ export class StockService {
               groupId,
               brand: packageFields.brand,
               variantLabel: packageFields.variantLabel,
-              packageQuantity: packageFields.packageQuantity,
-              packageUnit: packageFields.packageUnit,
+              packageQuantity: purchase.packageQuantity,
+              packageUnit: purchase.packageUnit,
+              purchaseMode: purchase.purchaseMode,
             },
           });
 
-          if (
-            product.packageQuantity !== null &&
-            product.packageUnit !== null
-          ) {
+          if (purchase.purchaseMode === ProductPurchaseMode.packaged) {
             await ensureDefaultPurchaseOptionFromProductPackage(tx, product);
-            product = await tx.product.update({
-              where: { id: product.id },
-              data: { purchaseMode: ProductPurchaseMode.packaged },
-            });
           }
 
           if (
@@ -2067,15 +2082,11 @@ function resolveIntakeStockQuantity(
   }
 
   if (hasPackageCount) {
-    if (product.packageQuantity === null || product.packageUnit === null) {
-      throw new BadRequestException(
-        'packageCount wymaga ustawionych packageQuantity i packageUnit na produkcie.',
-      );
-    }
+    assertPackageCountAllowedForProduct(product);
     return packageCountToStockQuantity({
       packageCount: stock.packageCount!,
-      packageQuantity: product.packageQuantity,
-      packageUnit: product.packageUnit,
+      packageQuantity: product.packageQuantity!,
+      packageUnit: product.packageUnit!,
       defaultUnit: product.defaultUnit,
     }).quantity;
   }
@@ -2102,11 +2113,7 @@ function resolvePackageSnapshot(
       packageUnitSnapshot: null,
     };
   }
-  if (product.packageQuantity === null || product.packageUnit === null) {
-    throw new BadRequestException(
-      'packageCount wymaga ustawionych packageQuantity i packageUnit na produkcie.',
-    );
-  }
+  assertPackageCountAllowedForProduct(product);
   return {
     packageCount: parsePositivePackageCount(stock.packageCount!),
     packageQuantitySnapshot: product.packageQuantity,

@@ -65,11 +65,13 @@ Nazwy produktów są unikalne w kuchni po normalizacji (trim, lowercase, zbiciu 
 
 Produkt może mieć **sposób zakupu** (`purchaseMode`):
 
-- `unconfigured` — domyślny dla nowych produktów; wymaga konfiguracji przed dodaniem braków do listy i przed checkoutem,
-- `packaged` — zakup w opakowaniach (`ProductPurchaseOption`); wymaga ≥1 aktywnej opcji i dokładnie jednej domyślnej,
-- `exact` — zakup dokładnej ilości (opcje mogą istnieć historycznie, ale nie są używane).
+- `packaged` — zakup w opakowaniach o stałej zawartości (`packageQuantity` / `packageUnit` + domyślna `ProductPurchaseOption`);
+- `exact` — na wagę / luzem: bez stałego opakowania; każda partia ma rzeczywistą ilość z zakupu; `packageQuantity`/`packageUnit` oraz snapshot opakowania na partii są `null`; `packageCount` jest odrzucany;
+- `unconfigured` — historyczny stan wymagający konfiguracji przed brakami/listą/checkoutem (nie oferowany jako wybór przy nowym produkcie).
 
-Istniejące produkty z dowolną opcją zakupu migracja ustawia na `packaged`; bez opcji pozostają `unconfigured` (nigdy auto-`exact`).
+Nowe produkty przyjmują jawnie `packaged` albo `exact` (albo inferencję: opakowanie → packaged, brak → exact). Istniejących produktów nie klasyfikujemy automatycznie po nazwie.
+
+Wartości odżywcze na `100 g` / `100 ml` to wyłącznie ilość odniesienia — nie wielkość opakowania.
 
 Produkt może mieć konfigurowalne **warianty zakupu** (`ProductPurchaseOption`): np. „Karton 1 l” = 1000 ml. Jeden wariant może być domyślny (unikalnie w bazie).
 

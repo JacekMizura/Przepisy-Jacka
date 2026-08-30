@@ -35,8 +35,9 @@ const MODE_CHOICES: Array<{
   },
   {
     value: "exact",
-    title: "Na dokładną ilość / luzem",
-    description: "Na liście pojawia się dokładnie brakująca ilość.",
+    title: "Na wagę / luzem",
+    description:
+      "Przy każdym zakupie wpiszesz rzeczywistą wagę lub objętość.",
   },
 ];
 

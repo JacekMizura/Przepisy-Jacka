@@ -1493,6 +1493,11 @@ export interface components {
             name: string;
             /** @enum {string} */
             defaultUnit: "piece" | "gram" | "milliliter";
+            /**
+             * @description Sposób zakupu: packaged (stałe opakowanie) albo exact (na wagę / luzem). Gdy pominięte — packaged jeśli podano package*, inaczej exact.
+             * @enum {string}
+             */
+            purchaseMode?: "unconfigured" | "packaged" | "exact";
             ean?: string | null;
             category?: string | null;
             /**

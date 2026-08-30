@@ -324,19 +324,13 @@ function StockBatchRow({
   onDelete: () => void;
 }) {
   const qty = formatBatchQuantityPresentation(batch, unit);
-  const priceLine = formatBatchPricePresentation(batch);
-
   const storePart = batch.storeName ? batch.storeName : "Ręczne dodanie";
   const purchasePart = batch.purchasedAt
     ? `zakup ${new Date(batch.purchasedAt).toLocaleDateString("pl-PL")}`
     : null;
-  const line1Parts = [qty.primary, storePart, purchasePart].filter(Boolean);
-
+  const priceLine = formatBatchPricePresentation(batch);
   const location = LOCATION_LABELS[batch.location];
-  const priceOrUnknown = priceLine
-    ? priceLine.charAt(0).toUpperCase() + priceLine.slice(1)
-    : "Cena nieznana";
-  const line2Parts = [priceOrUnknown, location];
+  const isPackagedBatch = batch.packageCount != null && batch.packageCount >= 1;
 
   const menuItems: ProductActionItem[] = [];
   if (batch.purchaseId) {
@@ -369,25 +363,69 @@ function StockBatchRow({
     >
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1 space-y-0.5">
-          <p className="text-[13px] leading-snug text-gray-900">
-            <span className="font-medium">{line1Parts.join(" · ")}</span>
-            {batch.isExpired ? (
-              <span className="ml-1.5 rounded bg-red-100 px-1 py-0.5 text-[10px] font-semibold text-red-800">
-                Przeterminowane
-              </span>
-            ) : null}
-          </p>
-          {qty.secondary ? (
-            <p className="text-[11px] leading-snug text-gray-500">
-              {qty.secondary}
-            </p>
-          ) : null}
-          <p className="text-[11px] leading-snug text-gray-500">
-            {line2Parts.join(" · ")}
-            {batch.expiresAt
-              ? ` · Ważne do ${new Date(batch.expiresAt).toLocaleDateString("pl-PL")}`
-              : ""}
-          </p>
+          {isPackagedBatch ? (
+            <>
+              <p className="text-[13px] leading-snug text-gray-900">
+                <span className="font-medium">
+                  {[qty.primary, storePart, purchasePart]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+                {batch.isExpired ? (
+                  <span className="ml-1.5 rounded bg-red-100 px-1 py-0.5 text-[10px] font-semibold text-red-800">
+                    Przeterminowane
+                  </span>
+                ) : null}
+              </p>
+              {qty.secondary ? (
+                <p className="text-[11px] leading-snug text-gray-500">
+                  {qty.secondary}
+                </p>
+              ) : null}
+              <p className="text-[11px] leading-snug text-gray-500">
+                {[
+                  priceLine
+                    ? priceLine.charAt(0).toUpperCase() + priceLine.slice(1)
+                    : "Cena nieznana",
+                  location,
+                  batch.expiresAt
+                    ? `Ważne do ${new Date(batch.expiresAt).toLocaleDateString("pl-PL")}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-[13px] font-medium leading-snug text-gray-900">
+                {qty.primary}
+                {batch.isExpired ? (
+                  <span className="ml-1.5 rounded bg-red-100 px-1 py-0.5 text-[10px] font-semibold text-red-800">
+                    Przeterminowane
+                  </span>
+                ) : null}
+              </p>
+              {qty.secondary ? (
+                <p className="text-[11px] leading-snug text-gray-500">
+                  {qty.secondary}
+                </p>
+              ) : null}
+              <p className="text-[11px] leading-snug text-gray-500">
+                {[
+                  storePart,
+                  purchasePart,
+                  priceLine,
+                  location,
+                  batch.expiresAt
+                    ? `Ważne do ${new Date(batch.expiresAt).toLocaleDateString("pl-PL")}`
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            </>
+          )}
           {batch.deleteBlockReason ? (
             <p className="text-[11px] text-gray-500">{batch.deleteBlockReason}</p>
           ) : null}

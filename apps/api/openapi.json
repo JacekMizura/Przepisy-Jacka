@@ -5161,6 +5161,15 @@
               "milliliter"
             ]
           },
+          "purchaseMode": {
+            "type": "string",
+            "enum": [
+              "unconfigured",
+              "packaged",
+              "exact"
+            ],
+            "description": "Sposób zakupu: packaged (stałe opakowanie) albo exact (na wagę / luzem). Gdy pominięte — packaged jeśli podano package*, inaczej exact."
+          },
           "ean": {
             "type": "string",
             "nullable": true

@@ -37,6 +37,10 @@ import {
   type InputUnit,
   type StockSummary,
 } from '@/lib/format';
+import {
+  asStockSummaryPage,
+  findStockProduct,
+} from '@/lib/stock-summary-page';
 import { useAuthKitchen } from '@/providers/auth-kitchen';
 import { ui } from '@/theme/ui';
 
@@ -71,26 +75,29 @@ export default function StockConsumeScreen() {
   const [formError, setFormError] = useState<string | null>(null);
 
   const query = useQuery({
-    queryKey: ['stock-summary', kitchenId],
-    enabled: Boolean(kitchenId),
+    queryKey: ['stock-summary', kitchenId, productId],
+    enabled: Boolean(kitchenId && productId),
     queryFn: async () => {
       const client = createMobileApiClient();
       const result = await client.GET(
         '/api/kitchens/{kitchenId}/stock-summary',
-        { params: { path: { kitchenId: kitchenId! } } },
+        {
+          params: {
+            path: { kitchenId: kitchenId! },
+            query: { productId: productId!, limit: 10 } as never,
+          },
+        },
       );
       if (apiStatus(result) === 401) {
         await signOut();
         throw new ApiRequestError(401, 'Sesja wygasła.');
       }
-      return requireApiData(result, 'Nie udało się pobrać zapasów.');
+      const data = requireApiData(result, 'Nie udało się pobrać zapasów.');
+      return findStockProduct(asStockSummaryPage(data), productId!);
     },
   });
 
-  const product = useMemo(
-    () => (query.data ?? []).find((item) => item.productId === productId),
-    [query.data, productId],
-  );
+  const product = query.data;
 
   const units = useMemo(
     () => (product ? inputUnitsFor(product.defaultUnit) : []),

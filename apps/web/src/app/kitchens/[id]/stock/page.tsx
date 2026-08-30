@@ -1,10 +1,9 @@
 "use client";
 
-import type { components } from "@moja-kuchnia/api-client";
 import { Plus, ShoppingBasket } from "lucide-react";
 import Link from "next/link";
-import { useParams, useSearchParams } from "next/navigation";
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { AppShell } from "@/components/app-shell";
@@ -19,25 +18,33 @@ import {
   undoProductAddition,
   type ProductRemovalPreview,
 } from "@/components/stock/removal-preview";
-import type { LocationFilter } from "@/components/stock/stock-filters";
 import { StockTab } from "@/components/stock/stock-tab";
 import {
   newCatalogProductHref,
   newPurchaseHref,
-  parseStockView,
 } from "@/components/stock/stock-view";
 import { StockViewTabs } from "@/components/stock/stock-view-tabs";
 import { StockConsumeDialog } from "@/components/stock-consume-dialog";
 import { Toast } from "@/components/toast";
-import { Button } from "@/components/ui/button";
 import { createWebApiClient } from "@/lib/api";
 import { readApiError } from "@/lib/errors";
 import {
   inputUnitsFor,
   type BaseUnit,
 } from "@/lib/quantity-input";
-
-type StockSummary = components["schemas"]["StockProductSummaryDto"];
+import {
+  asCatalogPage,
+  asStockSummaryPage,
+  findStockProduct,
+  flattenStockProducts,
+  type StockProductListItem,
+} from "@/lib/stock-list-types";
+import {
+  applyStockListPatch,
+  buildStockListHref,
+  parseStockListUrlState,
+  type StockListUrlPatch,
+} from "@/lib/stock-url-state";
 
 type ProductTarget = { id: string; name: string };
 
@@ -45,10 +52,23 @@ function StockPageInner() {
   const params = useParams<{ id: string }>();
   const kitchenId = params.id;
   const searchParams = useSearchParams();
-  const view = parseStockView(searchParams.get("view"));
+  const router = useRouter();
   const queryClient = useQueryClient();
 
-  const [locationFilter, setLocationFilter] = useState<LocationFilter>("");
+  const urlState = useMemo(
+    () => parseStockListUrlState(searchParams),
+    [searchParams],
+  );
+  const view = urlState.view;
+
+  const patchUrl = useCallback(
+    (patch: StockListUrlPatch) => {
+      const next = applyStockListPatch(urlState, patch);
+      router.replace(buildStockListHref(kitchenId, next), { scroll: false });
+    },
+    [kitchenId, router, urlState],
+  );
+
   const [productToArchive, setProductToArchive] = useState<ProductTarget | null>(
     null,
   );
@@ -56,22 +76,20 @@ function StockPageInner() {
   const [productWriteOffArchive, setProductWriteOffArchive] = useState<{
     id: string;
     name: string;
-    summary?: StockSummary;
+    summary?: StockProductListItem;
   } | null>(null);
   const [batchToDelete, setBatchToDelete] = useState<{
     id: string;
     label: string;
   } | null>(null);
-  const [consumeProduct, setConsumeProduct] = useState<StockSummary | null>(
-    null,
-  );
+  const [consumeProduct, setConsumeProduct] =
+    useState<StockProductListItem | null>(null);
   const [consumePreferManual, setConsumePreferManual] = useState(false);
   const [consumeInitialBatchId, setConsumeInitialBatchId] = useState<
     string | undefined
   >();
   const [consumeAfterWriteOffArchive, setConsumeAfterWriteOffArchive] =
     useState(false);
-  const [showArchivedCatalog, setShowArchivedCatalog] = useState(false);
   const [duplicateProduct, setDuplicateProduct] = useState<ProductTarget | null>(
     null,
   );
@@ -92,6 +110,116 @@ function StockPageInner() {
   const purchaseHref = newPurchaseHref(kitchenId);
   const catalogHref = newCatalogProductHref(kitchenId);
 
+  const stockSummaryQuery = useQuery({
+    queryKey: [
+      "stock-summary",
+      kitchenId,
+      urlState.search,
+      urlState.category,
+      urlState.place,
+      urlState.unit,
+      urlState.expiryStatus,
+      urlState.archived,
+      urlState.sort,
+      urlState.page,
+    ],
+    enabled: view === "stock",
+    queryFn: async () => {
+      const client = createWebApiClient();
+      const query: Record<string, string | number> = {
+        page: urlState.page,
+        limit: 50,
+        sort: urlState.sort,
+        archived: urlState.archived,
+      };
+      if (urlState.search) query.search = urlState.search;
+      if (urlState.category) query.category = urlState.category;
+      if (urlState.place) query.place = urlState.place;
+      if (urlState.unit) query.unit = urlState.unit;
+      if (urlState.expiryStatus !== "any") {
+        query.expiryStatus = urlState.expiryStatus;
+      }
+      const { data, error } = await client.GET(
+        "/api/kitchens/{kitchenId}/stock-summary",
+        {
+          params: {
+            path: { kitchenId },
+            // Local types until OpenAPI regenerate
+            query: query as never,
+          },
+        },
+      );
+      if (error) {
+        throw new Error(
+          readApiError(error, "Nie udało się pobrać podsumowania zapasów."),
+        );
+      }
+      return asStockSummaryPage(data);
+    },
+  });
+
+  async function fetchStockProductById(
+    productId: string,
+  ): Promise<StockProductListItem | null> {
+    const client = createWebApiClient();
+    const { data, error } = await client.GET(
+      "/api/kitchens/{kitchenId}/stock-summary",
+      {
+        params: {
+          path: { kitchenId },
+          query: { productId, limit: 10 } as never,
+        },
+      },
+    );
+    if (error) {
+      return null;
+    }
+    return findStockProduct(asStockSummaryPage(data).items, productId);
+  }
+
+  const catalogQuery = useQuery({
+    queryKey: [
+      "catalog",
+      kitchenId,
+      urlState.search,
+      urlState.category,
+      urlState.place,
+      urlState.unit,
+      urlState.archived,
+      urlState.sort,
+      urlState.hasStock,
+      urlState.page,
+    ],
+    enabled: view === "catalog",
+    queryFn: async () => {
+      const client = createWebApiClient();
+      const query: Record<string, string | number> = {
+        page: urlState.page,
+        limit: 50,
+        sort: urlState.sort,
+        archived: urlState.archived,
+      };
+      if (urlState.search) query.search = urlState.search;
+      if (urlState.category) query.category = urlState.category;
+      if (urlState.place) query.place = urlState.place;
+      if (urlState.unit) query.unit = urlState.unit;
+      if (urlState.hasStock) query.hasStock = "1";
+      const { data, error } = await client.GET(
+        "/api/kitchens/{kitchenId}/catalog",
+        {
+          params: {
+            path: { kitchenId },
+            query: query as never,
+          },
+        },
+      );
+      if (error) {
+        throw new Error(readApiError(error, "Nie udało się pobrać katalogu."));
+      }
+      return asCatalogPage(data);
+    },
+  });
+
   const productsQuery = useQuery({
     queryKey: ["products", kitchenId],
     queryFn: async () => {
@@ -105,58 +233,6 @@ function StockPageInner() {
       }
       if (error) {
         throw new Error(readApiError(error, "Nie udało się pobrać produktów."));
-      }
-      return data ?? [];
-    },
-  });
-
-  const archivedProductsQuery = useQuery({
-    queryKey: ["products", kitchenId, "archived"],
-    enabled: view === "catalog" && showArchivedCatalog,
-    queryFn: async () => {
-      const client = createWebApiClient();
-      const { data, error } = await client.GET(
-        "/api/kitchens/{kitchenId}/products",
-        {
-          params: {
-            path: { kitchenId },
-            query: { archive: "archived" },
-          },
-        },
-      );
-      if (error) {
-        throw new Error(
-          readApiError(error, "Nie udało się pobrać archiwum produktów."),
-        );
-      }
-      return data ?? [];
-    },
-  });
-
-  const stockSummaryQuery = useQuery({
-    queryKey: [
-      "stock-summary",
-      kitchenId,
-      view === "stock" ? locationFilter : "",
-    ],
-    enabled: view === "stock" || view === "catalog",
-    queryFn: async () => {
-      const client = createWebApiClient();
-      const location =
-        view === "stock" && locationFilter ? locationFilter : undefined;
-      const { data, error } = await client.GET(
-        "/api/kitchens/{kitchenId}/stock-summary",
-        {
-          params: {
-            path: { kitchenId },
-            query: location ? { location } : {},
-          },
-        },
-      );
-      if (error) {
-        throw new Error(
-          readApiError(error, "Nie udało się pobrać podsumowania zapasów."),
-        );
       }
       return data ?? [];
     },
@@ -286,26 +362,6 @@ function StockPageInner() {
     },
   });
 
-  const restoreProduct = useMutation({
-    mutationFn: async (productId: string) => {
-      const client = createWebApiClient();
-      const { error } = await client.POST(
-        "/api/kitchens/{kitchenId}/products/{productId}/restore",
-        { params: { path: { kitchenId, productId } } },
-      );
-      if (error) {
-        throw new Error(
-          readApiError(error, "Nie udało się przywrócić produktu."),
-        );
-      }
-    },
-    onSuccess: async () => {
-      await invalidateStock();
-      setShowArchivedCatalog(true);
-      setToast({ message: "Przywrócono produkt.", variant: "success" });
-    },
-  });
-
   const addToShoppingList = useMutation({
     mutationFn: async ({
       productId,
@@ -356,13 +412,17 @@ function StockPageInner() {
     },
   });
 
+  const stockProducts = useMemo(
+    () => flattenStockProducts(stockSummaryQuery.data?.items ?? []),
+    [stockSummaryQuery.data],
+  );
+
   useEffect(() => {
     if (view !== "stock" && view !== "catalog") {
       return;
     }
-    const products = productsQuery.data ?? [];
-    const missing = products
-      .map((product) => product.id)
+    const missing = stockProducts
+      .map((product) => product.productId)
       .filter((id) => !removalFetchedRef.current.has(id))
       .slice(0, 12);
     if (missing.length === 0) {
@@ -389,14 +449,14 @@ function StockPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [kitchenId, productsQuery.data, view]);
+  }, [kitchenId, stockProducts, view]);
 
   function requestAddToList(product: ProductTarget) {
     addToShoppingList.mutate({ productId: product.id });
   }
 
   function openConsume(
-    summary: StockSummary,
+    summary: StockProductListItem,
     options?: { batchId?: string; preferManual?: boolean },
   ) {
     setConsumePreferManual(Boolean(options?.preferManual));
@@ -408,7 +468,7 @@ function StockPageInner() {
   function buildMenuItems(args: {
     productId: string;
     productName: string;
-    summary?: StockSummary;
+    summary?: StockProductListItem;
     groupId?: string | null;
     totalQuantity?: string;
   }): ProductActionItem[] {
@@ -421,6 +481,7 @@ function StockPageInner() {
     const showWriteOffArchive =
       qty > 0 &&
       (previewInfo == null || previewInfo.canWriteOffAndArchive === true);
+    const groupId = args.groupId ?? args.summary?.groupId ?? null;
 
     const items: ProductActionItem[] = [
       {
@@ -442,11 +503,11 @@ function StockPageInner() {
       },
     ];
 
-    if (args.groupId) {
+    if (groupId) {
       items.push({
         id: "kind",
         label: "Przejdź do rodzaju",
-        href: `/kitchens/${kitchenId}/product-groups/${args.groupId}`,
+        href: `/kitchens/${kitchenId}/product-groups/${groupId}`,
       });
     } else if (view === "catalog") {
       items.push({
@@ -486,8 +547,9 @@ function StockPageInner() {
               summary: args.summary,
             });
           } else {
-            const summary = (stockSummaryQuery.data ?? []).find(
-              (entry) => entry.productId === args.productId,
+            const summary = findStockProduct(
+              stockSummaryQuery.data?.items ?? [],
+              args.productId,
             );
             if (summary) {
               setProductWriteOffArchive({
@@ -515,7 +577,7 @@ function StockPageInner() {
     view === "stock" ? (
       <Link
         href={purchaseHref}
-        className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm shadow-emerald-200 transition-colors hover:bg-emerald-700"
+        className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
       >
         <ShoppingBasket size={16} />
         Dodaj zakup
@@ -523,7 +585,7 @@ function StockPageInner() {
     ) : view === "catalog" ? (
       <Link
         href={catalogHref}
-        className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm shadow-emerald-200 transition-colors hover:bg-emerald-700"
+        className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
       >
         <Plus size={16} />
         Dodaj produkt do katalogu
@@ -532,38 +594,35 @@ function StockPageInner() {
 
   return (
     <AppShell kitchenId={kitchenId}>
-      <div className="mx-auto max-w-5xl space-y-4">
+      <div className="mx-auto w-full max-w-[1400px] space-y-4 px-6 sm:px-8">
         <header className="space-y-3">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <div className="min-w-0">
-              <h1 className="text-2xl font-bold tracking-tight text-gray-900">
-                Moje zapasy
-              </h1>
-              <p className="mt-1 text-sm text-gray-500">
-                Stan w domu, katalog produktów i historia zużyć.
-              </p>
-            </div>
+          <div className="flex flex-row items-center justify-between gap-3">
+            <h1 className="min-w-0 text-2xl font-bold tracking-tight text-gray-900">
+              Moje zapasy
+            </h1>
             <div className="flex h-10 shrink-0 items-center justify-end">
               {headerCta}
             </div>
           </div>
-          <StockViewTabs kitchenId={kitchenId} active={view} />
+          <StockViewTabs
+            kitchenId={kitchenId}
+            active={view}
+            urlState={urlState}
+          />
         </header>
 
         {view === "stock" ? (
           <StockTab
             kitchenId={kitchenId}
-            summaries={stockSummaryQuery.data ?? []}
-            products={productsQuery.data ?? []}
-            isPending={
-              stockSummaryQuery.isPending || productsQuery.isPending
-            }
-            isError={stockSummaryQuery.isError || productsQuery.isError}
-            errorMessage={readApiError(
-              stockSummaryQuery.error ?? productsQuery.error,
-            )}
-            locationFilter={locationFilter}
-            onLocationFilterChange={setLocationFilter}
+            items={stockSummaryQuery.data?.items ?? []}
+            page={stockSummaryQuery.data?.page ?? urlState.page}
+            pageCount={stockSummaryQuery.data?.pageCount ?? 0}
+            total={stockSummaryQuery.data?.total ?? 0}
+            isPending={stockSummaryQuery.isPending}
+            isError={stockSummaryQuery.isError}
+            errorMessage={readApiError(stockSummaryQuery.error)}
+            urlState={urlState}
+            onUrlPatch={patchUrl}
             onConsume={openConsume}
             onDeleteBatch={setBatchToDelete}
             onPreviewImage={(src, alt) => setPreview({ src, alt })}
@@ -572,82 +631,53 @@ function StockPageInner() {
                 productId,
                 productName,
                 summary,
-                groupId: productsQuery.data?.find((p) => p.id === productId)
-                  ?.groupId,
+                groupId: summary.groupId,
               })
             }
           />
         ) : null}
 
         {view === "catalog" ? (
-          <section className="space-y-3">
-            <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-              <ProductCatalogPanel
-                kitchenId={kitchenId}
-                embedded
-                onPreview={(src, alt) => setPreview({ src, alt })}
-                onArchiveProduct={setProductToArchive}
-                onUndoAddition={setProductToUndo}
-                onWriteOffAndArchive={(product) => {
-                  const summary = (stockSummaryQuery.data ?? []).find(
-                    (entry) => entry.productId === product.id,
-                  );
-                  setProductWriteOffArchive({ ...product, summary });
-                }}
-                onAddToList={requestAddToList}
-                addToListPending={addToShoppingList.isPending}
-                buildMenuItems={(product) =>
-                  buildMenuItems({
-                    productId: product.id,
-                    productName: product.name,
-                    groupId: product.groupId,
-                    totalQuantity: product.totalQuantity,
-                  })
+          <ProductCatalogPanel
+            kitchenId={kitchenId}
+            embedded
+            items={catalogQuery.data?.items ?? []}
+            page={catalogQuery.data?.page ?? urlState.page}
+            pageCount={catalogQuery.data?.pageCount ?? 0}
+            total={catalogQuery.data?.total ?? 0}
+            isPending={catalogQuery.isPending}
+            isError={catalogQuery.isError}
+            errorMessage={readApiError(catalogQuery.error)}
+            urlState={urlState}
+            onUrlPatch={patchUrl}
+            onPreview={(src, alt) => setPreview({ src, alt })}
+            onArchiveProduct={setProductToArchive}
+            onUndoAddition={setProductToUndo}
+            onWriteOffAndArchive={(product) => {
+              void (async () => {
+                const summary = await fetchStockProductById(product.id);
+                if (!summary) {
+                  setToast({
+                    message:
+                      "Brak danych zapasu do odpisu. Otwórz produkt i odpisz ręcznie.",
+                    variant: "info",
+                  });
+                  return;
                 }
-              />
-              <div className="border-t border-gray-50 px-4 py-3">
-                <button
-                  type="button"
-                  className="text-xs font-medium text-emerald-700 hover:underline"
-                  onClick={() => setShowArchivedCatalog((open) => !open)}
-                >
-                  {showArchivedCatalog
-                    ? "Ukryj archiwum produktów"
-                    : "Pokaż archiwum produktów"}
-                </button>
-                {showArchivedCatalog ? (
-                  <ul className="mt-3 space-y-2">
-                    {(archivedProductsQuery.data ?? []).length === 0 ? (
-                      <li className="text-xs text-gray-400">
-                        Brak zarchiwizowanych produktów.
-                      </li>
-                    ) : (
-                      (archivedProductsQuery.data ?? []).map((product) => (
-                        <li
-                          key={product.id}
-                          className="flex items-center justify-between gap-2 text-sm"
-                        >
-                          <span className="text-gray-600">{product.name}</span>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={restoreProduct.isPending}
-                            onClick={() => restoreProduct.mutate(product.id)}
-                          >
-                            Przywróć
-                          </Button>
-                        </li>
-                      ))
-                    )}
-                  </ul>
-                ) : null}
-                <p className="mt-3 text-xs text-gray-400">
-                  Archiwizacja usuwa produkt z aktywnego katalogu. Partie,
-                  zakupy, zużycia i przepisy zostają.
-                </p>
-              </div>
-            </div>
-          </section>
+                setProductWriteOffArchive({ ...product, summary });
+              })();
+            }}
+            onAddToList={requestAddToList}
+            addToListPending={addToShoppingList.isPending}
+            buildMenuItems={(product) =>
+              buildMenuItems({
+                productId: product.id,
+                productName: product.name,
+                groupId: product.groupId,
+                totalQuantity: product.totalQuantity,
+              })
+            }
+          />
         ) : null}
 
         {view === "history" ? (

@@ -1,151 +1,73 @@
 "use client";
 
-import type { components } from "@moja-kuchnia/api-client";
 import { ChevronDown, ShoppingBasket } from "lucide-react";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
 import type { ProductActionItem } from "@/components/stock/product-actions-menu";
-import {
-  StockFilters,
-  type LocationFilter,
-  type UnitFilter,
-} from "@/components/stock/stock-filters";
-import {
-  formatGroupStockSubtitle,
-} from "@/lib/stock-group-presentation";
-import { formatGroupTotalQuantity } from "@/lib/format-quantity";
+import { StockListToolbar } from "@/components/stock/stock-filters";
 import { StockGroupThumb } from "@/components/stock/stock-group-thumb";
-import {
-  StockProductRow,
-} from "@/components/stock/stock-product-row";
+import { StockProductRow, expiryTone } from "@/components/stock/stock-product-row";
 import { newPurchaseHref } from "@/components/stock/stock-view";
-import { PRODUCT_CATEGORY_OPTIONS } from "@/lib/product-media";
+import { LOCATION_LABELS } from "@/lib/errors";
+import { formatDisplayQuantityWithUnit } from "@/lib/format-quantity";
+import { formatGroupStockSubtitle } from "@/lib/stock-group-presentation";
+import type {
+  StockGroupListItem,
+  StockListEntry,
+  StockProductListItem,
+} from "@/lib/stock-list-types";
+import type {
+  StockListUrlPatch,
+  StockListUrlState,
+} from "@/lib/stock-url-state";
 import { cn } from "@/lib/utils";
-
-type Product = components["schemas"]["ProductDto"];
-type StockSummary = components["schemas"]["StockProductSummaryDto"];
-
-const UNCATEGORIZED = "Bez kategorii";
-
-type StockListEntry =
-  | {
-      type: "product";
-      key: string;
-      summary: StockSummary;
-      product?: Product;
-      kindBadge?: string | null;
-    }
-  | {
-      type: "group";
-      key: string;
-      groupId: string;
-      groupName: string;
-      items: Array<{ summary: StockSummary; product?: Product }>;
-    };
 
 type StockTabProps = {
   kitchenId: string;
-  summaries: StockSummary[];
-  products: Product[];
+  items: StockListEntry[];
+  page: number;
+  pageCount: number;
+  total: number;
   isPending: boolean;
   isError: boolean;
   errorMessage?: string;
-  locationFilter: LocationFilter;
-  onLocationFilterChange: (value: LocationFilter) => void;
-  onConsume: (summary: StockSummary, options?: { batchId?: string; preferManual?: boolean }) => void;
+  urlState: StockListUrlState;
+  onUrlPatch: (patch: StockListUrlPatch) => void;
+  onConsume: (
+    summary: StockProductListItem,
+    options?: { batchId?: string; preferManual?: boolean },
+  ) => void;
   onDeleteBatch: (batch: { id: string; label: string }) => void;
   onPreviewImage: (src: string, alt: string) => void;
   buildMenuItems: (args: {
     productId: string;
     productName: string;
-    summary: StockSummary;
+    summary: StockProductListItem;
   }) => ProductActionItem[];
 };
 
 export function StockTab({
   kitchenId,
-  summaries,
-  products,
+  items,
+  page,
+  pageCount,
+  total,
   isPending,
   isError,
   errorMessage,
-  locationFilter,
-  onLocationFilterChange,
+  urlState,
+  onUrlPatch,
   onConsume,
   onDeleteBatch,
   onPreviewImage,
   buildMenuItems,
 }: StockTabProps) {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const [unitFilter, setUnitFilter] = useState<UnitFilter>("");
   const [expandedStockIds, setExpandedStockIds] = useState<Set<string>>(
     () => new Set(),
   );
   const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(
     () => new Set(),
-  );
-
-  const productsById = useMemo(() => {
-    const map = new Map<string, Product>();
-    for (const product of products) {
-      map.set(product.id, product);
-    }
-    return map;
-  }, [products]);
-
-  const categoryOptions = useMemo(() => {
-    const fromCatalog = new Set<string>(PRODUCT_CATEGORY_OPTIONS);
-    for (const product of products) {
-      if (product.category) {
-        fromCatalog.add(product.category);
-      }
-    }
-    return Array.from(fromCatalog).sort((a, b) => a.localeCompare(b, "pl"));
-  }, [products]);
-
-  const inStock = useMemo(
-    () =>
-      summaries.filter((summary) => Number(summary.totalQuantity) > 0),
-    [summaries],
-  );
-
-  const filtered = useMemo(() => {
-    const needle = searchQuery.trim().toLowerCase();
-    return inStock.filter((summary) => {
-      if (categoryFilter) {
-        const category = summary.category?.trim() || UNCATEGORIZED;
-        if (category !== categoryFilter) {
-          return false;
-        }
-      }
-      if (unitFilter && summary.defaultUnit !== unitFilter) {
-        return false;
-      }
-      if (needle) {
-        const product = productsById.get(summary.productId);
-        const haystack = [
-          summary.productName,
-          summary.category ?? "",
-          product?.brand ?? "",
-          product?.variantLabel ?? "",
-          product?.ean ?? "",
-          product?.groupName ?? "",
-        ]
-          .join(" ")
-          .toLowerCase();
-        if (!haystack.includes(needle)) {
-          return false;
-        }
-      }
-      return true;
-    });
-  }, [categoryFilter, inStock, productsById, searchQuery, unitFilter]);
-
-  const listEntries = useMemo(
-    () => buildStockListEntries(filtered, productsById),
-    [filtered, productsById],
   );
 
   function toggleStockExpanded(productId: string) {
@@ -174,34 +96,30 @@ export function StockTab({
 
   return (
     <section className="space-y-3">
-      <StockFilters
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        categoryFilter={categoryFilter}
-        onCategoryChange={setCategoryFilter}
-        categoryOptions={categoryOptions}
-        uncategorizedLabel={UNCATEGORIZED}
-        unitFilter={unitFilter}
-        onUnitChange={setUnitFilter}
-        locationFilter={locationFilter}
-        onLocationChange={onLocationFilterChange}
+      <StockListToolbar
+        mode="stock"
+        state={urlState}
+        onPatch={onUrlPatch}
+        resultTotal={total}
+        resultLabel={total === 1 ? "pozycja" : "pozycji"}
+        searchAriaLabel="Szukaj w zapasach"
       />
 
       {isPending ? (
-        <div className="rounded-2xl border border-gray-100 bg-white p-8 text-center text-sm text-gray-500 shadow-sm">
+        <div className="border border-gray-100 bg-white px-4 py-8 text-center text-sm text-gray-500">
           Ładowanie zapasów…
         </div>
       ) : null}
       {isError ? (
         <div
-          className="rounded-2xl border border-gray-100 bg-white p-8 text-center text-sm text-red-600 shadow-sm"
+          className="border border-gray-100 bg-white px-4 py-8 text-center text-sm text-red-600"
           role="alert"
         >
           {errorMessage ?? "Nie udało się pobrać zapasów."}
         </div>
       ) : null}
-      {!isPending && !isError && listEntries.length === 0 ? (
-        <div className="rounded-2xl border border-gray-100 bg-white px-4 py-8 text-center shadow-sm">
+      {!isPending && !isError && items.length === 0 ? (
+        <div className="border border-gray-100 bg-white px-4 py-8 text-center">
           <p className="text-sm font-medium text-gray-900">
             Brak produktów w zapasach
           </p>
@@ -210,203 +128,397 @@ export function StockTab({
           </p>
           <Link
             href={newPurchaseHref(kitchenId)}
-            className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-medium text-white shadow-sm shadow-emerald-200 hover:bg-emerald-700"
+            className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700"
           >
             <ShoppingBasket size={16} />
             Dodaj zakup
           </Link>
         </div>
       ) : null}
-      {listEntries.length > 0 ? (
-        <ul className="space-y-3">
-          {listEntries.map((entry) => {
-            if (entry.type === "product") {
-              return (
-                <li
-                  key={entry.key}
-                  className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm"
-                >
-                  <ul>
+
+      {items.length > 0 ? (
+        <>
+          {/* Desktop compact table */}
+          <div
+            className="hidden border border-gray-200 bg-white md:block"
+            data-testid="stock-compact-list"
+          >
+            <div className="grid grid-cols-[minmax(0,2.2fr)_minmax(4.5rem,0.7fr)_minmax(3.5rem,0.55fr)_minmax(5.5rem,0.85fr)_minmax(5rem,0.75fr)_auto] gap-2 border-b border-gray-200 bg-gray-50 px-2 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+              <span>Produkt</span>
+              <span>Stan</span>
+              <span>Partie</span>
+              <span>Najbliższy termin</span>
+              <span>Miejsce</span>
+              <span className="text-right">Akcje</span>
+            </div>
+            <ul>
+              {items.map((entry) => {
+                if (entry.kind === "product") {
+                  const product = entry.product;
+                  const kindBadge =
+                    product.groupId && product.groupName
+                      ? product.groupName
+                      : null;
+                  return (
                     <StockProductRow
+                      key={product.productId}
                       kitchenId={kitchenId}
-                      summary={entry.summary}
-                      product={entry.product}
-                      kindBadge={entry.kindBadge}
-                      expanded={expandedStockIds.has(entry.summary.productId)}
+                      summary={product}
+                      kindBadge={kindBadge}
+                      layout="table"
+                      expanded={expandedStockIds.has(product.productId)}
                       onToggleExpanded={() =>
-                        toggleStockExpanded(entry.summary.productId)
+                        toggleStockExpanded(product.productId)
                       }
-                      onConsume={() => onConsume(entry.summary)}
+                      onConsume={() => onConsume(product)}
                       onPreviewImage={onPreviewImage}
                       menuItems={buildMenuItems({
-                        productId: entry.summary.productId,
-                        productName: entry.summary.productName,
-                        summary: entry.summary,
+                        productId: product.productId,
+                        productName: product.productName,
+                        summary: product,
                       })}
                       onWriteOffBatch={(batchId) =>
-                        onConsume(entry.summary, {
+                        onConsume(product, {
                           batchId,
                           preferManual: true,
                         })
                       }
                       onDeleteBatch={onDeleteBatch}
                     />
-                  </ul>
-                </li>
-              );
-            }
-
-            const groupExpanded = expandedGroupIds.has(entry.groupId);
-            const totalLabel = formatGroupTotalQuantity(
-              entry.items.map((item) => item.summary),
-            );
-            const batchTotal = entry.items.reduce(
-              (sum, item) => sum + item.summary.batchCount,
-              0,
-            );
-            const subtitle = formatGroupStockSubtitle({
-              variantCount: entry.items.length,
-              batchCount: batchTotal,
-              totalLabel,
-            });
-
-            return (
-              <li
-                key={entry.key}
-                className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm"
-              >
-                <button
-                  type="button"
-                  className="grid w-full grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-3 px-3 py-3 text-left hover:bg-gray-50/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500 sm:gap-4 sm:px-4"
-                  aria-expanded={groupExpanded}
-                  onClick={() => toggleGroupExpanded(entry.groupId)}
-                >
-                  <StockGroupThumb />
-                  <div className="min-w-0">
-                    <p className="font-semibold text-gray-900">
-                      {entry.groupName}
-                    </p>
-                    <p className="text-sm leading-snug text-gray-600">
-                      {subtitle}
-                    </p>
-                  </div>
-                  <ChevronDown
-                    size={18}
-                    className={cn(
-                      "shrink-0 text-gray-400 transition-transform",
-                      groupExpanded && "rotate-180",
-                    )}
-                    aria-hidden
+                  );
+                }
+                return (
+                  <StockGroupTableBlock
+                    key={`group:${entry.groupId}`}
+                    kitchenId={kitchenId}
+                    group={entry}
+                    expanded={expandedGroupIds.has(entry.groupId)}
+                    onToggle={() => toggleGroupExpanded(entry.groupId)}
+                    expandedStockIds={expandedStockIds}
+                    onToggleStock={toggleStockExpanded}
+                    onConsume={onConsume}
+                    onDeleteBatch={onDeleteBatch}
+                    onPreviewImage={onPreviewImage}
+                    buildMenuItems={buildMenuItems}
                   />
-                </button>
-                {groupExpanded ? (
-                  <ul className="divide-y divide-gray-100 border-t border-gray-100">
-                    {entry.items.map((item) => (
-                      <StockProductRow
-                        key={item.summary.productId}
-                        kitchenId={kitchenId}
-                        summary={item.summary}
-                        product={item.product}
-                        nested
-                        expanded={expandedStockIds.has(item.summary.productId)}
-                        onToggleExpanded={() =>
-                          toggleStockExpanded(item.summary.productId)
-                        }
-                        onConsume={() => onConsume(item.summary)}
-                        onPreviewImage={onPreviewImage}
-                        menuItems={buildMenuItems({
-                          productId: item.summary.productId,
-                          productName: item.summary.productName,
-                          summary: item.summary,
-                        })}
-                        onWriteOffBatch={(batchId) =>
-                          onConsume(item.summary, {
-                            batchId,
-                            preferManual: true,
-                          })
-                        }
-                        onDeleteBatch={onDeleteBatch}
-                      />
-                    ))}
-                  </ul>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
+                );
+              })}
+            </ul>
+          </div>
+
+          {/* Mobile compact rows */}
+          <ul className="border border-gray-200 bg-white md:hidden">
+            {items.map((entry) => {
+              if (entry.kind === "product") {
+                const product = entry.product;
+                const kindBadge =
+                  product.groupId && product.groupName
+                    ? product.groupName
+                    : null;
+                return (
+                  <StockProductRow
+                    key={product.productId}
+                    kitchenId={kitchenId}
+                    summary={product}
+                    kindBadge={kindBadge}
+                    layout="mobile"
+                    expanded={expandedStockIds.has(product.productId)}
+                    onToggleExpanded={() =>
+                      toggleStockExpanded(product.productId)
+                    }
+                    onConsume={() => onConsume(product)}
+                    onPreviewImage={onPreviewImage}
+                    menuItems={buildMenuItems({
+                      productId: product.productId,
+                      productName: product.productName,
+                      summary: product,
+                    })}
+                    onWriteOffBatch={(batchId) =>
+                      onConsume(product, {
+                        batchId,
+                        preferManual: true,
+                      })
+                    }
+                    onDeleteBatch={onDeleteBatch}
+                  />
+                );
+              }
+              return (
+                <StockGroupMobileBlock
+                  key={`group:${entry.groupId}`}
+                  kitchenId={kitchenId}
+                  group={entry}
+                  expanded={expandedGroupIds.has(entry.groupId)}
+                  onToggle={() => toggleGroupExpanded(entry.groupId)}
+                  expandedStockIds={expandedStockIds}
+                  onToggleStock={toggleStockExpanded}
+                  onConsume={onConsume}
+                  onDeleteBatch={onDeleteBatch}
+                  onPreviewImage={onPreviewImage}
+                  buildMenuItems={buildMenuItems}
+                />
+              );
+            })}
+          </ul>
+
+          {pageCount > 1 ? (
+            <PaginationBar
+              page={page}
+              pageCount={pageCount}
+              onPage={(next) => onUrlPatch({ page: next })}
+            />
+          ) : null}
+        </>
       ) : null}
     </section>
   );
 }
 
-function buildStockListEntries(
-  summaries: StockSummary[],
-  productsById: Map<string, Product>,
-): StockListEntry[] {
-  const ungrouped: StockListEntry[] = [];
-  const groups = new Map<
-    string,
-    {
-      groupId: string;
-      groupName: string;
-      items: Array<{ summary: StockSummary; product?: Product }>;
-    }
-  >();
+function StockGroupTableBlock({
+  kitchenId,
+  group,
+  expanded,
+  onToggle,
+  expandedStockIds,
+  onToggleStock,
+  onConsume,
+  onDeleteBatch,
+  onPreviewImage,
+  buildMenuItems,
+}: {
+  kitchenId: string;
+  group: StockGroupListItem;
+  expanded: boolean;
+  onToggle: () => void;
+  expandedStockIds: Set<string>;
+  onToggleStock: (productId: string) => void;
+  onConsume: StockTabProps["onConsume"];
+  onDeleteBatch: StockTabProps["onDeleteBatch"];
+  onPreviewImage: StockTabProps["onPreviewImage"];
+  buildMenuItems: StockTabProps["buildMenuItems"];
+}) {
+  const qty = formatDisplayQuantityWithUnit(
+    group.totalQuantity,
+    group.defaultUnit,
+  );
+  const tone = expiryTone(group.nearestExpiry, group.expiringBatchCount);
+  const expiryLabel = group.nearestExpiry
+    ? new Date(group.nearestExpiry).toLocaleDateString("pl-PL")
+    : "—";
+  const place = group.primaryLocation
+    ? LOCATION_LABELS[group.primaryLocation]
+    : "—";
+  const subtitle = formatGroupStockSubtitle({
+    variantCount: group.variantCount,
+    batchCount: group.batchCount,
+  });
 
-  for (const summary of summaries) {
-    const product = productsById.get(summary.productId);
-    const groupId = product?.groupId ?? null;
-    const groupName = product?.groupName?.trim() || null;
-    if (!groupId || !groupName) {
-      ungrouped.push({
-        type: "product",
-        key: summary.productId,
-        summary,
-        product,
-      });
-      continue;
-    }
-    const existing = groups.get(groupId);
-    if (existing) {
-      existing.items.push({ summary, product });
-    } else {
-      groups.set(groupId, {
-        groupId,
-        groupName,
-        items: [{ summary, product }],
-      });
-    }
-  }
+  return (
+    <li>
+      <button
+        type="button"
+        className="grid min-h-14 w-full grid-cols-[minmax(0,2.2fr)_minmax(4.5rem,0.7fr)_minmax(3.5rem,0.55fr)_minmax(5.5rem,0.85fr)_minmax(5rem,0.75fr)_auto] items-center gap-2 border-b border-gray-100 px-2 py-1.5 text-left text-sm hover:bg-gray-50"
+        aria-expanded={expanded}
+        data-testid="stock-group-row"
+        onClick={onToggle}
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          <StockGroupThumb size="sm" />
+          <div className="min-w-0">
+            <p className="truncate font-medium text-gray-900">
+              {group.groupName}
+            </p>
+            <p className="truncate text-[11px] text-gray-500">{subtitle}</p>
+          </div>
+        </div>
+        <p className="tabular-nums text-gray-800">{qty}</p>
+        <p className="tabular-nums text-gray-600">{group.batchCount}</p>
+        <p
+          className={cn(
+            "tabular-nums",
+            tone === "expired" && "font-medium text-red-700",
+            tone === "expiring" && "font-medium text-orange-700",
+            tone === "none" && "text-gray-600",
+          )}
+        >
+          {expiryLabel}
+        </p>
+        <p className="truncate text-gray-600">{place}</p>
+        <div className="flex items-center justify-end">
+          <ChevronDown
+            size={15}
+            className={cn(
+              "text-gray-400 transition-transform",
+              expanded && "rotate-180",
+            )}
+            aria-hidden
+          />
+        </div>
+      </button>
+      {expanded ? (
+        <ul>
+          {group.variants.map((product) => (
+            <StockProductRow
+              key={product.productId}
+              kitchenId={kitchenId}
+              summary={product}
+              nested
+              layout="table"
+              expanded={expandedStockIds.has(product.productId)}
+              onToggleExpanded={() => onToggleStock(product.productId)}
+              onConsume={() => onConsume(product)}
+              onPreviewImage={onPreviewImage}
+              menuItems={buildMenuItems({
+                productId: product.productId,
+                productName: product.productName,
+                summary: product,
+              })}
+              onWriteOffBatch={(batchId) =>
+                onConsume(product, { batchId, preferManual: true })
+              }
+              onDeleteBatch={onDeleteBatch}
+            />
+          ))}
+        </ul>
+      ) : null}
+    </li>
+  );
+}
 
-  const groupEntries: StockListEntry[] = Array.from(groups.values())
-    .sort((a, b) => a.groupName.localeCompare(b.groupName, "pl"))
-    .map((group) => {
-      if (group.items.length === 1) {
-        const only = group.items[0]!;
-        return {
-          type: "product" as const,
-          key: only.summary.productId,
-          summary: only.summary,
-          product: only.product,
-          kindBadge: group.groupName,
-        };
-      }
-      return {
-        type: "group" as const,
-        key: `group:${group.groupId}`,
-        groupId: group.groupId,
-        groupName: group.groupName,
-        items: group.items.sort((a, b) =>
-          a.summary.productName.localeCompare(b.summary.productName, "pl"),
-        ),
-      };
-    });
+function StockGroupMobileBlock({
+  kitchenId,
+  group,
+  expanded,
+  onToggle,
+  expandedStockIds,
+  onToggleStock,
+  onConsume,
+  onDeleteBatch,
+  onPreviewImage,
+  buildMenuItems,
+}: {
+  kitchenId: string;
+  group: StockGroupListItem;
+  expanded: boolean;
+  onToggle: () => void;
+  expandedStockIds: Set<string>;
+  onToggleStock: (productId: string) => void;
+  onConsume: StockTabProps["onConsume"];
+  onDeleteBatch: StockTabProps["onDeleteBatch"];
+  onPreviewImage: StockTabProps["onPreviewImage"];
+  buildMenuItems: StockTabProps["buildMenuItems"];
+}) {
+  const qty = formatDisplayQuantityWithUnit(
+    group.totalQuantity,
+    group.defaultUnit,
+  );
+  const tone = expiryTone(group.nearestExpiry, group.expiringBatchCount);
+  const expiryLabel = group.nearestExpiry
+    ? new Date(group.nearestExpiry).toLocaleDateString("pl-PL")
+    : "—";
+  const subtitle = formatGroupStockSubtitle({
+    variantCount: group.variantCount,
+    batchCount: group.batchCount,
+  });
 
-  return [
-    ...groupEntries,
-    ...ungrouped.sort((a, b) => {
-      if (a.type !== "product" || b.type !== "product") return 0;
-      return a.summary.productName.localeCompare(b.summary.productName, "pl");
-    }),
-  ];
+  return (
+    <li>
+      <button
+        type="button"
+        className="flex min-h-[64px] w-full items-center gap-2 border-b border-gray-100 px-2 py-2 text-left"
+        aria-expanded={expanded}
+        data-testid="stock-group-row"
+        onClick={onToggle}
+      >
+        <StockGroupThumb size="sm" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-gray-900">
+            {group.groupName}
+          </p>
+          <p className="text-[11px] text-gray-500">{subtitle}</p>
+          <p className="mt-0.5 text-xs text-gray-700">
+            <span className="font-medium">{qty}</span>
+            <span
+              className={cn(
+                "ml-1.5",
+                tone === "expired" && "font-medium text-red-700",
+                tone === "expiring" && "font-medium text-orange-700",
+                tone === "none" && "text-gray-500",
+              )}
+            >
+              {expiryLabel}
+            </span>
+          </p>
+        </div>
+        <ChevronDown
+          size={16}
+          className={cn(
+            "shrink-0 text-gray-400 transition-transform",
+            expanded && "rotate-180",
+          )}
+          aria-hidden
+        />
+      </button>
+      {expanded ? (
+        <ul>
+          {group.variants.map((product) => (
+            <StockProductRow
+              key={product.productId}
+              kitchenId={kitchenId}
+              summary={product}
+              nested
+              layout="mobile"
+              expanded={expandedStockIds.has(product.productId)}
+              onToggleExpanded={() => onToggleStock(product.productId)}
+              onConsume={() => onConsume(product)}
+              onPreviewImage={onPreviewImage}
+              menuItems={buildMenuItems({
+                productId: product.productId,
+                productName: product.productName,
+                summary: product,
+              })}
+              onWriteOffBatch={(batchId) =>
+                onConsume(product, { batchId, preferManual: true })
+              }
+              onDeleteBatch={onDeleteBatch}
+            />
+          ))}
+        </ul>
+      ) : null}
+    </li>
+  );
+}
+
+function PaginationBar({
+  page,
+  pageCount,
+  onPage,
+}: {
+  page: number;
+  pageCount: number;
+  onPage: (page: number) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 text-sm text-gray-600">
+      <button
+        type="button"
+        className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 disabled:opacity-40"
+        disabled={page <= 1}
+        onClick={() => onPage(page - 1)}
+      >
+        Poprzednia
+      </button>
+      <span className="tabular-nums">
+        Strona {page} / {pageCount}
+      </span>
+      <button
+        type="button"
+        className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 disabled:opacity-40"
+        disabled={page >= pageCount}
+        onClick={() => onPage(page + 1)}
+      >
+        Następna
+      </button>
+    </div>
+  );
 }

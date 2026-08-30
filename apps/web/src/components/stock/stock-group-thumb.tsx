@@ -6,22 +6,31 @@ import { cn } from "@/lib/utils";
 
 type StockGroupThumbProps = {
   className?: string;
+  size?: "sm" | "md";
 };
 
 /**
  * Nagłówek rodzaju nie pokazuje zdjęć wariantów (bez kolażu i bez „pierwszego” zdjęcia).
  * Konkretne miniatury zostają przy wierszach wariantów po rozwinięciu.
  */
-export function StockGroupThumb({ className }: StockGroupThumbProps) {
+export function StockGroupThumb({
+  className,
+  size = "md",
+}: StockGroupThumbProps) {
+  const box =
+    size === "sm"
+      ? "h-9 w-9 rounded-md"
+      : "h-12 w-12 rounded-xl";
   return (
     <div
       className={cn(
-        "relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-gray-200 bg-gray-50",
+        "relative flex shrink-0 items-center justify-center overflow-hidden border border-gray-200 bg-gray-50",
+        box,
         className,
       )}
       aria-hidden
     >
-      <Package size={18} className="text-gray-300" />
+      <Package size={size === "sm" ? 14 : 18} className="text-gray-300" />
     </div>
   );
 }

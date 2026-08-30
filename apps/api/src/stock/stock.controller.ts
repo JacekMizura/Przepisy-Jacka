@@ -12,6 +12,7 @@ import {
   Query,
 } from '@nestjs/common';
 import {
+  ApiExtraModels,
   ApiOkResponse,
   ApiOperation,
   ApiQuery,
@@ -29,9 +30,7 @@ import {
 } from './dto/product-intake.dto';
 import {
   AssignProductGroupDto,
-  CatalogQueryDto,
   CreateProductGroupDto,
-  KitchenCatalogDto,
   ListProductGroupsQueryDto,
   ProductGroupDetailDto,
   ProductGroupDto,
@@ -70,11 +69,28 @@ import {
   ReverseConsumptionDto,
   StockConsumptionResultDto,
 } from './dto/stock-consume.dto';
-import { StockProductSummaryDto } from './dto/stock-summary.dto';
+import {
+  StockGroupListItemDto,
+  StockProductRowDto,
+  StockSummaryPageDto,
+  StockSummaryQueryDto,
+} from './dto/stock-list-query.dto';
+import {
+  CatalogGroupRowDto,
+  CatalogListQueryDto,
+  CatalogPageDto,
+  CatalogProductRowDto,
+} from './dto/catalog-list-query.dto';
 import { ProductGroupService } from './product-group.service';
 import { StockService } from './stock.service';
 
 @ApiTags('stock')
+@ApiExtraModels(
+  StockProductRowDto,
+  StockGroupListItemDto,
+  CatalogProductRowDto,
+  CatalogGroupRowDto,
+)
 @Controller('kitchens/:kitchenId')
 export class StockController {
   constructor(
@@ -84,15 +100,14 @@ export class StockController {
 
   @Get('catalog')
   @ApiOperation({
-    summary:
-      'Katalog z grupami produktów i produktami bez grupy (z podsumowaniem zapasu)',
+    summary: 'Katalog produktów i rodzajów z paginacją (stan opcjonalny)',
   })
-  @ApiOkResponse({ type: KitchenCatalogDto })
+  @ApiOkResponse({ type: CatalogPageDto })
   listCatalog(
     @Session() session: UserSession,
     @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
-    @Query() query: CatalogQueryDto,
-  ): Promise<KitchenCatalogDto> {
+    @Query() query: CatalogListQueryDto,
+  ): Promise<CatalogPageDto> {
     return this.productGroupService.listCatalog(
       session.user.id,
       kitchenId,
@@ -560,20 +575,27 @@ export class StockController {
 
   @Get('stock-summary')
   @ApiOperation({
-    summary: 'Zbiorczy widok zapasów pogrupowany po produkcie (z partiami)',
+    summary:
+      'Zbiorczy widok zapasów (tylko dodatni stan) z filtrami, sortowaniem i paginacją',
   })
-  @ApiQuery({ name: 'productId', required: false })
-  @ApiQuery({ name: 'location', required: false, enum: StorageLocation })
-  @ApiOkResponse({ type: [StockProductSummaryDto] })
+  @ApiOkResponse({ type: StockSummaryPageDto })
   listStockSummary(
     @Session() session: UserSession,
     @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
-    @Query('productId') productId?: string,
-    @Query('location') location?: StorageLocation,
-  ): Promise<StockProductSummaryDto[]> {
+    @Query() query: StockSummaryQueryDto,
+  ): Promise<StockSummaryPageDto> {
     return this.stockService.listStockSummary(session.user.id, kitchenId, {
-      productId,
-      location,
+      productId: query.productId,
+      location: query.location,
+      place: query.place,
+      search: query.search,
+      category: query.category,
+      unit: query.unit,
+      expiryStatus: query.expiryStatus,
+      archived: query.archived,
+      sort: query.sort,
+      page: query.page,
+      limit: query.limit,
     });
   }
 

@@ -1030,9 +1030,104 @@
             }
           },
           {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
             "name": "search",
             "required": false,
             "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "required": false,
+            "in": "query",
+            "description": "Filtr kategorii (string; brak osobnego categoryId w schemacie).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "place",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pantry",
+                "fridge",
+                "freezer",
+                "other"
+              ]
+            }
+          },
+          {
+            "name": "unit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "piece",
+                "gram",
+                "milliliter"
+              ]
+            }
+          },
+          {
+            "name": "archived",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "active",
+              "type": "string",
+              "enum": [
+                "active",
+                "archived",
+                "all"
+              ]
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "name",
+              "type": "string",
+              "enum": [
+                "name",
+                "newest",
+                "updated",
+                "has_stock"
+              ]
+            }
+          },
+          {
+            "name": "hasStock",
+            "required": false,
+            "in": "query",
+            "description": "Gdy true — tylko produkty z dodatnim stanem.",
             "schema": {
               "type": "string"
             }
@@ -1044,13 +1139,13 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/KitchenCatalogDto"
+                  "$ref": "#/components/schemas/CatalogPageDto"
                 }
               }
             }
           }
         },
-        "summary": "Katalog z grupami produktów i produktami bez grupy (z podsumowaniem zapasu)",
+        "summary": "Katalog produktów i rodzajów z paginacją (stan opcjonalny)",
         "tags": [
           "stock"
         ]
@@ -2295,11 +2390,65 @@
             }
           },
           {
+            "name": "page",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "default": 1,
+              "type": "number"
+            }
+          },
+          {
+            "name": "limit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "minimum": 1,
+              "maximum": 100,
+              "default": 50,
+              "type": "number"
+            }
+          },
+          {
             "name": "productId",
             "required": false,
             "in": "query",
             "schema": {
+              "format": "uuid",
               "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Szukaj po nazwie / marce / wariancie / EAN / kategorii.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "category",
+            "required": false,
+            "in": "query",
+            "description": "Filtr kategorii produktu (string; w schemacie nie ma categoryId).",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "place",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "pantry",
+                "fridge",
+                "freezer",
+                "other"
+              ]
             }
           },
           {
@@ -2307,13 +2456,73 @@
             "required": false,
             "in": "query",
             "schema": {
+              "type": "string",
               "enum": [
                 "pantry",
                 "fridge",
                 "freezer",
                 "other"
-              ],
-              "type": "string"
+              ]
+            }
+          },
+          {
+            "name": "unit",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "piece",
+                "gram",
+                "milliliter"
+              ]
+            }
+          },
+          {
+            "name": "expiryStatus",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "any",
+              "type": "string",
+              "enum": [
+                "any",
+                "expired",
+                "expiring",
+                "ok",
+                "none"
+              ]
+            }
+          },
+          {
+            "name": "archived",
+            "required": false,
+            "in": "query",
+            "description": "Domyślnie all — zapasy pokazują też zarchiwizowane z dodatnim stanem.",
+            "schema": {
+              "default": "all",
+              "type": "string",
+              "enum": [
+                "active",
+                "archived",
+                "all"
+              ]
+            }
+          },
+          {
+            "name": "sort",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "default": "expiry",
+              "type": "string",
+              "enum": [
+                "expiry",
+                "newest",
+                "name",
+                "qty_desc",
+                "qty_asc"
+              ]
             }
           }
         ],
@@ -2323,16 +2532,13 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/StockProductSummaryDto"
-                  }
+                  "$ref": "#/components/schemas/StockSummaryPageDto"
                 }
               }
             }
           }
         },
-        "summary": "Zbiorczy widok zapasów pogrupowany po produkcie (z partiami)",
+        "summary": "Zbiorczy widok zapasów (tylko dodatni stan) z filtrami, sortowaniem i paginacją",
         "tags": [
           "stock"
         ]
@@ -4360,10 +4566,121 @@
           "missingOptional"
         ]
       },
-      "ProductGroupStockByUnitDto": {
+      "StockBatchDetailDto": {
         "type": "object",
         "properties": {
-          "unit": {
+          "id": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "string"
+          },
+          "initialQuantity": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string",
+            "enum": [
+              "pantry",
+              "fridge",
+              "freezer",
+              "other"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "purchasedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "purchasePriceMinor": {
+            "type": "number",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "example": "PLN"
+          },
+          "unitPriceMinor": {
+            "type": "number",
+            "nullable": true
+          },
+          "storeName": {
+            "type": "string",
+            "nullable": true
+          },
+          "packageCount": {
+            "type": "number",
+            "nullable": true
+          },
+          "packageQuantitySnapshot": {
+            "type": "string",
+            "nullable": true,
+            "example": "125.000"
+          },
+          "packageUnitSnapshot": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "kilogram",
+              "milliliter",
+              "liter"
+            ],
+            "nullable": true
+          },
+          "purchaseId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "receiptMediaId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "isExpired": {
+            "type": "boolean"
+          },
+          "canDelete": {
+            "type": "boolean",
+            "description": "Czy fizyczne usunięcie jest dozwolone (tylko ręczna, niepowiązana, nigdy nieużyta partia)."
+          },
+          "deleteBlockReason": {
+            "type": "string",
+            "nullable": true,
+            "description": "Powód blokady usunięcia; null gdy canDelete=true."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "quantity",
+          "initialQuantity",
+          "location",
+          "currency",
+          "isExpired",
+          "canDelete",
+          "createdAt"
+        ]
+      },
+      "StockProductListItemDto": {
+        "type": "object",
+        "properties": {
+          "productId": {
+            "type": "string"
+          },
+          "productName": {
+            "type": "string"
+          },
+          "defaultUnit": {
             "type": "string",
             "enum": [
               "piece",
@@ -4371,61 +4688,168 @@
               "milliliter"
             ]
           },
-          "totalQuantity": {
+          "category": {
             "type": "string",
-            "example": "1250.000"
+            "nullable": true
+          },
+          "isArchived": {
+            "type": "boolean",
+            "description": "Produkt zarchiwizowany (historia i partie zachowane)."
+          },
+          "totalQuantity": {
+            "type": "string"
+          },
+          "batchCount": {
+            "type": "number"
+          },
+          "expiringBatchCount": {
+            "type": "number"
+          },
+          "nearestExpiry": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "batches": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/StockBatchDetailDto"
+            }
+          },
+          "brand": {
+            "type": "string",
+            "nullable": true
+          },
+          "variantLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "groupId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "groupName": {
+            "type": "string",
+            "nullable": true
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "primaryLocation": {
+            "type": "string",
+            "enum": [
+              "pantry",
+              "fridge",
+              "freezer",
+              "other"
+            ],
+            "nullable": true
+          },
+          "latestBatchAt": {
+            "type": "string",
+            "description": "Najpóźniejsza data utworzenia partii (do sortowania).",
+            "format": "date-time"
           }
         },
         "required": [
-          "unit",
-          "totalQuantity"
+          "productId",
+          "productName",
+          "defaultUnit",
+          "isArchived",
+          "totalQuantity",
+          "batchCount",
+          "expiringBatchCount",
+          "batches",
+          "latestBatchAt"
         ]
       },
-      "ProductGroupSummaryDto": {
+      "StockProductRowDto": {
         "type": "object",
         "properties": {
-          "id": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "product"
+            ]
+          },
+          "product": {
+            "$ref": "#/components/schemas/StockProductListItemDto"
+          }
+        },
+        "required": [
+          "kind",
+          "product"
+        ]
+      },
+      "StockGroupListItemDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "group"
+            ]
+          },
+          "groupId": {
             "type": "string"
           },
-          "name": {
+          "groupName": {
             "type": "string"
           },
-          "productCount": {
-            "type": "number"
-          },
-          "activeProductCount": {
+          "variantCount": {
             "type": "number"
           },
           "batchCount": {
             "type": "number"
           },
-          "stockByUnit": {
+          "totalQuantity": {
+            "type": "string"
+          },
+          "defaultUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ]
+          },
+          "nearestExpiry": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "expiringBatchCount": {
+            "type": "number"
+          },
+          "primaryLocation": {
+            "type": "string",
+            "enum": [
+              "pantry",
+              "fridge",
+              "freezer",
+              "other"
+            ],
+            "nullable": true
+          },
+          "variants": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/ProductGroupStockByUnitDto"
+              "$ref": "#/components/schemas/StockProductListItemDto"
             }
-          },
-          "coverImages": {
-            "description": "Do 4 okładek z produktów w grupie.",
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/MediaImageDto"
-            }
-          },
-          "hasNutritionCount": {
-            "type": "number",
-            "description": "Liczba produktów w grupie mających wartości odżywcze."
           }
         },
         "required": [
-          "id",
-          "name",
-          "productCount",
-          "activeProductCount",
+          "kind",
+          "groupId",
+          "groupName",
+          "variantCount",
           "batchCount",
-          "stockByUnit",
-          "coverImages",
-          "hasNutritionCount"
+          "totalQuantity",
+          "defaultUnit",
+          "expiringBatchCount",
+          "variants"
         ]
       },
       "ProductNutritionDto": {
@@ -4731,16 +5155,61 @@
           "totalQuantity"
         ]
       },
-      "KitchenCatalogDto": {
+      "CatalogProductRowDto": {
         "type": "object",
         "properties": {
-          "groups": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ProductGroupSummaryDto"
-            }
+          "kind": {
+            "type": "string",
+            "enum": [
+              "product"
+            ]
           },
-          "ungroupedProducts": {
+          "product": {
+            "$ref": "#/components/schemas/CatalogProductDto"
+          },
+          "groupName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "kind",
+          "product"
+        ]
+      },
+      "CatalogGroupRowDto": {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "group"
+            ]
+          },
+          "groupId": {
+            "type": "string"
+          },
+          "groupName": {
+            "type": "string"
+          },
+          "variantCount": {
+            "type": "number"
+          },
+          "batchCount": {
+            "type": "number"
+          },
+          "totalQuantity": {
+            "type": "string"
+          },
+          "defaultUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ]
+          },
+          "variants": {
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/CatalogProductDto"
@@ -4748,8 +5217,117 @@
           }
         },
         "required": [
-          "groups",
-          "ungroupedProducts"
+          "kind",
+          "groupId",
+          "groupName",
+          "variantCount",
+          "batchCount",
+          "totalQuantity",
+          "defaultUnit",
+          "variants"
+        ]
+      },
+      "CatalogPageDto": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "number",
+            "example": 1
+          },
+          "limit": {
+            "type": "number",
+            "example": 50
+          },
+          "total": {
+            "type": "number",
+            "example": 250
+          },
+          "pageCount": {
+            "type": "number",
+            "example": 5
+          },
+          "items": {
+            "description": "Wiersze produktu lub grupy (discriminated by kind).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogProductRowDto"
+            }
+          }
+        },
+        "required": [
+          "page",
+          "limit",
+          "total",
+          "pageCount",
+          "items"
+        ]
+      },
+      "ProductGroupStockByUnitDto": {
+        "type": "object",
+        "properties": {
+          "unit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ]
+          },
+          "totalQuantity": {
+            "type": "string",
+            "example": "1250.000"
+          }
+        },
+        "required": [
+          "unit",
+          "totalQuantity"
+        ]
+      },
+      "ProductGroupSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "productCount": {
+            "type": "number"
+          },
+          "activeProductCount": {
+            "type": "number"
+          },
+          "batchCount": {
+            "type": "number"
+          },
+          "stockByUnit": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductGroupStockByUnitDto"
+            }
+          },
+          "coverImages": {
+            "description": "Do 4 okładek z produktów w grupie.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaImageDto"
+            }
+          },
+          "hasNutritionCount": {
+            "type": "number",
+            "description": "Liczba produktów w grupie mających wartości odżywcze."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "productCount",
+          "activeProductCount",
+          "batchCount",
+          "stockByUnit",
+          "coverImages",
+          "hasNutritionCount"
         ]
       },
       "ProductGroupDto": {
@@ -5920,166 +6498,39 @@
           }
         }
       },
-      "StockBatchDetailDto": {
+      "StockSummaryPageDto": {
         "type": "object",
         "properties": {
-          "id": {
-            "type": "string"
-          },
-          "quantity": {
-            "type": "string"
-          },
-          "initialQuantity": {
-            "type": "string"
-          },
-          "location": {
-            "type": "string",
-            "enum": [
-              "pantry",
-              "fridge",
-              "freezer",
-              "other"
-            ]
-          },
-          "expiresAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
-          },
-          "purchasedAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
-          },
-          "purchasePriceMinor": {
+          "page": {
             "type": "number",
-            "nullable": true
+            "example": 1
           },
-          "currency": {
-            "type": "string",
-            "example": "PLN"
-          },
-          "unitPriceMinor": {
+          "limit": {
             "type": "number",
-            "nullable": true
+            "example": 50
           },
-          "storeName": {
-            "type": "string",
-            "nullable": true
-          },
-          "packageCount": {
+          "total": {
             "type": "number",
-            "nullable": true
+            "example": 250
           },
-          "packageQuantitySnapshot": {
-            "type": "string",
-            "nullable": true,
-            "example": "125.000"
+          "pageCount": {
+            "type": "number",
+            "example": 5
           },
-          "packageUnitSnapshot": {
-            "type": "string",
-            "enum": [
-              "piece",
-              "gram",
-              "kilogram",
-              "milliliter",
-              "liter"
-            ],
-            "nullable": true
-          },
-          "purchaseId": {
-            "type": "string",
-            "format": "uuid",
-            "nullable": true
-          },
-          "receiptMediaId": {
-            "type": "string",
-            "format": "uuid",
-            "nullable": true
-          },
-          "isExpired": {
-            "type": "boolean"
-          },
-          "canDelete": {
-            "type": "boolean",
-            "description": "Czy fizyczne usunięcie jest dozwolone (tylko ręczna, niepowiązana, nigdy nieużyta partia)."
-          },
-          "deleteBlockReason": {
-            "type": "string",
-            "nullable": true,
-            "description": "Powód blokady usunięcia; null gdy canDelete=true."
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "id",
-          "quantity",
-          "initialQuantity",
-          "location",
-          "currency",
-          "isExpired",
-          "canDelete",
-          "createdAt"
-        ]
-      },
-      "StockProductSummaryDto": {
-        "type": "object",
-        "properties": {
-          "productId": {
-            "type": "string"
-          },
-          "productName": {
-            "type": "string"
-          },
-          "defaultUnit": {
-            "type": "string",
-            "enum": [
-              "piece",
-              "gram",
-              "milliliter"
-            ]
-          },
-          "category": {
-            "type": "string",
-            "nullable": true
-          },
-          "isArchived": {
-            "type": "boolean",
-            "description": "Produkt zarchiwizowany (historia i partie zachowane)."
-          },
-          "totalQuantity": {
-            "type": "string"
-          },
-          "batchCount": {
-            "type": "number"
-          },
-          "expiringBatchCount": {
-            "type": "number"
-          },
-          "nearestExpiry": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
-          },
-          "batches": {
+          "items": {
+            "description": "Wiersze produktu lub grupy (discriminated by kind).",
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/StockBatchDetailDto"
+              "$ref": "#/components/schemas/StockProductRowDto"
             }
           }
         },
         "required": [
-          "productId",
-          "productName",
-          "defaultUnit",
-          "isArchived",
-          "totalQuantity",
-          "batchCount",
-          "expiringBatchCount",
-          "batches"
+          "page",
+          "limit",
+          "total",
+          "pageCount",
+          "items"
         ]
       },
       "ManualConsumeLineDto": {

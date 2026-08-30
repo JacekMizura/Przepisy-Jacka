@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Stock compact list preview</title>
+  <style>
+    :root { font-family: system-ui, sans-serif; color: #111827; }
+    body { margin: 0; background: #f3f4f6; }
+    .page { max-width: 1400px; margin: 0 auto; padding: 24px; }
+    h1 { font-size: 18px; margin: 0 0 8px; }
+    h2 { font-size: 13px; color: #6b7280; margin: 20px 0 8px; font-weight: 600; }
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+    .title-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    .cta { background: #059669; color: #fff; border: 0; border-radius: 10px; padding: 8px 14px; font-weight: 600; }
+    .tabs { display: flex; gap: 4px; margin: 12px 0; }
+    .tab { padding: 6px 12px; border-radius: 8px; background: #fff; border: 1px solid #e5e7eb; font-size: 13px; }
+    .tab.active { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; font-weight: 600; }
+    input, select, button.ghost {
+      height: 36px; border: 1px solid #e5e7eb; border-radius: 8px; background: #fff; padding: 0 10px; font-size: 13px;
+    }
+    .chip { display: inline-flex; gap: 6px; align-items: center; background: #fff; border: 1px solid #e5e7eb; border-radius: 999px; padding: 4px 10px; font-size: 12px; }
+    .table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; }
+    th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; padding: 8px 12px; border-bottom: 1px solid #f3f4f6; background: #fafafa; }
+    td { padding: 0 12px; border-bottom: 1px solid #f3f4f6; font-size: 13px; height: 60px; vertical-align: middle; }
+    tr.group { background: #fafafa; }
+    tr.variant td:first-child { padding-left: 28px; }
+    tr.batch { background: #f9fafb; }
+    tr.batch td { height: 46px; font-size: 12px; color: #374151; }
+    .prod { display: flex; gap: 10px; align-items: center; }
+    .thumb { width: 40px; height: 40px; border-radius: 8px; border: 1px solid #e5e7eb; background: #f9fafb; display: flex; align-items: center; justify-content: center; color: #d1d5db; flex-shrink: 0; }
+    .thumb img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; }
+    .name { font-weight: 600; margin: 0; }
+    .sub { margin: 2px 0 0; color: #6b7280; font-size: 12px; }
+    .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .expired { color: #b91c1c; font-weight: 600; }
+    .expiring { color: #c2410c; font-weight: 600; }
+    .actions { display: flex; gap: 6px; justify-content: flex-end; }
+    .btn { border: 0; border-radius: 999px; background: #f97316; color: #fff; font-size: 12px; font-weight: 600; padding: 6px 10px; }
+    .dots { width: 32px; height: 32px; border-radius: 8px; border: 1px solid #e5e7eb; background: #fff; }
+    .menu {
+      position: absolute; right: 48px; top: 210px; z-index: 20; min-width: 220px; background: #fff;
+      border: 1px solid #e5e7eb; border-radius: 12px; box-shadow: 0 10px 30px rgb(0 0 0 / .12); padding: 6px; font-size: 14px;
+    }
+    .menu div { padding: 10px 12px; border-radius: 8px; }
+    .menu .danger { color: #b91c1c; }
+    .mobile { max-width: 390px; background: #fff; border: 1px solid #e5e7eb; border-radius: 16px; overflow: hidden; }
+    .m-row { display: grid; grid-template-columns: 44px 1fr auto; gap: 10px; align-items: center; padding: 10px 12px; min-height: 70px; border-top: 1px solid #f3f4f6; }
+    .filters-panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; display: grid; gap: 8px; max-width: 360px; }
+    .scene { position: relative; margin-bottom: 28px; }
+    .meta { font-size: 12px; color: #6b7280; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="scene" id="desktop-stock">
+      <div class="title-row">
+        <div>
+          <h1>Moje zapasy</h1>
+          <p class="meta">20 z 250 produktów · strona 1/13</p>
+        </div>
+        <button class="cta" type="button">Dodaj zakup</button>
+      </div>
+      <div class="tabs">
+        <span class="tab active">Zapasy</span>
+        <span class="tab">Katalog</span>
+        <span class="tab">Historia</span>
+      </div>
+      <div class="toolbar">
+        <input style="flex:1;min-width:200px" value="" placeholder="Szukaj produktu…" />
+        <select><option>Kategoria</option></select>
+        <select><option>Miejsce</option></select>
+        <select><option>Sortuj: termin</option></select>
+        <button class="ghost" type="button">Filtry</button>
+      </div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Produkt</th>
+            <th class="num">Stan</th>
+            <th class="num">Partie</th>
+            <th>Najbliższy termin</th>
+            <th>Miejsce</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><div class="prod"><div class="thumb"></div><div><p class="name">Ser mozzarella</p><p class="sub">Galbani · kulka</p></div></div></td>
+            <td class="num">250 g</td><td class="num">1</td>
+            <td class="expiring">9.09.2026</td><td>Lodówka</td>
+            <td><div class="actions"><button class="btn">Zużyj</button><button class="dots">⋯</button></div></td>
+          </tr>
+          <tr class="group">
+            <td><div class="prod"><div class="thumb">▦</div><div><p class="name">Pomidory</p><p class="sub">2 warianty · 2 partie</p></div></div></td>
+            <td class="num">2,4 kg</td><td class="num">2</td>
+            <td>12.09.2026</td><td>—</td>
+            <td><div class="actions"><span>›</span></div></td>
+          </tr>
+          <tr>
+            <td><div class="prod"><div class="thumb"></div><div><p class="name">Papryka</p><p class="sub">Warzywa i owoce</p></div></div></td>
+            <td class="num">600 g</td><td class="num">1</td>
+            <td>—</td><td>Lodówka</td>
+            <td><div class="actions"><button class="btn">Zużyj</button><button class="dots">⋯</button></div></td>
+          </tr>
+          <tr>
+            <td><div class="prod"><div class="thumb"></div><div><p class="name">Jogurt naturalny</p></div></div></td>
+            <td class="num">400 g</td><td class="num">2</td>
+            <td class="expired">28.08.2026</td><td>Lodówka</td>
+            <td><div class="actions"><button class="btn">Zużyj</button><button class="dots">⋯</button></div></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="scene" id="expanded">
+      <h2>Rozwinięty rodzaj i partie</h2>
+      <table class="table">
+        <tbody>
+          <tr class="group">
+            <td><div class="prod"><div class="thumb">▦</div><div><p class="name">Pomidory</p><p class="sub">2 warianty · 2 partie</p></div></div></td>
+            <td class="num">2,4 kg</td><td class="num">2</td><td>12.09.2026</td><td>—</td><td>˅</td>
+          </tr>
+          <tr class="variant">
+            <td><div class="prod"><div class="thumb"><img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect fill='%23fecaca' width='40' height='40'/%3E%3Ccircle cx='20' cy='20' r='10' fill='%23ef4444'/%3E%3C/svg%3E" /></div><div><p class="name">Pomidor koktajlowy gałązka</p></div></div></td>
+            <td class="num">400 g</td><td class="num">1</td><td>12.09.2026</td><td>Lodówka</td>
+            <td><div class="actions"><button class="btn">Zużyj</button><button class="dots">⋯</button></div></td>
+          </tr>
+          <tr class="batch">
+            <td colspan="2">400 g · Biedronka · zakup 30.08.2026</td>
+            <td>12.09.2026</td><td>Lodówka</td><td>9,99 zł</td>
+            <td><button class="dots">⋯</button></td>
+          </tr>
+          <tr class="variant">
+            <td><div class="prod"><div class="thumb"><img alt="" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect fill='%23fee2e2' width='40' height='40'/%3E%3Ccircle cx='20' cy='22' r='12' fill='%23dc2626'/%3E%3C/svg%3E" /></div><div><p class="name">Pomidory malinowe</p></div></div></td>
+            <td class="num">2 kg</td><td class="num">1</td><td>—</td><td>Spiżarnia</td>
+            <td><div class="actions"><button class="btn">Zużyj</button><button class="dots">⋯</button></div></td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="menu" role="menu">
+        <div>Edytuj produkt</div>
+        <div>Dodaj partię</div>
+        <div class="danger">Usuń partię</div>
+      </div>
+    </section>
+
+    <section class="scene" id="catalog">
+      <h2>Katalog z paginacją</h2>
+      <div class="tabs"><span class="tab">Zapasy</span><span class="tab active">Katalog</span></div>
+      <p class="meta">50 z 1000 produktów · strona 1/20</p>
+      <table class="table">
+        <thead><tr><th>Produkt</th><th class="num">Stan</th><th></th></tr></thead>
+        <tbody>
+          <tr><td><div class="prod"><div class="thumb"></div><div><p class="name">ScaleFixture Produkt 0001</p><p class="sub">0 g w zapasie</p></div></div></td><td class="num">—</td><td></td></tr>
+          <tr><td><div class="prod"><div class="thumb"></div><div><p class="name">ScaleFixture Produkt 0002</p><p class="sub">500 g</p></div></div></td><td class="num">500 g</td><td></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="scene" id="filters">
+      <h2>Otwarte filtry</h2>
+      <div class="filters-panel">
+        <strong>Filtry</strong>
+        <select><option>Jednostka: wszystkie</option></select>
+        <select><option>Termin: kończący się</option></select>
+        <select><option>Archiwum: ukryte</option></select>
+        <button class="ghost" type="button">Zastosuj</button>
+      </div>
+      <div class="toolbar" style="margin-top:10px">
+        <span class="chip">Termin: kończący się ×</span>
+        <button class="ghost" type="button">Wyczyść filtry</button>
+      </div>
+    </section>
+
+    <section class="scene" id="mobile">
+      <h2>Mobile 390×844</h2>
+      <div class="mobile">
+        <div style="padding:12px"><input style="width:100%" placeholder="Szukaj…" /></div>
+        <div class="m-row">
+          <div class="thumb"></div>
+          <div><p class="name">Ser mozzarella</p><p class="sub">250 g · <span class="expiring">9.09</span></p></div>
+          <div class="actions"><button class="btn">Zużyj</button><button class="dots">⋯</button></div>
+        </div>
+        <div class="m-row">
+          <div class="thumb">▦</div>
+          <div><p class="name">Pomidory</p><p class="sub">2,4 kg · 2 warianty</p></div>
+          <div>›</div>
+        </div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

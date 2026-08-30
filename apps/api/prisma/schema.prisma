@@ -302,6 +302,7 @@ model Product {
   @@index([kitchenId, category])
   @@index([kitchenId, groupId])
   @@index([kitchenId, brand])
+  @@index([kitchenId, archivedAt])
 }
 
 model ProductNutrition {
@@ -418,6 +419,8 @@ model StockItem {
 
   @@index([productId])
   @@index([location])
+  @@index([productId, quantity])
+  @@index([expiresAt])
 }
 
 /// Idempotencja atomowego przyjęcia produktu (+ opcjonalnie zapas / nutrition).

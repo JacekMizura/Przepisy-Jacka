@@ -79,6 +79,10 @@ import {
   type InputUnit,
 } from "@/lib/quantity-input";
 import { formatEditStockSummary } from "@/lib/stock-package-display";
+import {
+  asStockSummaryPage,
+  findStockProduct,
+} from "@/lib/stock-list-types";
 import { cn } from "@/lib/utils";
 
 const FIELD_CLASS =
@@ -91,7 +95,6 @@ type Product = components["schemas"]["ProductDto"];
 type ProductMatch = components["schemas"]["ProductMatchResultDto"];
 type CreateProductIntake =
   components["schemas"]["CreateProductIntakeDto"];
-type StockSummary = components["schemas"]["StockProductSummaryDto"];
 type UpdateProduct = components["schemas"]["UpdateProductDto"];
 type ProductIntakeResult = components["schemas"]["ProductIntakeResultDto"];
 
@@ -442,32 +445,38 @@ export function ProductEntryForm({
   });
 
   const stockSummaryQuery = useQuery({
-    queryKey: ["stock-summary", kitchenId],
+    queryKey: [
+      "stock-summary",
+      kitchenId,
+      "product",
+      productId ?? resolvedProduct?.id ?? null,
+    ],
     enabled: mode === "edit" && Boolean(productId ?? resolvedProduct?.id),
     queryFn: async () => {
+      const id = productId ?? resolvedProduct?.id;
+      if (!id) {
+        return null;
+      }
       const client = createWebApiClient();
       const { data, error } = await client.GET(
         "/api/kitchens/{kitchenId}/stock-summary",
-        { params: { path: { kitchenId } } },
+        {
+          params: {
+            path: { kitchenId },
+            query: { productId: id, limit: 10 } as never,
+          },
+        },
       );
       if (error) {
         throw new Error(
           readApiError(error, "Nie udało się pobrać podsumowania zapasów."),
         );
       }
-      return data ?? [];
+      return findStockProduct(asStockSummaryPage(data).items, id);
     },
   });
 
-  const productStock = useMemo(() => {
-    const id = productId ?? resolvedProduct?.id;
-    if (!id) {
-      return null as StockSummary | null;
-    }
-    return (
-      stockSummaryQuery.data?.find((entry) => entry.productId === id) ?? null
-    );
-  }, [productId, resolvedProduct?.id, stockSummaryQuery.data]);
+  const productStock = stockSummaryQuery.data ?? null;
 
   const categoryOptions = useMemo(() => {
     const fromCatalog = new Set<string>(PRODUCT_CATEGORY_OPTIONS);

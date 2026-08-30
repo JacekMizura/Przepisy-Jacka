@@ -1,69 +1,68 @@
 "use client";
 
-import type { components } from "@moja-kuchnia/api-client";
 import { ChevronDown, Package } from "lucide-react";
 
-import { ProductCategoryBadge } from "@/components/product-entry/product-category-selector";
 import {
   ProductActionsMenu,
   type ProductActionItem,
 } from "@/components/stock/product-actions-menu";
 import { Button } from "@/components/ui/button";
 import { LOCATION_LABELS } from "@/lib/errors";
-import { formatDisplayQuantityWithUnit } from "@/lib/format-quantity";
+import {
+  formatDisplayQuantityWithUnit,
+} from "@/lib/format-quantity";
 import { isDisplayableUrl, mediaDisplayUrl } from "@/lib/media-upload";
+import type { StockProductListItem } from "@/lib/stock-list-types";
 import {
   formatBatchPricePresentation,
   formatBatchQuantityPresentation,
-  formatProductStockHeadline,
 } from "@/lib/stock-package-display";
 import { cn } from "@/lib/utils";
 
-type Product = components["schemas"]["ProductDto"];
-type StockSummary = components["schemas"]["StockProductSummaryDto"];
-type StockBatch = components["schemas"]["StockBatchDetailDto"];
+type StockBatch = StockProductListItem["batches"][number];
 
+export type ExpiryTone = "expired" | "expiring" | "none";
 
-export function productImageUrls(product: Product | undefined): {
-  thumbnail: string | null;
-  full: string | null;
-} {
-  if (!product) {
-    return { thumbnail: null, full: null };
+export function expiryTone(
+  nearestExpiry: string | null,
+  expiringBatchCount: number,
+): ExpiryTone {
+  if (!nearestExpiry) {
+    return "none";
   }
-  const legacy = isDisplayableUrl(product.imageUrl) ? product.imageUrl : null;
-  return {
-    thumbnail: mediaDisplayUrl(product.image, "thumbnail") ?? legacy,
-    full: mediaDisplayUrl(product.image) ?? legacy,
-  };
+  const ms = new Date(nearestExpiry).getTime();
+  if (!Number.isFinite(ms)) {
+    return "none";
+  }
+  if (ms <= Date.now()) {
+    return "expired";
+  }
+  if (expiringBatchCount > 0 || ms <= Date.now() + 7 * 86400000) {
+    return "expiring";
+  }
+  return "none";
 }
 
-export function brandVariantLabel(product: Product | undefined): string | null {
-  if (!product) {
-    return null;
-  }
+export function brandVariantLabel(product: {
+  brand?: string | null;
+  variantLabel?: string | null;
+}): string | null {
   const parts = [product.brand, product.variantLabel].filter(Boolean);
   return parts.length > 0 ? parts.join(" · ") : null;
 }
 
-export function expiryHint(summary: StockSummary): string | null {
-  if (summary.expiringBatchCount > 0 && summary.nearestExpiry) {
-    const date = new Date(summary.nearestExpiry).toLocaleDateString("pl-PL");
-    const count = summary.expiringBatchCount;
-    return count === 1
-      ? `Kończy ważność ${date}`
-      : `${count} partie kończą ważność ${date}`;
-  }
-  if (summary.nearestExpiry) {
-    return `Najbliżej: ${new Date(summary.nearestExpiry).toLocaleDateString("pl-PL")}`;
-  }
-  return null;
+export function productImageFromListItem(product: StockProductListItem): {
+  thumbnail: string | null;
+  full: string | null;
+} {
+  const url = product.imageUrl ?? null;
+  const legacy = isDisplayableUrl(url) ? url : null;
+  return { thumbnail: legacy, full: legacy };
 }
 
 type StockProductRowProps = {
   kitchenId: string;
-  summary: StockSummary;
-  product?: Product;
+  summary: StockProductListItem;
   kindBadge?: string | null;
   expanded: boolean;
   onToggleExpanded: () => void;
@@ -72,14 +71,15 @@ type StockProductRowProps = {
   menuItems: ProductActionItem[];
   onWriteOffBatch: (batchId: string) => void;
   onDeleteBatch: (batch: { id: string; label: string }) => void;
-  /** Wariant wewnątrz karty rodzaju — bez własnej ramki karty. */
+  /** Indented variant under a group row. */
   nested?: boolean;
+  /** Desktop table vs mobile stacked. */
+  layout?: "table" | "mobile";
 };
 
 export function StockProductRow({
   kitchenId,
   summary,
-  product,
   kindBadge,
   expanded,
   onToggleExpanded,
@@ -89,80 +89,162 @@ export function StockProductRow({
   onWriteOffBatch,
   onDeleteBatch,
   nested = false,
+  layout = "table",
 }: StockProductRowProps) {
-  const images = productImageUrls(product);
-  const meta = brandVariantLabel(product);
-  const hint = expiryHint(summary);
-  const category = product?.category ?? summary.category;
+  const images = productImageFromListItem(summary);
+  const meta = brandVariantLabel(summary);
+  const tone = expiryTone(
+    summary.nearestExpiry ?? null,
+    summary.expiringBatchCount,
+  );
+  const place = summary.primaryLocation
+    ? LOCATION_LABELS[summary.primaryLocation]
+    : "—";
+  const qty = formatDisplayQuantityWithUnit(
+    summary.totalQuantity,
+    summary.defaultUnit,
+  );
+  const expiryLabel = summary.nearestExpiry
+    ? new Date(summary.nearestExpiry).toLocaleDateString("pl-PL")
+    : "—";
 
-  return (
-    <li className={cn(nested ? "bg-white" : undefined)}>
-      <div
-        className={cn(
-          "grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 sm:gap-4 sm:px-4",
-          nested && "pl-4 sm:pl-5",
-          !nested && "min-h-[72px] py-3",
-          nested && "min-h-[72px]",
-        )}
-      >
-        <ProductThumb
-          thumbnail={images.thumbnail}
-          full={images.full}
-          alt={summary.productName}
-          size={nested ? "sm" : "md"}
-          onPreview={onPreviewImage}
-        />
-        <button
-          type="button"
-          className="min-w-0 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
-          aria-expanded={expanded}
-          onClick={onToggleExpanded}
-        >
-          <div className="flex flex-wrap items-center gap-1.5">
-            <p className="text-sm font-semibold leading-snug text-gray-900 sm:text-[15px]">
-              {summary.productName}
-            </p>
-            {kindBadge ? (
-              <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 ring-1 ring-emerald-100">
-                {kindBadge}
-              </span>
-            ) : null}
-            {summary.isArchived ? (
-              <span className="text-[11px] font-medium text-amber-700">
-                Zarchiwizowany
-              </span>
-            ) : null}
-          </div>
-          {meta || category ? (
-            <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-gray-500">
-              {meta ? <span className="truncate">{meta}</span> : null}
-              {meta && category ? <span aria-hidden>·</span> : null}
-              {category ? (
-                <ProductCategoryBadge
-                  category={category}
-                  className="!mt-0 text-[11px] font-normal opacity-90"
-                />
+  if (layout === "mobile") {
+    return (
+      <li className={cn(nested && "pl-3")}>
+        <div className="flex min-h-[64px] items-center gap-2 border-b border-gray-100 px-2 py-2">
+          <ProductThumb
+            thumbnail={images.thumbnail}
+            full={images.full}
+            alt={summary.productName}
+            size="sm"
+            onPreview={onPreviewImage}
+          />
+          <button
+            type="button"
+            className="min-w-0 flex-1 text-left"
+            aria-expanded={expanded}
+            onClick={onToggleExpanded}
+          >
+            <div className="flex flex-wrap items-center gap-1">
+              <p className="truncate text-sm font-medium text-gray-900">
+                {summary.productName}
+              </p>
+              {kindBadge ? (
+                <span className="text-[10px] font-medium text-gray-500">
+                  {kindBadge}
+                </span>
               ) : null}
+            </div>
+            {meta ? (
+              <p className="truncate text-[11px] text-gray-500">{meta}</p>
+            ) : null}
+            <p className="mt-0.5 text-xs text-gray-700">
+              <span className="font-medium">{qty}</span>
+              <span
+                className={cn(
+                  "ml-1.5",
+                  tone === "expired" && "font-medium text-red-700",
+                  tone === "expiring" && "font-medium text-orange-700",
+                  tone === "none" && "text-gray-500",
+                )}
+              >
+                {expiryLabel}
+              </span>
             </p>
-          ) : null}
-          <p className="mt-0.5 text-xs text-gray-600 sm:text-sm">
-            {formatProductStockHeadline({
-              totalQuantity: summary.totalQuantity,
-              defaultUnit: summary.defaultUnit,
-              batchCount: summary.batchCount,
-              batches: summary.batches,
-            })}
-          </p>
-          {hint ? (
-            <p className="mt-0.5 text-[11px] text-amber-700">{hint}</p>
-          ) : null}
-        </button>
-        <div className="flex shrink-0 items-center gap-1.5">
+          </button>
           <Button
             type="button"
             size="sm"
             variant="amber"
-            className="h-8 px-2.5 text-xs sm:text-sm"
+            className="h-8 shrink-0 px-2.5 text-xs"
+            onClick={(event) => {
+              event.stopPropagation();
+              onConsume();
+            }}
+          >
+            Zużyj
+          </Button>
+          <div onClick={(event) => event.stopPropagation()}>
+            <ProductActionsMenu
+              label={`Akcje: ${summary.productName}`}
+              items={menuItems}
+            />
+          </div>
+        </div>
+        {expanded ? (
+          <StockBatchList
+            kitchenId={kitchenId}
+            summary={summary}
+            nested={nested}
+            onWriteOffBatch={onWriteOffBatch}
+            onDeleteBatch={onDeleteBatch}
+          />
+        ) : null}
+      </li>
+    );
+  }
+
+  return (
+    <li className={cn(nested && "bg-gray-50/40")}>
+      <div
+        className={cn(
+          "grid min-h-14 grid-cols-[minmax(0,2.2fr)_minmax(4.5rem,0.7fr)_minmax(3.5rem,0.55fr)_minmax(5.5rem,0.85fr)_minmax(5rem,0.75fr)_auto] items-center gap-2 border-b border-gray-100 px-2 py-1.5 text-sm",
+          nested && "pl-8",
+        )}
+      >
+        <div className="flex min-w-0 items-center gap-2">
+          <ProductThumb
+            thumbnail={images.thumbnail}
+            full={images.full}
+            alt={summary.productName}
+            size="sm"
+            onPreview={onPreviewImage}
+          />
+          <button
+            type="button"
+            className="min-w-0 flex-1 rounded text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+            aria-expanded={expanded}
+            onClick={onToggleExpanded}
+          >
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="truncate font-medium text-gray-900">
+                {summary.productName}
+              </span>
+              {kindBadge ? (
+                <span className="text-[10px] font-medium uppercase tracking-wide text-gray-500">
+                  {kindBadge}
+                </span>
+              ) : null}
+              {summary.isArchived ? (
+                <span className="text-[10px] font-medium text-amber-700">
+                  Archiwum
+                </span>
+              ) : null}
+            </div>
+            {meta ? (
+              <p className="truncate text-[11px] text-gray-500">{meta}</p>
+            ) : null}
+          </button>
+        </div>
+        <p className="tabular-nums text-gray-800">{qty}</p>
+        <p className="tabular-nums text-gray-600">{summary.batchCount}</p>
+        <p
+          className={cn(
+            "tabular-nums",
+            tone === "expired" && "font-medium text-red-700",
+            tone === "expiring" && "font-medium text-orange-700",
+            tone === "none" && "text-gray-600",
+          )}
+        >
+          {expiryLabel}
+        </p>
+        <p className="truncate text-gray-600">{place}</p>
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="amber"
+            className="h-7 px-2 text-xs"
             onClick={(event) => {
               event.stopPropagation();
               onConsume();
@@ -178,7 +260,7 @@ export function StockProductRow({
           </div>
           <button
             type="button"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100"
             aria-expanded={expanded}
             aria-label={
               expanded
@@ -191,7 +273,7 @@ export function StockProductRow({
             }}
           >
             <ChevronDown
-              size={16}
+              size={15}
               className={cn("transition-transform", expanded && "rotate-180")}
               aria-hidden
             />
@@ -224,17 +306,14 @@ function ProductThumb({
   size: "sm" | "md";
   onPreview?: (src: string, alt: string) => void;
 }) {
-  const box =
-    size === "sm"
-      ? "h-11 w-11 rounded-lg"
-      : "h-12 w-12 rounded-xl";
+  const box = size === "sm" ? "h-9 w-9 rounded-md" : "h-11 w-11 rounded-lg";
 
   if (thumbnail && full && onPreview) {
     return (
       <button
         type="button"
         className={cn(
-          "flex shrink-0 items-center justify-center overflow-hidden border border-gray-200 bg-gray-50 transition-shadow hover:shadow-md",
+          "flex shrink-0 items-center justify-center overflow-hidden border border-gray-200 bg-gray-50",
           box,
         )}
         onClick={(event) => {
@@ -259,7 +338,7 @@ function ProductThumb({
         // eslint-disable-next-line @next/next/no-img-element -- podpisane URL-e magazynu zdjęć
         <img src={thumbnail} alt="" className="h-full w-full object-contain" />
       ) : (
-        <Package size={16} className="text-gray-300" />
+        <Package size={14} className="text-gray-300" />
       )}
     </div>
   );
@@ -273,7 +352,7 @@ function StockBatchList({
   onDeleteBatch,
 }: {
   kitchenId: string;
-  summary: StockSummary;
+  summary: StockProductListItem;
   nested: boolean;
   onWriteOffBatch: (batchId: string) => void;
   onDeleteBatch: (batch: { id: string; label: string }) => void;
@@ -281,9 +360,10 @@ function StockBatchList({
   return (
     <ul
       className={cn(
-        "space-y-1.5 border-t border-gray-100 bg-gray-50/50 px-3 py-2 sm:px-4",
-        nested && "pl-4 sm:pl-5",
+        "border-b border-gray-100 bg-gray-50/60",
+        nested ? "pl-10" : "pl-4",
       )}
+      data-testid="stock-batch-list"
     >
       {summary.batches.map((batch) => (
         <StockBatchRow
@@ -318,7 +398,7 @@ function StockBatchRow({
 }: {
   kitchenId: string;
   batch: StockBatch;
-  unit: StockSummary["defaultUnit"];
+  unit: StockProductListItem["defaultUnit"];
   productName: string;
   onWriteOff: () => void;
   onDelete: () => void;
@@ -326,11 +406,10 @@ function StockBatchRow({
   const qty = formatBatchQuantityPresentation(batch, unit);
   const storePart = batch.storeName ? batch.storeName : "Ręczne dodanie";
   const purchasePart = batch.purchasedAt
-    ? `zakup ${new Date(batch.purchasedAt).toLocaleDateString("pl-PL")}`
+    ? new Date(batch.purchasedAt).toLocaleDateString("pl-PL")
     : null;
   const priceLine = formatBatchPricePresentation(batch);
   const location = LOCATION_LABELS[batch.location];
-  const isPackagedBatch = batch.packageCount != null && batch.packageCount >= 1;
 
   const menuItems: ProductActionItem[] = [];
   if (batch.purchaseId) {
@@ -357,89 +436,74 @@ function StockBatchRow({
   return (
     <li
       className={cn(
-        "rounded-md px-2.5 py-2 text-sm",
-        batch.isExpired ? "bg-red-50/70" : "bg-white/80",
+        "flex min-h-11 items-center gap-2 border-t border-gray-100/80 px-2 py-1.5 text-xs",
+        batch.isExpired && "text-red-800",
       )}
     >
-      <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1 space-y-0.5">
-          {isPackagedBatch ? (
-            <>
-              <p className="text-[13px] leading-snug text-gray-900">
-                <span className="font-medium">
-                  {[qty.primary, storePart, purchasePart]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </span>
-                {batch.isExpired ? (
-                  <span className="ml-1.5 rounded bg-red-100 px-1 py-0.5 text-[10px] font-semibold text-red-800">
-                    Przeterminowane
-                  </span>
-                ) : null}
-              </p>
-              {qty.secondary ? (
-                <p className="text-[11px] leading-snug text-gray-500">
-                  {qty.secondary}
-                </p>
-              ) : null}
-              <p className="text-[11px] leading-snug text-gray-500">
-                {[
-                  priceLine
-                    ? priceLine.charAt(0).toUpperCase() + priceLine.slice(1)
-                    : "Cena nieznana",
-                  location,
-                  batch.expiresAt
-                    ? `Ważne do ${new Date(batch.expiresAt).toLocaleDateString("pl-PL")}`
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </p>
-            </>
-          ) : (
-            <>
-              <p className="text-[13px] font-medium leading-snug text-gray-900">
-                {qty.primary}
-                {batch.isExpired ? (
-                  <span className="ml-1.5 rounded bg-red-100 px-1 py-0.5 text-[10px] font-semibold text-red-800">
-                    Przeterminowane
-                  </span>
-                ) : null}
-              </p>
-              {qty.secondary ? (
-                <p className="text-[11px] leading-snug text-gray-500">
-                  {qty.secondary}
-                </p>
-              ) : null}
-              <p className="text-[11px] leading-snug text-gray-500">
-                {[
-                  storePart,
-                  purchasePart,
-                  priceLine,
-                  location,
-                  batch.expiresAt
-                    ? `Ważne do ${new Date(batch.expiresAt).toLocaleDateString("pl-PL")}`
-                    : null,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </p>
-            </>
-          )}
-          {batch.deleteBlockReason ? (
-            <p className="text-[11px] text-gray-500">{batch.deleteBlockReason}</p>
+      <div className="min-w-0 flex-1 space-y-0.5">
+        <p className="truncate text-[13px] text-gray-900">
+          <span className="font-medium">{qty.primary}</span>
+          <span className="text-gray-500">
+            {" · "}
+            {[storePart, purchasePart, location].filter(Boolean).join(" · ")}
+          </span>
+          {batch.isExpired ? (
+            <span className="ml-1.5 font-semibold text-red-700">
+              Przeterminowane
+            </span>
           ) : null}
-        </div>
-        <div
-          className="shrink-0"
-          onClick={(event) => event.stopPropagation()}
-        >
-          <ProductActionsMenu
-            label={`Akcje partii: ${productName}`}
-            items={menuItems}
-          />
-        </div>
+        </p>
+        <p className="truncate text-[11px] text-gray-500">
+          {[
+            qty.secondary,
+            priceLine,
+            batch.expiresAt
+              ? `do ${new Date(batch.expiresAt).toLocaleDateString("pl-PL")}`
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+        </p>
+      </div>
+      <div
+        className="shrink-0"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <ProductActionsMenu
+          label={`Akcje partii: ${productName}`}
+          items={menuItems}
+        />
       </div>
     </li>
   );
+}
+
+/** @deprecated Prefer brandVariantLabel / productImageFromListItem */
+export function productImageUrls(product: {
+  imageUrl?: string | null;
+  image?: Parameters<typeof mediaDisplayUrl>[0];
+}): { thumbnail: string | null; full: string | null } {
+  const legacy = isDisplayableUrl(product.imageUrl) ? product.imageUrl! : null;
+  return {
+    thumbnail: mediaDisplayUrl(product.image, "thumbnail") ?? legacy,
+    full: mediaDisplayUrl(product.image) ?? legacy,
+  };
+}
+
+/** @deprecated */
+export function expiryHint(summary: {
+  expiringBatchCount: number;
+  nearestExpiry: string | null;
+}): string | null {
+  if (summary.expiringBatchCount > 0 && summary.nearestExpiry) {
+    const date = new Date(summary.nearestExpiry).toLocaleDateString("pl-PL");
+    const count = summary.expiringBatchCount;
+    return count === 1
+      ? `Kończy ważność ${date}`
+      : `${count} partie kończą ważność ${date}`;
+  }
+  if (summary.nearestExpiry) {
+    return `Najbliżej: ${new Date(summary.nearestExpiry).toLocaleDateString("pl-PL")}`;
+  }
+  return null;
 }

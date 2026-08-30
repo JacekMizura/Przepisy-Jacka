@@ -1,6 +1,6 @@
 import type { components } from '@moja-kuchnia/api-client';
 
-export type StockSummary = components['schemas']['StockProductSummaryDto'];
+export type StockSummary = components['schemas']['StockProductListItemDto'];
 export type StockBatch = components['schemas']['StockBatchDetailDto'];
 export type ConsumePreview =
   components['schemas']['ConsumeStockPreviewResultDto'];

@@ -1452,7 +1452,7 @@ export interface components {
             /** @example 5 */
             pageCount: number;
             /** @description Wiersze produktu lub grupy (discriminated by kind). */
-            items: components["schemas"]["CatalogProductRowDto"][];
+            items: (components["schemas"]["CatalogProductRowDto"] | components["schemas"]["CatalogGroupRowDto"])[];
         };
         ProductGroupStockByUnitDto: {
             /** @enum {string} */
@@ -1917,7 +1917,7 @@ export interface components {
             /** @example 5 */
             pageCount: number;
             /** @description Wiersze produktu lub grupy (discriminated by kind). */
-            items: components["schemas"]["StockProductRowDto"][];
+            items: (components["schemas"]["StockProductRowDto"] | components["schemas"]["StockGroupListItemDto"])[];
         };
         ManualConsumeLineDto: {
             stockItemId: string;

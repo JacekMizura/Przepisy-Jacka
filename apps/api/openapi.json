@@ -5247,10 +5247,17 @@
             "example": 5
           },
           "items": {
-            "description": "Wiersze produktu lub grupy (discriminated by kind).",
             "type": "array",
+            "description": "Wiersze produktu lub grupy (discriminated by kind).",
             "items": {
-              "$ref": "#/components/schemas/CatalogProductRowDto"
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/CatalogProductRowDto"
+                },
+                {
+                  "$ref": "#/components/schemas/CatalogGroupRowDto"
+                }
+              ]
             }
           }
         },
@@ -6518,10 +6525,17 @@
             "example": 5
           },
           "items": {
-            "description": "Wiersze produktu lub grupy (discriminated by kind).",
             "type": "array",
+            "description": "Wiersze produktu lub grupy (discriminated by kind).",
             "items": {
-              "$ref": "#/components/schemas/StockProductRowDto"
+              "oneOf": [
+                {
+                  "$ref": "#/components/schemas/StockProductRowDto"
+                },
+                {
+                  "$ref": "#/components/schemas/StockGroupListItemDto"
+                }
+              ]
             }
           }
         },

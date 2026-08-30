@@ -1,32 +1,19 @@
 import type { components } from '@moja-kuchnia/api-client';
 
-type LegacyStockSummary = components['schemas']['StockProductSummaryDto'];
+export type StockProductListItem =
+  components['schemas']['StockProductListItemDto'];
 
-export type StockProductListItem = LegacyStockSummary & {
-  brand?: string | null;
-  variantLabel?: string | null;
-  groupId?: string | null;
-  groupName?: string | null;
-  imageUrl?: string | null;
-  primaryLocation?: LegacyStockSummary['batches'][number]['location'] | null;
-  latestBatchAt?: string;
-};
+export type StockProductRow = components['schemas']['StockProductRowDto'];
+export type StockGroupRow = components['schemas']['StockGroupListItemDto'];
 
-type StockPageEntry =
-  | { kind: 'product'; product: StockProductListItem }
-  | {
-      kind: 'group';
-      groupId: string;
-      groupName: string;
-      variants: StockProductListItem[];
-    };
+/** OpenAPI marks items as product rows only; runtime also returns groups. */
+export type StockPageEntry = StockProductRow | StockGroupRow;
 
-export type StockSummaryPage = {
+export type StockSummaryPage = Omit<
+  components['schemas']['StockSummaryPageDto'],
+  'items'
+> & {
   items: StockPageEntry[];
-  page: number;
-  limit: number;
-  total: number;
-  pageCount: number;
 };
 
 export function asStockSummaryPage(data: unknown): StockSummaryPage {
@@ -40,7 +27,10 @@ export function asStockSummaryPage(data: unknown): StockSummaryPage {
   if (Array.isArray(data)) {
     const products = data as StockProductListItem[];
     return {
-      items: products.map((product) => ({ kind: 'product' as const, product })),
+      items: products.map((product) => ({
+        kind: 'product' as const,
+        product,
+      })),
       page: 1,
       limit: products.length || 100,
       total: products.length,

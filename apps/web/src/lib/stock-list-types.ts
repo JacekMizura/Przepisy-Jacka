@@ -1,29 +1,19 @@
 /**
- * Local mirrors of paginated stock/catalog DTOs until OpenAPI + api-client
- * are regenerated. Prefer `components["schemas"][...]` once available.
+ * Typy list zapasów/katalogu z api-client (paginowane DTO).
  */
 
 import type { components } from "@moja-kuchnia/api-client";
 
-type StockSummary = components["schemas"]["StockProductSummaryDto"];
+export type StockProductListItem =
+  components["schemas"]["StockProductListItemDto"];
 type CatalogProduct = components["schemas"]["CatalogProductDto"];
-type StorageLocation = components["schemas"]["StockBatchDetailDto"]["location"];
-type ProductUnit = StockSummary["defaultUnit"];
+type ProductUnit = StockProductListItem["defaultUnit"];
+type StorageLocation = NonNullable<StockProductListItem["primaryLocation"]>;
 
 export type StockSort = "expiry" | "newest" | "name" | "qty_desc" | "qty_asc";
 export type CatalogSort = "name" | "newest" | "updated" | "has_stock";
 export type ExpiryStatusFilter = "any" | "expired" | "expiring" | "ok" | "none";
 export type ArchivedFilter = "active" | "archived" | "all";
-
-export type StockProductListItem = StockSummary & {
-  brand: string | null;
-  variantLabel: string | null;
-  groupId: string | null;
-  groupName: string | null;
-  imageUrl: string | null;
-  primaryLocation: StorageLocation | null;
-  latestBatchAt: string;
-};
 
 export type StockProductRow = {
   kind: "product";

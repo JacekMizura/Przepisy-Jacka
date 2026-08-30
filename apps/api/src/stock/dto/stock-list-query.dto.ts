@@ -1,4 +1,8 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  ApiProperty,
+  ApiPropertyOptional,
+  getSchemaPath,
+} from '@nestjs/swagger';
 import {
   IsEnum,
   IsIn,
@@ -178,8 +182,14 @@ export class StockProductRowDto {
 
 export class StockSummaryPageDto extends PaginatedMetaDto {
   @ApiProperty({
-    type: [StockProductRowDto],
     description: 'Wiersze produktu lub grupy (discriminated by kind).',
+    type: 'array',
+    items: {
+      oneOf: [
+        { $ref: getSchemaPath(StockProductRowDto) },
+        { $ref: getSchemaPath(StockGroupListItemDto) },
+      ],
+    },
   })
   items!: Array<StockProductRowDto | StockGroupListItemDto>;
 }

@@ -127,7 +127,7 @@ export function InventoryProductCard({
           <img
             src={image}
             alt=""
-            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+            className="h-full w-full object-contain p-1.5 transition-transform duration-500 group-hover:scale-105"
           />
         ) : (
           <span className="flex h-full w-full items-center justify-center bg-zinc-50 text-zinc-300">
@@ -163,22 +163,24 @@ export function InventoryProductCard({
           <p className="mt-0.5 text-xs font-medium text-zinc-500">{brand}</p>
         ) : null}
 
-        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-          <span className="inline-flex items-center gap-1 font-bold text-zinc-900">
-            <Scale size={13} className="text-zinc-400" aria-hidden />
-            {amount}
+        <div className="mt-2 flex flex-wrap items-end gap-x-4 gap-y-1">
+          <span className="inline-flex items-baseline gap-1 text-zinc-900">
+            <Scale size={14} className="relative top-0.5 text-zinc-400" aria-hidden />
+            <span className="text-lg font-extrabold tabular-nums sm:text-xl">
+              {amount}
+            </span>
             {unit ? (
-              <span className="font-semibold text-zinc-500">{unit}</span>
+              <span className="text-sm font-semibold text-zinc-500">{unit}</span>
             ) : null}
           </span>
-          <span className="inline-flex items-center gap-1 font-medium text-zinc-600">
+          <span className="inline-flex items-center gap-1 text-sm font-medium text-zinc-600">
             <MapPin size={13} className="text-zinc-400" aria-hidden />
             {location}
           </span>
           {hasExpiry ? (
             <span
               className={cn(
-                "inline-flex items-center gap-1 font-medium",
+                "inline-flex items-center gap-1 text-sm font-medium",
                 status === "critical"
                   ? "text-red-600"
                   : status === "warning"
@@ -191,7 +193,7 @@ export function InventoryProductCard({
             </span>
           ) : null}
           {cost ? (
-            <span className="inline-flex items-center gap-1 font-medium text-zinc-600">
+            <span className="inline-flex items-center gap-1 text-sm font-medium text-zinc-600">
               <Wallet size={13} className="text-zinc-400" aria-hidden />
               {cost}
             </span>
@@ -263,7 +265,11 @@ export function InventoryGroupCard({
         <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-xl sm:h-32 sm:w-32">
           {cover ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={cover} alt="" className="h-full w-full object-cover" />
+            <img
+              src={cover}
+              alt=""
+              className="h-full w-full object-contain p-1.5"
+            />
           ) : (
             <span className="flex h-full w-full items-center justify-center bg-zinc-50 text-zinc-300">
               <Package size={32} aria-hidden />
@@ -377,7 +383,11 @@ function VariantRow({
         >
           {image ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={image} alt="" className="h-full w-full object-cover" />
+            <img
+              src={image}
+              alt=""
+              className="h-full w-full object-contain p-0.5"
+            />
           ) : (
             <span className="flex h-full w-full items-center justify-center bg-white text-zinc-300">
               <Package size={16} aria-hidden />

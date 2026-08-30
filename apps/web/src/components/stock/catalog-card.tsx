@@ -70,7 +70,7 @@ export function CatalogProductRow({
             <img
               src={image}
               alt=""
-              className="h-full w-full object-cover"
+              className="h-full w-full object-contain p-1"
             />
           ) : (
             <Package size={22} className="text-zinc-300" aria-hidden />
@@ -162,7 +162,7 @@ export function CatalogGroupCard({
               <img
                 src={cover}
                 alt=""
-                className="h-full w-full object-cover"
+                className="h-full w-full object-contain p-1"
               />
             ) : (
               <Package size={22} className="text-zinc-300" aria-hidden />

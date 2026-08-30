@@ -222,7 +222,7 @@ function AddProductModal({
                       <ProductThumb
                         src={productImageUrls(selectedProduct).thumbnail}
                         alt={selectedProduct.name}
-                        className="!h-full !w-full rounded-xl object-cover"
+                        className="!h-full !w-full rounded-xl object-contain p-1"
                         size="sm"
                       />
                     ) : (
@@ -514,7 +514,6 @@ function ShoppingRow({
   const unboundName = !item.productId
     ? (item.customName ?? item.product?.name ?? "").trim()
     : "";
-  const metaLine = purchaseLine || null;
   const estimate =
     typeof item.estimatedPriceMinor === "number"
       ? formatPriceMinor(item.estimatedPriceMinor)
@@ -565,14 +564,14 @@ function ShoppingRow({
 
       <div
         className={cn(
-          "shrink-0 overflow-hidden rounded-xl",
+          "flex shrink-0 items-center justify-center overflow-hidden rounded-xl",
           isBought ? "h-14 w-14" : "h-16 w-16 sm:h-[4.5rem] sm:w-[4.5rem]",
         )}
       >
         <ProductThumb
           src={thumb}
           alt={name}
-          className="!h-full !w-full rounded-xl object-cover"
+          className="!h-full !w-full rounded-xl object-contain p-1"
           size="md"
         />
       </div>
@@ -587,14 +586,25 @@ function ShoppingRow({
         >
           {name}
         </h4>
-        {!isBought ? (
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
-            <p className="text-sm font-medium text-zinc-500">
-              {metaLine || "—"}
-            </p>
-            {category ? (
-              <ProductCategoryBadge category={category} variant="pill" />
-            ) : null}
+        {purchaseLine ? (
+          <p
+            className={cn(
+              "mt-1 text-base font-extrabold tracking-tight text-zinc-950 sm:text-lg",
+              isBought && "font-bold text-zinc-500 line-through",
+              isSkipped && "text-zinc-500",
+            )}
+            data-testid="shopping-item-quantity"
+          >
+            {purchaseLine}
+          </p>
+        ) : (
+          <p className="mt-1 text-sm font-semibold text-zinc-400">
+            Ilość nieustalona
+          </p>
+        )}
+        {!isBought && category ? (
+          <div className="mt-1.5">
+            <ProductCategoryBadge category={category} variant="pill" />
           </div>
         ) : null}
         {item.sourceRecipeName ? (

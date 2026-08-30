@@ -1017,6 +1017,300 @@
         ]
       }
     },
+    "/api/kitchens/{kitchenId}/catalog": {
+      "get": {
+        "operationId": "StockController_listCatalog",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/KitchenCatalogDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Katalog z grupami produktów i produktami bez grupy (z podsumowaniem zapasu)",
+        "tags": [
+          "stock"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/product-groups": {
+      "get": {
+        "operationId": "StockController_listProductGroups",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Szukaj po nazwie grupy / produktu / marce / wariancie / EAN.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "archive",
+            "required": false,
+            "in": "query",
+            "description": "Filtr produktów wliczanych do podsumowań. Domyślnie active.",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "active",
+                "archived",
+                "all"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProductGroupSummaryDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Lista grup produktów (rodzaje)",
+        "tags": [
+          "stock"
+        ]
+      },
+      "post": {
+        "operationId": "StockController_createProductGroup",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductGroupDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductGroupDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Utworzenie grupy produktów",
+        "tags": [
+          "stock"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/product-groups/search": {
+      "get": {
+        "operationId": "StockController_searchProductGroups",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "q",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "example": "mozz",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProductGroupDto"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Autocomplete grup produktów",
+        "tags": [
+          "stock"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/product-groups/{groupId}": {
+      "get": {
+        "operationId": "StockController_getProductGroup",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductGroupDetailDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Szczegóły grupy z produktami",
+        "tags": [
+          "stock"
+        ]
+      },
+      "patch": {
+        "operationId": "StockController_updateProductGroup",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProductGroupDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductGroupDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Zmiana nazwy grupy",
+        "tags": [
+          "stock"
+        ]
+      },
+      "delete": {
+        "operationId": "StockController_deleteProductGroup",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "groupId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "summary": "Usunięcie grupy (produkty zostają, groupId → null)",
+        "tags": [
+          "stock"
+        ]
+      }
+    },
     "/api/kitchens/{kitchenId}/products": {
       "get": {
         "operationId": "StockController_listProducts",
@@ -1104,6 +1398,94 @@
         ]
       }
     },
+    "/api/kitchens/{kitchenId}/products/match": {
+      "get": {
+        "operationId": "StockController_matchProducts",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "ean",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductMatchResultDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Dopasowanie produktu po EAN/nazwie (bez automatycznego scalania podobnych nazw)",
+        "tags": [
+          "stock"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/product-intakes": {
+      "post": {
+        "operationId": "StockController_createProductIntake",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateProductIntakeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductIntakeResultDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Atomowe przyjęcie produktu (nowy lub istniejący) z opcjonalnym zapasem i nutrition",
+        "tags": [
+          "stock"
+        ]
+      }
+    },
     "/api/kitchens/{kitchenId}/products/{productId}": {
       "patch": {
         "operationId": "StockController_updateProduct",
@@ -1147,7 +1529,7 @@
             }
           }
         },
-        "summary": "Aktualizacja produktu (m.in. purchaseMode)",
+        "summary": "Aktualizacja produktu (name, defaultUnit, ean, category, purchaseMode, grupa, wariant)",
         "tags": [
           "stock"
         ]
@@ -1193,6 +1575,55 @@
           }
         },
         "summary": "Archiwizacja produktu (historia zostaje). ?permanent=true tylko dla nigdy nieużytego.",
+        "tags": [
+          "stock"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/products/{productId}/assign-group": {
+      "post": {
+        "operationId": "StockController_assignProductGroup",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignProductGroupDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Przypisanie produktu do grupy (lub odłączenie)",
         "tags": [
           "stock"
         ]
@@ -1367,6 +1798,49 @@
           }
         },
         "summary": "Zapis wartości odżywczych produktu",
+        "tags": [
+          "stock"
+        ]
+      },
+      "delete": {
+        "operationId": "StockController_deleteProductNutrition",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "deleted": {
+                      "type": "boolean",
+                      "example": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Usunięcie wartości odżywczych produktu",
         "tags": [
           "stock"
         ]
@@ -3793,6 +4267,74 @@
           "missingOptional"
         ]
       },
+      "ProductGroupStockByUnitDto": {
+        "type": "object",
+        "properties": {
+          "unit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ]
+          },
+          "totalQuantity": {
+            "type": "string",
+            "example": "1250.000"
+          }
+        },
+        "required": [
+          "unit",
+          "totalQuantity"
+        ]
+      },
+      "ProductGroupSummaryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "productCount": {
+            "type": "number"
+          },
+          "activeProductCount": {
+            "type": "number"
+          },
+          "batchCount": {
+            "type": "number"
+          },
+          "stockByUnit": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductGroupStockByUnitDto"
+            }
+          },
+          "coverImages": {
+            "description": "Do 4 okładek z produktów w grupie.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MediaImageDto"
+            }
+          },
+          "hasNutritionCount": {
+            "type": "number",
+            "description": "Liczba produktów w grupie mających wartości odżywcze."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "productCount",
+          "activeProductCount",
+          "batchCount",
+          "stockByUnit",
+          "coverImages",
+          "hasNutritionCount"
+        ]
+      },
       "ProductNutritionDto": {
         "type": "object",
         "properties": {
@@ -3942,7 +4484,7 @@
           "updatedAt"
         ]
       },
-      "ProductDto": {
+      "CatalogProductDto": {
         "type": "object",
         "properties": {
           "id": {
@@ -3950,6 +4492,16 @@
           },
           "kitchenId": {
             "type": "string"
+          },
+          "groupId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "groupName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Nazwa grupy (gdy załadowana z relacji)."
           },
           "name": {
             "type": "string"
@@ -3975,6 +4527,250 @@
           },
           "ean": {
             "type": "string",
+            "nullable": true
+          },
+          "brand": {
+            "type": "string",
+            "nullable": true
+          },
+          "variantLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "packageQuantity": {
+            "type": "string",
+            "nullable": true,
+            "example": "125.000"
+          },
+          "packageUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "kilogram",
+              "milliliter",
+              "liter"
+            ],
+            "nullable": true
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true,
+            "description": "Starsze źródło zdjęcia (http lub data URL)."
+          },
+          "image": {
+            "nullable": true,
+            "description": "Zdjęcie z magazynu mediów; podpisane URL-e wygasają.",
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/MediaImageDto"
+              }
+            ]
+          },
+          "nutrition": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProductNutritionDto"
+              }
+            ]
+          },
+          "category": {
+            "type": "string",
+            "nullable": true
+          },
+          "archivedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true,
+            "description": "Null = aktywny katalog; ustawione = zarchiwizowany."
+          },
+          "isArchived": {
+            "type": "boolean",
+            "description": "true gdy archivedAt jest ustawione."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "purchaseOptions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PurchaseOptionDto"
+            }
+          },
+          "batchCount": {
+            "type": "number"
+          },
+          "totalQuantity": {
+            "type": "string",
+            "description": "Suma ilości w defaultUnit produktu (aktywne partie)."
+          }
+        },
+        "required": [
+          "id",
+          "kitchenId",
+          "groupId",
+          "name",
+          "normalizedName",
+          "defaultUnit",
+          "purchaseMode",
+          "ean",
+          "brand",
+          "variantLabel",
+          "packageQuantity",
+          "packageUnit",
+          "imageUrl",
+          "image",
+          "nutrition",
+          "category",
+          "archivedAt",
+          "isArchived",
+          "createdAt",
+          "updatedAt",
+          "batchCount",
+          "totalQuantity"
+        ]
+      },
+      "KitchenCatalogDto": {
+        "type": "object",
+        "properties": {
+          "groups": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductGroupSummaryDto"
+            }
+          },
+          "ungroupedProducts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogProductDto"
+            }
+          }
+        },
+        "required": [
+          "groups",
+          "ungroupedProducts"
+        ]
+      },
+      "ProductGroupDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kitchenId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "normalizedName": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "kitchenId",
+          "name",
+          "normalizedName",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "CreateProductGroupDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Mozzarella"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "ProductDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kitchenId": {
+            "type": "string"
+          },
+          "groupId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "groupName": {
+            "type": "string",
+            "nullable": true,
+            "description": "Nazwa grupy (gdy załadowana z relacji)."
+          },
+          "name": {
+            "type": "string"
+          },
+          "normalizedName": {
+            "type": "string"
+          },
+          "defaultUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ]
+          },
+          "purchaseMode": {
+            "type": "string",
+            "enum": [
+              "unconfigured",
+              "packaged",
+              "exact"
+            ]
+          },
+          "ean": {
+            "type": "string",
+            "nullable": true
+          },
+          "brand": {
+            "type": "string",
+            "nullable": true
+          },
+          "variantLabel": {
+            "type": "string",
+            "nullable": true
+          },
+          "packageQuantity": {
+            "type": "string",
+            "nullable": true,
+            "example": "125.000"
+          },
+          "packageUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "kilogram",
+              "milliliter",
+              "liter"
+            ],
             "nullable": true
           },
           "imageUrl": {
@@ -4033,11 +4829,16 @@
         "required": [
           "id",
           "kitchenId",
+          "groupId",
           "name",
           "normalizedName",
           "defaultUnit",
           "purchaseMode",
           "ean",
+          "brand",
+          "variantLabel",
+          "packageQuantity",
+          "packageUnit",
           "imageUrl",
           "image",
           "nutrition",
@@ -4048,9 +4849,98 @@
           "updatedAt"
         ]
       },
+      "ProductGroupDetailDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kitchenId": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "normalizedName": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "products": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductDto"
+            }
+          },
+          "summary": {
+            "$ref": "#/components/schemas/ProductGroupSummaryDto"
+          }
+        },
+        "required": [
+          "id",
+          "kitchenId",
+          "name",
+          "normalizedName",
+          "createdAt",
+          "updatedAt",
+          "products",
+          "summary"
+        ]
+      },
+      "UpdateProductGroupDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Mozzarella"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
       "CreateProductDto": {
         "type": "object",
         "properties": {
+          "groupId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Opcjonalny rodzaj (ProductGroup) w tej kuchni."
+          },
+          "brand": {
+            "type": "string",
+            "nullable": true,
+            "example": "Galbani"
+          },
+          "variantLabel": {
+            "type": "string",
+            "nullable": true,
+            "example": "kulka"
+          },
+          "packageQuantity": {
+            "type": "string",
+            "nullable": true,
+            "example": "125.000",
+            "description": "Ilość w jednym opakowaniu handlowym."
+          },
+          "packageUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "kilogram",
+              "milliliter",
+              "liter"
+            ],
+            "nullable": true
+          },
           "name": {
             "type": "string",
             "example": "Mleko"
@@ -4086,31 +4976,106 @@
           "defaultUnit"
         ]
       },
-      "UpdateProductDto": {
+      "ProductMatchResultDto": {
         "type": "object",
         "properties": {
-          "purchaseMode": {
+          "exactEan": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProductDto"
+              }
+            ]
+          },
+          "exactName": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProductDto"
+              }
+            ]
+          },
+          "archivedMatch": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProductDto"
+              }
+            ]
+          },
+          "nameSuggestions": {
+            "description": "Sugestie podobnych nazw — nie scalają automatycznie produktów.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductDto"
+            }
+          },
+          "suggestedGroups": {
+            "description": "Sugestie grup o podobnej nazwie (organizacja katalogu).",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProductGroupDto"
+            }
+          },
+          "message": {
+            "type": "object",
+            "example": "Ten produkt jest już w katalogu. Możesz odłożyć nową kupioną ilość do zapasów.",
+            "nullable": true
+          }
+        },
+        "required": [
+          "exactEan",
+          "exactName",
+          "archivedMatch",
+          "nameSuggestions",
+          "suggestedGroups",
+          "message"
+        ]
+      },
+      "ProductIntakeNewProductDto": {
+        "type": "object",
+        "properties": {
+          "groupId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Opcjonalny rodzaj (ProductGroup) w tej kuchni."
+          },
+          "brand": {
+            "type": "string",
+            "nullable": true,
+            "example": "Galbani"
+          },
+          "variantLabel": {
+            "type": "string",
+            "nullable": true,
+            "example": "kulka"
+          },
+          "packageQuantity": {
+            "type": "string",
+            "nullable": true,
+            "example": "125.000",
+            "description": "Ilość w jednym opakowaniu handlowym."
+          },
+          "packageUnit": {
             "type": "string",
             "enum": [
-              "unconfigured",
-              "packaged",
-              "exact"
-            ]
-          }
-        }
-      },
-      "ConfigureProductPurchaseOptionDto": {
-        "type": "object",
-        "properties": {
+              "piece",
+              "gram",
+              "kilogram",
+              "milliliter",
+              "liter"
+            ],
+            "nullable": true
+          },
           "name": {
             "type": "string",
-            "example": "Karton 1 l"
+            "example": "Mleko"
           },
-          "contentQuantity": {
-            "type": "string",
-            "example": "1000.000"
-          },
-          "contentUnit": {
+          "defaultUnit": {
             "type": "string",
             "enum": [
               "piece",
@@ -4118,35 +5083,28 @@
               "milliliter"
             ]
           },
-          "isDefault": {
-            "type": "boolean",
-            "default": true
+          "ean": {
+            "type": "string",
+            "nullable": true
+          },
+          "category": {
+            "type": "string",
+            "nullable": true
+          },
+          "imageMediaId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Gotowy MediaAsset (purpose=product) z tej kuchni — bez base64."
+          },
+          "createGroupName": {
+            "type": "string",
+            "description": "Utwórz nową grupę o tej nazwie w tej samej transakcji (wzajemnie z groupId)."
           }
         },
         "required": [
           "name",
-          "contentQuantity",
-          "contentUnit"
-        ]
-      },
-      "ConfigureProductPurchaseDto": {
-        "type": "object",
-        "properties": {
-          "mode": {
-            "type": "string",
-            "enum": [
-              "unconfigured",
-              "packaged",
-              "exact"
-            ],
-            "description": "packaged wymaga pierwszej opcji; exact nie wymaga opcji; unconfigured czyści tryb bez usuwania opcji."
-          },
-          "option": {
-            "$ref": "#/components/schemas/ConfigureProductPurchaseOptionDto"
-          }
-        },
-        "required": [
-          "mode"
+          "defaultUnit"
         ]
       },
       "UpsertProductNutritionDto": {
@@ -4243,6 +5201,345 @@
           "fatGrams"
         ]
       },
+      "ProductIntakeStockDto": {
+        "type": "object",
+        "properties": {
+          "quantity": {
+            "type": "string",
+            "example": "1000.000",
+            "description": "Ilość zapasu w defaultUnit produktu. Wymagane dokładnie jedno z: quantity albo packageCount."
+          },
+          "packageCount": {
+            "type": "string",
+            "example": "2",
+            "description": "Liczba opakowań — wymaga packageQuantity/packageUnit produktu; wynik w defaultUnit."
+          },
+          "location": {
+            "type": "string",
+            "enum": [
+              "pantry",
+              "fridge",
+              "freezer",
+              "other"
+            ],
+            "default": "pantry"
+          },
+          "purchasePriceMinor": {
+            "type": "object",
+            "example": 599,
+            "nullable": true,
+            "description": "Łączna cena w groszach; pominięcie / null = nieznana."
+          },
+          "storeName": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 120
+          },
+          "purchasedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "required": [
+          "location"
+        ]
+      },
+      "CreateProductIntakeDto": {
+        "type": "object",
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "description": "Klucz idempotencji (UUID lub własny). Unikalny globalnie."
+          },
+          "newProduct": {
+            "description": "Nowy produkt — wzajemnie wykluczające się z existingProductId.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProductIntakeNewProductDto"
+              }
+            ]
+          },
+          "existingProductId": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Istniejący produkt — wzajemnie wykluczające się z newProduct."
+          },
+          "restoreArchived": {
+            "type": "boolean",
+            "description": "Gdy istniejący produkt jest w archiwum: przywróć przed dodaniem zapasu.",
+            "default": false
+          },
+          "nutrition": {
+            "description": "Wartości odżywcze do zapisu w tej samej transakcji (tylko gdy kompletne).",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/UpsertProductNutritionDto"
+              }
+            ]
+          },
+          "stock": {
+            "description": "Gdy podane — tworzy partię zapasu w tej samej transakcji.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProductIntakeStockDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "idempotencyKey"
+        ]
+      },
+      "StockItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "productId": {
+            "type": "string"
+          },
+          "initialQuantity": {
+            "type": "string",
+            "example": "500.000"
+          },
+          "quantity": {
+            "type": "string",
+            "example": "500.000"
+          },
+          "location": {
+            "type": "string",
+            "enum": [
+              "pantry",
+              "fridge",
+              "freezer",
+              "other"
+            ]
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "purchasedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "purchasePriceMinor": {
+            "type": "object",
+            "example": 599,
+            "nullable": true
+          },
+          "storeName": {
+            "type": "string",
+            "nullable": true
+          },
+          "currency": {
+            "type": "string",
+            "example": "PLN"
+          },
+          "ean": {
+            "type": "string",
+            "nullable": true
+          },
+          "imageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "productId",
+          "initialQuantity",
+          "quantity",
+          "location",
+          "expiresAt",
+          "purchasedAt",
+          "storeName",
+          "currency",
+          "ean",
+          "imageUrl",
+          "createdAt",
+          "updatedAt"
+        ]
+      },
+      "ProductIntakeResultDto": {
+        "type": "object",
+        "properties": {
+          "product": {
+            "$ref": "#/components/schemas/ProductDto"
+          },
+          "stockItem": {
+            "nullable": true,
+            "type": "object",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/StockItemDto"
+              }
+            ]
+          },
+          "replayed": {
+            "type": "boolean",
+            "description": "true gdy odpowiedź pochodzi z cache idempotencji."
+          },
+          "restoredFromArchive": {
+            "type": "boolean",
+            "description": "true gdy produkt był przywrócony z archiwum w tym żądaniu."
+          }
+        },
+        "required": [
+          "product",
+          "stockItem",
+          "replayed",
+          "restoredFromArchive"
+        ]
+      },
+      "UpdateProductDto": {
+        "type": "object",
+        "properties": {
+          "groupId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "Opcjonalny rodzaj (ProductGroup) w tej kuchni."
+          },
+          "brand": {
+            "type": "string",
+            "nullable": true,
+            "example": "Galbani"
+          },
+          "variantLabel": {
+            "type": "string",
+            "nullable": true,
+            "example": "kulka"
+          },
+          "packageQuantity": {
+            "type": "string",
+            "nullable": true,
+            "example": "125.000",
+            "description": "Ilość w jednym opakowaniu handlowym."
+          },
+          "packageUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "kilogram",
+              "milliliter",
+              "liter"
+            ],
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "example": "Mleko UHT"
+          },
+          "defaultUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ]
+          },
+          "ean": {
+            "type": "string",
+            "nullable": true,
+            "example": "5901234123457"
+          },
+          "category": {
+            "type": "string",
+            "nullable": true,
+            "example": "Nabiał"
+          },
+          "purchaseMode": {
+            "type": "string",
+            "enum": [
+              "unconfigured",
+              "packaged",
+              "exact"
+            ]
+          }
+        }
+      },
+      "AssignProductGroupDto": {
+        "type": "object",
+        "properties": {
+          "groupId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true,
+            "description": "null odłącza produkt od grupy."
+          }
+        },
+        "required": [
+          "groupId"
+        ]
+      },
+      "ConfigureProductPurchaseOptionDto": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Karton 1 l"
+          },
+          "contentQuantity": {
+            "type": "string",
+            "example": "1000.000"
+          },
+          "contentUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ]
+          },
+          "isDefault": {
+            "type": "boolean",
+            "default": true
+          }
+        },
+        "required": [
+          "name",
+          "contentQuantity",
+          "contentUnit"
+        ]
+      },
+      "ConfigureProductPurchaseDto": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "unconfigured",
+              "packaged",
+              "exact"
+            ],
+            "description": "packaged wymaga pierwszej opcji; exact nie wymaga opcji; unconfigured czyści tryb bez usuwania opcji."
+          },
+          "option": {
+            "$ref": "#/components/schemas/ConfigureProductPurchaseOptionDto"
+          }
+        },
+        "required": [
+          "mode"
+        ]
+      },
       "CreatePurchaseOptionDto": {
         "type": "object",
         "properties": {
@@ -4300,83 +5597,6 @@
           }
         }
       },
-      "StockItemDto": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "productId": {
-            "type": "string"
-          },
-          "initialQuantity": {
-            "type": "string",
-            "example": "500.000"
-          },
-          "quantity": {
-            "type": "string",
-            "example": "500.000"
-          },
-          "location": {
-            "type": "string",
-            "enum": [
-              "pantry",
-              "fridge",
-              "freezer",
-              "other"
-            ]
-          },
-          "expiresAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
-          },
-          "purchasedAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
-          },
-          "purchasePriceMinor": {
-            "type": "object",
-            "example": 599,
-            "nullable": true
-          },
-          "currency": {
-            "type": "string",
-            "example": "PLN"
-          },
-          "ean": {
-            "type": "string",
-            "nullable": true
-          },
-          "imageUrl": {
-            "type": "string",
-            "nullable": true
-          },
-          "createdAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "updatedAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        },
-        "required": [
-          "id",
-          "productId",
-          "initialQuantity",
-          "quantity",
-          "location",
-          "expiresAt",
-          "purchasedAt",
-          "currency",
-          "ean",
-          "imageUrl",
-          "createdAt",
-          "updatedAt"
-        ]
-      },
       "CreateStockItemDto": {
         "type": "object",
         "properties": {
@@ -4410,6 +5630,12 @@
             "example": 599,
             "nullable": true,
             "description": "Łączna cena zakupu początkowej partii w groszach; pominięcie = nieznana cena."
+          },
+          "storeName": {
+            "type": "string",
+            "nullable": true,
+            "maxLength": 120,
+            "description": "Sklep / źródło (bez tworzenia Purchase)."
           },
           "currency": {
             "type": "string",

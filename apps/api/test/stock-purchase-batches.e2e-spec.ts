@@ -10,6 +10,14 @@ jest.setTimeout(90_000);
 
 const WEB_ORIGIN = 'http://127.0.0.1:3010';
 
+/** Expiry relative to now so FEFO e2e stays stable after calendar dates pass. */
+function daysFromNowIso(days: number): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + days);
+  d.setUTCHours(12, 0, 0, 0);
+  return d.toISOString();
+}
+
 type StockSummary = {
   productId: string;
   totalQuantity: string;
@@ -131,15 +139,15 @@ describe('Stock purchase batches and consumption (e2e)', () => {
       productId: product.id,
       quantity: '500.000',
       purchasePriceMinor: 400,
-      expiresAt: '2026-08-30T00:00:00.000Z',
-      purchasedAt: '2026-08-20T00:00:00.000Z',
+      expiresAt: daysFromNowIso(7),
+      purchasedAt: daysFromNowIso(-10),
     });
     const carrefour = await createBatch(kitchen.id, owner.cookies, {
       productId: product.id,
       quantity: '1000.000',
       purchasePriceMinor: 1000,
-      expiresAt: '2026-09-01T00:00:00.000Z',
-      purchasedAt: '2026-08-22T00:00:00.000Z',
+      expiresAt: daysFromNowIso(14),
+      purchasedAt: daysFromNowIso(-8),
     });
 
     const summaryRes = await apiFetch(
@@ -174,13 +182,13 @@ describe('Stock purchase batches and consumption (e2e)', () => {
       productId: product.id,
       quantity: '500.000',
       purchasePriceMinor: 400,
-      expiresAt: '2026-08-30T00:00:00.000Z',
+      expiresAt: daysFromNowIso(7),
     });
     await createBatch(kitchen.id, owner.cookies, {
       productId: product.id,
       quantity: '1000.000',
       purchasePriceMinor: 1000,
-      expiresAt: '2026-09-01T00:00:00.000Z',
+      expiresAt: daysFromNowIso(14),
     });
 
     const previewRes = await apiFetch(
@@ -489,13 +497,13 @@ describe('Stock purchase batches and consumption (e2e)', () => {
       productId: product.id,
       quantity: '300.000',
       purchasePriceMinor: 300,
-      expiresAt: '2026-09-01T00:00:00.000Z',
+      expiresAt: daysFromNowIso(7),
     });
     const b = await createBatch(kitchen.id, owner.cookies, {
       productId: product.id,
       quantity: '300.000',
       purchasePriceMinor: 600,
-      expiresAt: '2026-09-10T00:00:00.000Z',
+      expiresAt: daysFromNowIso(21),
     });
 
     const preview = await apiFetch(

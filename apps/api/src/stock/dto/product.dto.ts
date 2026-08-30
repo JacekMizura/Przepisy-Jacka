@@ -5,6 +5,7 @@ import {
   IsEnum,
   IsOptional,
   IsString,
+  IsUUID,
   Matches,
   MaxLength,
   MinLength,
@@ -13,6 +14,7 @@ import {
 } from 'class-validator';
 
 import {
+  PackageContentUnit,
   ProductPurchaseMode,
   ProductUnit,
 } from '../../generated/prisma/client';
@@ -31,7 +33,66 @@ export function isPresentOptional(_object: unknown, value: unknown): boolean {
   return value !== null && value !== undefined && value !== '';
 }
 
-export class CreateProductDto {
+/** Pola opakowania / grupy wspólne dla Create/Update/Intake. */
+export class ProductPackageFieldsDto {
+  @ApiPropertyOptional({
+    type: String,
+    format: 'uuid',
+    nullable: true,
+    description: 'Opcjonalny rodzaj (ProductGroup) w tej kuchni.',
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null && value !== undefined)
+  @IsUUID()
+  groupId?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: 'Galbani',
+  })
+  @IsOptional()
+  @ValidateIf(isPresentOptional)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  brand?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: 'kulka',
+  })
+  @IsOptional()
+  @ValidateIf(isPresentOptional)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  variantLabel?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: '125.000',
+    description: 'Ilość w jednym opakowaniu handlowym.',
+  })
+  @IsOptional()
+  @ValidateIf(isPresentOptional)
+  @IsString()
+  @MinLength(1)
+  packageQuantity?: string | null;
+
+  @ApiPropertyOptional({
+    enum: PackageContentUnit,
+    nullable: true,
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null && value !== undefined)
+  @IsEnum(PackageContentUnit)
+  packageUnit?: PackageContentUnit | null;
+}
+
+export class CreateProductDto extends ProductPackageFieldsDto {
   @ApiProperty({ example: 'Mleko' })
   @IsString()
   @MinLength(1)
@@ -83,7 +144,40 @@ export class CreateProductDto {
   category?: string | null;
 }
 
-export class UpdateProductDto {
+export class UpdateProductDto extends ProductPackageFieldsDto {
+  @ApiPropertyOptional({ example: 'Mleko UHT' })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  name?: string;
+
+  @ApiPropertyOptional({ enum: ProductUnit })
+  @IsOptional()
+  @IsEnum(ProductUnit)
+  defaultUnit?: ProductUnit;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: '5901234123457',
+  })
+  @IsOptional()
+  @ValidateIf(isPresentOptional)
+  @IsString()
+  @Matches(EAN_PATTERN, {
+    message: 'ean musi mieć 8, 12, 13 lub 14 cyfr.',
+  })
+  ean?: string | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true, example: 'Nabiał' })
+  @IsOptional()
+  @ValidateIf(isPresentOptional)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  category?: string | null;
+
   @ApiPropertyOptional({ enum: ProductPurchaseMode })
   @IsOptional()
   @IsEnum(ProductPurchaseMode)
@@ -137,6 +231,16 @@ export class ProductDto {
   @ApiProperty()
   kitchenId!: string;
 
+  @ApiProperty({ type: String, format: 'uuid', nullable: true })
+  groupId!: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    description: 'Nazwa grupy (gdy załadowana z relacji).',
+  })
+  groupName?: string | null;
+
   @ApiProperty()
   name!: string;
 
@@ -151,6 +255,18 @@ export class ProductDto {
 
   @ApiProperty({ type: String, nullable: true })
   ean!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  brand!: string | null;
+
+  @ApiProperty({ type: String, nullable: true })
+  variantLabel!: string | null;
+
+  @ApiProperty({ type: String, nullable: true, example: '125.000' })
+  packageQuantity!: string | null;
+
+  @ApiProperty({ enum: PackageContentUnit, nullable: true })
+  packageUnit!: PackageContentUnit | null;
 
   @ApiProperty({
     type: String,

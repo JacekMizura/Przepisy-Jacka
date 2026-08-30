@@ -258,6 +258,7 @@ function AddProductModal({
 
 function ShoppingRow({
   item,
+  kitchenId,
   onToggleBought,
   onSkip,
   onDelete,
@@ -266,6 +267,7 @@ function ShoppingRow({
   showUnbuy,
 }: {
   item: ShoppingListItem;
+  kitchenId: string;
   onToggleBought: () => void;
   onSkip: () => void;
   onDelete: () => void;
@@ -285,6 +287,9 @@ function ShoppingRow({
   const canChangePurchaseMode =
     Boolean(item.productId) && Boolean(onChangePurchaseMode);
   const thumb = productImageUrls(item.product).thumbnail;
+  const unboundName = !item.productId
+    ? (item.customName ?? item.product?.name ?? "").trim()
+    : "";
 
   return (
     <li
@@ -370,6 +375,15 @@ function ShoppingRow({
         </button>
         {menuOpen ? (
           <div className="absolute right-0 z-10 mt-1 w-52 rounded-lg border border-gray-100 bg-white py-1 shadow-lg">
+            {!item.productId && unboundName ? (
+              <Link
+                href={`/kitchens/${kitchenId}/products/new?stock=1&name=${encodeURIComponent(unboundName)}&from=shopping`}
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-gray-50"
+                onClick={() => setMenuOpen(false)}
+              >
+                Utwórz produkt i odłóż
+              </Link>
+            ) : null}
             {canChangePurchaseMode && item.status === "pending" ? (
               <button
                 type="button"
@@ -756,6 +770,7 @@ export default function ShoppingListPage() {
                       <ShoppingRow
                         key={item.id}
                         item={item}
+                        kitchenId={kitchenId}
                         pending={updateStatus.isPending}
                         onToggleBought={() =>
                           updateStatus.mutate({
@@ -791,6 +806,7 @@ export default function ShoppingListPage() {
                       <ShoppingRow
                         key={item.id}
                         item={item}
+                        kitchenId={kitchenId}
                         showUnbuy
                         pending={updateStatus.isPending}
                         onToggleBought={() =>
@@ -829,6 +845,7 @@ export default function ShoppingListPage() {
                         <ShoppingRow
                           key={item.id}
                           item={item}
+                          kitchenId={kitchenId}
                           onToggleBought={() =>
                             updateStatus.mutate({
                               itemId: item.id,

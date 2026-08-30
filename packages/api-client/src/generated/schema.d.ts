@@ -341,6 +341,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/kitchens/{kitchenId}/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Katalog z grupami produktów i produktami bez grupy (z podsumowaniem zapasu) */
+        get: operations["StockController_listCatalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/product-groups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Lista grup produktów (rodzaje) */
+        get: operations["StockController_listProductGroups"];
+        put?: never;
+        /** Utworzenie grupy produktów */
+        post: operations["StockController_createProductGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/product-groups/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Autocomplete grup produktów */
+        get: operations["StockController_searchProductGroups"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/product-groups/{groupId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Szczegóły grupy z produktami */
+        get: operations["StockController_getProductGroup"];
+        put?: never;
+        post?: never;
+        /** Usunięcie grupy (produkty zostają, groupId → null) */
+        delete: operations["StockController_deleteProductGroup"];
+        options?: never;
+        head?: never;
+        /** Zmiana nazwy grupy */
+        patch: operations["StockController_updateProductGroup"];
+        trace?: never;
+    };
     "/api/kitchens/{kitchenId}/products": {
         parameters: {
             query?: never;
@@ -353,6 +424,40 @@ export interface paths {
         put?: never;
         /** Dodanie produktu do katalogu */
         post: operations["StockController_createProduct"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/products/match": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Dopasowanie produktu po EAN/nazwie (bez automatycznego scalania podobnych nazw) */
+        get: operations["StockController_matchProducts"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/product-intakes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Atomowe przyjęcie produktu (nowy lub istniejący) z opcjonalnym zapasem i nutrition */
+        post: operations["StockController_createProductIntake"];
         delete?: never;
         options?: never;
         head?: never;
@@ -373,8 +478,25 @@ export interface paths {
         delete: operations["StockController_deleteProduct"];
         options?: never;
         head?: never;
-        /** Aktualizacja produktu (m.in. purchaseMode) */
+        /** Aktualizacja produktu (name, defaultUnit, ean, category, purchaseMode, grupa, wariant) */
         patch: operations["StockController_updateProduct"];
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/products/{productId}/assign-group": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Przypisanie produktu do grupy (lub odłączenie) */
+        post: operations["StockController_assignProductGroup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/kitchens/{kitchenId}/products/{productId}/configure-purchase": {
@@ -423,7 +545,8 @@ export interface paths {
         /** Zapis wartości odżywczych produktu */
         put: operations["StockController_upsertProductNutrition"];
         post?: never;
-        delete?: never;
+        /** Usunięcie wartości odżywczych produktu */
+        delete: operations["StockController_deleteProductNutrition"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1096,6 +1219,24 @@ export interface components {
             suggested: components["schemas"]["UsdaCatalogSuggestedNutritionDto"];
             missingOptional: string[];
         };
+        ProductGroupStockByUnitDto: {
+            /** @enum {string} */
+            unit: "piece" | "gram" | "milliliter";
+            /** @example 1250.000 */
+            totalQuantity: string;
+        };
+        ProductGroupSummaryDto: {
+            id: string;
+            name: string;
+            productCount: number;
+            activeProductCount: number;
+            batchCount: number;
+            stockByUnit: components["schemas"]["ProductGroupStockByUnitDto"][];
+            /** @description Do 4 okładek z produktów w grupie. */
+            coverImages: components["schemas"]["MediaImageDto"][];
+            /** @description Liczba produktów w grupie mających wartości odżywcze. */
+            hasNutritionCount: number;
+        };
         ProductNutritionDto: {
             productId: string;
             /** @example 100.000 */
@@ -1137,9 +1278,13 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
-        ProductDto: {
+        CatalogProductDto: {
             id: string;
             kitchenId: string;
+            /** Format: uuid */
+            groupId: string | null;
+            /** @description Nazwa grupy (gdy załadowana z relacji). */
+            groupName?: string | null;
             name: string;
             normalizedName: string;
             /** @enum {string} */
@@ -1147,6 +1292,72 @@ export interface components {
             /** @enum {string} */
             purchaseMode: "unconfigured" | "packaged" | "exact";
             ean: string | null;
+            brand: string | null;
+            variantLabel: string | null;
+            /** @example 125.000 */
+            packageQuantity: string | null;
+            /** @enum {string|null} */
+            packageUnit: "piece" | "gram" | "kilogram" | "milliliter" | "liter" | null;
+            /** @description Starsze źródło zdjęcia (http lub data URL). */
+            imageUrl: string | null;
+            /** @description Zdjęcie z magazynu mediów; podpisane URL-e wygasają. */
+            image: components["schemas"]["MediaImageDto"] | null;
+            nutrition: components["schemas"]["ProductNutritionDto"] | null;
+            category: string | null;
+            /**
+             * Format: date-time
+             * @description Null = aktywny katalog; ustawione = zarchiwizowany.
+             */
+            archivedAt: string | null;
+            /** @description true gdy archivedAt jest ustawione. */
+            isArchived: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            purchaseOptions?: components["schemas"]["PurchaseOptionDto"][];
+            batchCount: number;
+            /** @description Suma ilości w defaultUnit produktu (aktywne partie). */
+            totalQuantity: string;
+        };
+        KitchenCatalogDto: {
+            groups: components["schemas"]["ProductGroupSummaryDto"][];
+            ungroupedProducts: components["schemas"]["CatalogProductDto"][];
+        };
+        ProductGroupDto: {
+            id: string;
+            kitchenId: string;
+            name: string;
+            normalizedName: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        CreateProductGroupDto: {
+            /** @example Mozzarella */
+            name: string;
+        };
+        ProductDto: {
+            id: string;
+            kitchenId: string;
+            /** Format: uuid */
+            groupId: string | null;
+            /** @description Nazwa grupy (gdy załadowana z relacji). */
+            groupName?: string | null;
+            name: string;
+            normalizedName: string;
+            /** @enum {string} */
+            defaultUnit: "piece" | "gram" | "milliliter";
+            /** @enum {string} */
+            purchaseMode: "unconfigured" | "packaged" | "exact";
+            ean: string | null;
+            brand: string | null;
+            variantLabel: string | null;
+            /** @example 125.000 */
+            packageQuantity: string | null;
+            /** @enum {string|null} */
+            packageUnit: "piece" | "gram" | "kilogram" | "milliliter" | "liter" | null;
             /** @description Starsze źródło zdjęcia (http lub data URL). */
             imageUrl: string | null;
             /** @description Zdjęcie z magazynu mediów; podpisane URL-e wygasają. */
@@ -1166,7 +1377,39 @@ export interface components {
             updatedAt: string;
             purchaseOptions?: components["schemas"]["PurchaseOptionDto"][];
         };
+        ProductGroupDetailDto: {
+            id: string;
+            kitchenId: string;
+            name: string;
+            normalizedName: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+            products: components["schemas"]["ProductDto"][];
+            summary: components["schemas"]["ProductGroupSummaryDto"];
+        };
+        UpdateProductGroupDto: {
+            /** @example Mozzarella */
+            name: string;
+        };
         CreateProductDto: {
+            /**
+             * Format: uuid
+             * @description Opcjonalny rodzaj (ProductGroup) w tej kuchni.
+             */
+            groupId?: string | null;
+            /** @example Galbani */
+            brand?: string | null;
+            /** @example kulka */
+            variantLabel?: string | null;
+            /**
+             * @description Ilość w jednym opakowaniu handlowym.
+             * @example 125.000
+             */
+            packageQuantity?: string | null;
+            /** @enum {string|null} */
+            packageUnit?: "piece" | "gram" | "kilogram" | "milliliter" | "liter" | null;
             /** @example Mleko */
             name: string;
             /**
@@ -1184,27 +1427,47 @@ export interface components {
             /** @example Nabiał */
             category?: string | null;
         };
-        UpdateProductDto: {
-            /** @enum {string} */
-            purchaseMode?: "unconfigured" | "packaged" | "exact";
+        ProductMatchResultDto: {
+            exactEan: components["schemas"]["ProductDto"] | null;
+            exactName: components["schemas"]["ProductDto"] | null;
+            archivedMatch: components["schemas"]["ProductDto"] | null;
+            /** @description Sugestie podobnych nazw — nie scalają automatycznie produktów. */
+            nameSuggestions: components["schemas"]["ProductDto"][];
+            /** @description Sugestie grup o podobnej nazwie (organizacja katalogu). */
+            suggestedGroups: components["schemas"]["ProductGroupDto"][];
+            /** @example Ten produkt jest już w katalogu. Możesz odłożyć nową kupioną ilość do zapasów. */
+            message: Record<string, never> | null;
         };
-        ConfigureProductPurchaseOptionDto: {
-            /** @example Karton 1 l */
-            name: string;
-            /** @example 1000.000 */
-            contentQuantity: string;
-            /** @enum {string} */
-            contentUnit: "piece" | "gram" | "milliliter";
-            /** @default true */
-            isDefault: boolean;
-        };
-        ConfigureProductPurchaseDto: {
+        ProductIntakeNewProductDto: {
             /**
-             * @description packaged wymaga pierwszej opcji; exact nie wymaga opcji; unconfigured czyści tryb bez usuwania opcji.
-             * @enum {string}
+             * Format: uuid
+             * @description Opcjonalny rodzaj (ProductGroup) w tej kuchni.
              */
-            mode: "unconfigured" | "packaged" | "exact";
-            option?: components["schemas"]["ConfigureProductPurchaseOptionDto"];
+            groupId?: string | null;
+            /** @example Galbani */
+            brand?: string | null;
+            /** @example kulka */
+            variantLabel?: string | null;
+            /**
+             * @description Ilość w jednym opakowaniu handlowym.
+             * @example 125.000
+             */
+            packageQuantity?: string | null;
+            /** @enum {string|null} */
+            packageUnit?: "piece" | "gram" | "kilogram" | "milliliter" | "liter" | null;
+            /** @example Mleko */
+            name: string;
+            /** @enum {string} */
+            defaultUnit: "piece" | "gram" | "milliliter";
+            ean?: string | null;
+            category?: string | null;
+            /**
+             * Format: uuid
+             * @description Gotowy MediaAsset (purpose=product) z tej kuchni — bez base64.
+             */
+            imageMediaId?: string | null;
+            /** @description Utwórz nową grupę o tej nazwie w tej samej transakcji (wzajemnie z groupId). */
+            createGroupName?: string;
         };
         UpsertProductNutritionDto: {
             /**
@@ -1251,6 +1514,139 @@ export interface components {
             /** @description Jawna masa części jadalnej 1 szt. (g), gdy baseUnit=piece. */
             sourcePieceGrams?: string | null;
         };
+        ProductIntakeStockDto: {
+            /**
+             * @description Ilość zapasu w defaultUnit produktu. Wymagane dokładnie jedno z: quantity albo packageCount.
+             * @example 1000.000
+             */
+            quantity?: string;
+            /**
+             * @description Liczba opakowań — wymaga packageQuantity/packageUnit produktu; wynik w defaultUnit.
+             * @example 2
+             */
+            packageCount?: string;
+            /**
+             * @default pantry
+             * @enum {string}
+             */
+            location: "pantry" | "fridge" | "freezer" | "other";
+            /**
+             * @description Łączna cena w groszach; pominięcie / null = nieznana.
+             * @example 599
+             */
+            purchasePriceMinor?: Record<string, never> | null;
+            storeName?: string | null;
+            /** Format: date-time */
+            purchasedAt?: string;
+            /** Format: date-time */
+            expiresAt?: string | null;
+        };
+        CreateProductIntakeDto: {
+            /** @description Klucz idempotencji (UUID lub własny). Unikalny globalnie. */
+            idempotencyKey: string;
+            /** @description Nowy produkt — wzajemnie wykluczające się z existingProductId. */
+            newProduct?: components["schemas"]["ProductIntakeNewProductDto"];
+            /**
+             * Format: uuid
+             * @description Istniejący produkt — wzajemnie wykluczające się z newProduct.
+             */
+            existingProductId?: string;
+            /**
+             * @description Gdy istniejący produkt jest w archiwum: przywróć przed dodaniem zapasu.
+             * @default false
+             */
+            restoreArchived: boolean;
+            /** @description Wartości odżywcze do zapisu w tej samej transakcji (tylko gdy kompletne). */
+            nutrition?: components["schemas"]["UpsertProductNutritionDto"];
+            /** @description Gdy podane — tworzy partię zapasu w tej samej transakcji. */
+            stock?: components["schemas"]["ProductIntakeStockDto"];
+        };
+        StockItemDto: {
+            id: string;
+            productId: string;
+            /** @example 500.000 */
+            initialQuantity: string;
+            /** @example 500.000 */
+            quantity: string;
+            /** @enum {string} */
+            location: "pantry" | "fridge" | "freezer" | "other";
+            /** Format: date-time */
+            expiresAt: string | null;
+            /** Format: date-time */
+            purchasedAt: string | null;
+            /** @example 599 */
+            purchasePriceMinor?: Record<string, never> | null;
+            storeName: string | null;
+            /** @example PLN */
+            currency: string;
+            ean: string | null;
+            imageUrl: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        ProductIntakeResultDto: {
+            product: components["schemas"]["ProductDto"];
+            stockItem: components["schemas"]["StockItemDto"] | null;
+            /** @description true gdy odpowiedź pochodzi z cache idempotencji. */
+            replayed: boolean;
+            /** @description true gdy produkt był przywrócony z archiwum w tym żądaniu. */
+            restoredFromArchive: boolean;
+        };
+        UpdateProductDto: {
+            /**
+             * Format: uuid
+             * @description Opcjonalny rodzaj (ProductGroup) w tej kuchni.
+             */
+            groupId?: string | null;
+            /** @example Galbani */
+            brand?: string | null;
+            /** @example kulka */
+            variantLabel?: string | null;
+            /**
+             * @description Ilość w jednym opakowaniu handlowym.
+             * @example 125.000
+             */
+            packageQuantity?: string | null;
+            /** @enum {string|null} */
+            packageUnit?: "piece" | "gram" | "kilogram" | "milliliter" | "liter" | null;
+            /** @example Mleko UHT */
+            name?: string;
+            /** @enum {string} */
+            defaultUnit?: "piece" | "gram" | "milliliter";
+            /** @example 5901234123457 */
+            ean?: string | null;
+            /** @example Nabiał */
+            category?: string | null;
+            /** @enum {string} */
+            purchaseMode?: "unconfigured" | "packaged" | "exact";
+        };
+        AssignProductGroupDto: {
+            /**
+             * Format: uuid
+             * @description null odłącza produkt od grupy.
+             */
+            groupId: string | null;
+        };
+        ConfigureProductPurchaseOptionDto: {
+            /** @example Karton 1 l */
+            name: string;
+            /** @example 1000.000 */
+            contentQuantity: string;
+            /** @enum {string} */
+            contentUnit: "piece" | "gram" | "milliliter";
+            /** @default true */
+            isDefault: boolean;
+        };
+        ConfigureProductPurchaseDto: {
+            /**
+             * @description packaged wymaga pierwszej opcji; exact nie wymaga opcji; unconfigured czyści tryb bez usuwania opcji.
+             * @enum {string}
+             */
+            mode: "unconfigured" | "packaged" | "exact";
+            option?: components["schemas"]["ConfigureProductPurchaseOptionDto"];
+        };
         CreatePurchaseOptionDto: {
             /** @example Karton 1 l */
             name: string;
@@ -1271,30 +1667,6 @@ export interface components {
             isDefault?: boolean;
             isActive?: boolean;
         };
-        StockItemDto: {
-            id: string;
-            productId: string;
-            /** @example 500.000 */
-            initialQuantity: string;
-            /** @example 500.000 */
-            quantity: string;
-            /** @enum {string} */
-            location: "pantry" | "fridge" | "freezer" | "other";
-            /** Format: date-time */
-            expiresAt: string | null;
-            /** Format: date-time */
-            purchasedAt: string | null;
-            /** @example 599 */
-            purchasePriceMinor?: Record<string, never> | null;
-            /** @example PLN */
-            currency: string;
-            ean: string | null;
-            imageUrl: string | null;
-            /** Format: date-time */
-            createdAt: string;
-            /** Format: date-time */
-            updatedAt: string;
-        };
         CreateStockItemDto: {
             productId: string;
             /**
@@ -1313,6 +1685,8 @@ export interface components {
              * @example 599
              */
             purchasePriceMinor?: Record<string, never> | null;
+            /** @description Sklep / źródło (bez tworzenia Purchase). */
+            storeName?: string | null;
             /** @example PLN */
             currency?: string;
             /**
@@ -2693,6 +3067,171 @@ export interface operations {
             };
         };
     };
+    StockController_listCatalog: {
+        parameters: {
+            query?: {
+                search?: string;
+            };
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["KitchenCatalogDto"];
+                };
+            };
+        };
+    };
+    StockController_listProductGroups: {
+        parameters: {
+            query?: {
+                /** @description Szukaj po nazwie grupy / produktu / marce / wariancie / EAN. */
+                search?: string;
+                /** @description Filtr produktów wliczanych do podsumowań. Domyślnie active. */
+                archive?: "active" | "archived" | "all";
+            };
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductGroupSummaryDto"][];
+                };
+            };
+        };
+    };
+    StockController_createProductGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateProductGroupDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductGroupDto"];
+                };
+            };
+        };
+    };
+    StockController_searchProductGroups: {
+        parameters: {
+            query: {
+                q: string;
+            };
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductGroupDto"][];
+                };
+            };
+        };
+    };
+    StockController_getProductGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                groupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductGroupDetailDto"];
+                };
+            };
+        };
+    };
+    StockController_deleteProductGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                groupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    StockController_updateProductGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                groupId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateProductGroupDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductGroupDto"];
+                };
+            };
+        };
+    };
     StockController_listProducts: {
         parameters: {
             query?: {
@@ -2742,6 +3281,55 @@ export interface operations {
             };
         };
     };
+    StockController_matchProducts: {
+        parameters: {
+            query?: {
+                ean?: string;
+                name?: string;
+            };
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductMatchResultDto"];
+                };
+            };
+        };
+    };
+    StockController_createProductIntake: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateProductIntakeDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductIntakeResultDto"];
+                };
+            };
+        };
+    };
     StockController_deleteProduct: {
         parameters: {
             query?: {
@@ -2779,6 +3367,32 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["UpdateProductDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductDto"];
+                };
+            };
+        };
+    };
+    StockController_assignProductGroup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssignProductGroupDto"];
             };
         };
         responses: {
@@ -2884,6 +3498,31 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductNutritionDto"];
+                };
+            };
+        };
+    };
+    StockController_deleteProductNutrition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @example true */
+                        deleted?: boolean;
+                    };
                 };
             };
         };

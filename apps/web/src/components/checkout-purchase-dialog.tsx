@@ -257,6 +257,19 @@ export function CheckoutPurchaseDialog({
                   <p className="text-sm text-gray-600">
                     Pozycja tekstowa — powiąż z produktem w katalogu:
                   </p>
+                  <p>
+                    <a
+                      href={`/kitchens/${kitchenId}/products/new?stock=1&name=${encodeURIComponent(line.newProductName || line.label)}&from=shopping`}
+                      className="text-sm font-medium text-emerald-700 hover:underline"
+                    >
+                      Utwórz produkt i odłóż
+                    </a>
+                    <span className="text-xs text-gray-500">
+                      {" "}
+                      (osobny formularz — możesz też dokończyć rozliczenie
+                      poniżej)
+                    </span>
+                  </p>
                   <div className="flex flex-wrap gap-3">
                     <label className="flex items-center gap-2 text-sm">
                       <input

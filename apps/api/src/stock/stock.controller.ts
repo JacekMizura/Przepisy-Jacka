@@ -21,6 +21,24 @@ import type { UserSession } from '@thallesp/nestjs-better-auth';
 
 import { StorageLocation } from '../generated/prisma/client';
 import {
+  CreateProductIntakeDto,
+  ProductIntakeResultDto,
+  ProductMatchQueryDto,
+  ProductMatchResultDto,
+} from './dto/product-intake.dto';
+import {
+  AssignProductGroupDto,
+  CatalogQueryDto,
+  CreateProductGroupDto,
+  KitchenCatalogDto,
+  ListProductGroupsQueryDto,
+  ProductGroupDetailDto,
+  ProductGroupDto,
+  ProductGroupSummaryDto,
+  SearchProductGroupsQueryDto,
+  UpdateProductGroupDto,
+} from './dto/product-group.dto';
+import {
   ProductNutritionDto,
   UpsertProductNutritionDto,
 } from './dto/product-nutrition.dto';
@@ -48,12 +66,132 @@ import {
   StockConsumptionResultDto,
 } from './dto/stock-consume.dto';
 import { StockProductSummaryDto } from './dto/stock-summary.dto';
+import { ProductGroupService } from './product-group.service';
 import { StockService } from './stock.service';
 
 @ApiTags('stock')
 @Controller('kitchens/:kitchenId')
 export class StockController {
-  constructor(private readonly stockService: StockService) {}
+  constructor(
+    private readonly stockService: StockService,
+    private readonly productGroupService: ProductGroupService,
+  ) {}
+
+  @Get('catalog')
+  @ApiOperation({
+    summary:
+      'Katalog z grupami produktów i produktami bez grupy (z podsumowaniem zapasu)',
+  })
+  @ApiOkResponse({ type: KitchenCatalogDto })
+  listCatalog(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Query() query: CatalogQueryDto,
+  ): Promise<KitchenCatalogDto> {
+    return this.productGroupService.listCatalog(
+      session.user.id,
+      kitchenId,
+      query,
+    );
+  }
+
+  @Get('product-groups')
+  @ApiOperation({ summary: 'Lista grup produktów (rodzaje)' })
+  @ApiOkResponse({ type: [ProductGroupSummaryDto] })
+  listProductGroups(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Query() query: ListProductGroupsQueryDto,
+  ): Promise<ProductGroupSummaryDto[]> {
+    const archive =
+      query.archive === 'archived' ||
+      query.archive === 'all' ||
+      query.archive === 'active'
+        ? query.archive
+        : 'active';
+    return this.productGroupService.listGroups(session.user.id, kitchenId, {
+      search: query.search,
+      archive,
+    });
+  }
+
+  @Get('product-groups/search')
+  @ApiOperation({ summary: 'Autocomplete grup produktów' })
+  @ApiOkResponse({ type: [ProductGroupDto] })
+  searchProductGroups(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Query() query: SearchProductGroupsQueryDto,
+  ): Promise<ProductGroupDto[]> {
+    return this.productGroupService.searchGroups(
+      session.user.id,
+      kitchenId,
+      query.q,
+    );
+  }
+
+  @Post('product-groups')
+  @ApiOperation({ summary: 'Utworzenie grupy produktów' })
+  @ApiOkResponse({ type: ProductGroupDto })
+  createProductGroup(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Body() body: CreateProductGroupDto,
+  ): Promise<ProductGroupDto> {
+    return this.productGroupService.createGroup(
+      session.user.id,
+      kitchenId,
+      body,
+    );
+  }
+
+  @Get('product-groups/:groupId')
+  @ApiOperation({ summary: 'Szczegóły grupy z produktami' })
+  @ApiOkResponse({ type: ProductGroupDetailDto })
+  getProductGroup(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Param('groupId', ParseUUIDPipe) groupId: string,
+  ): Promise<ProductGroupDetailDto> {
+    return this.productGroupService.getGroup(
+      session.user.id,
+      kitchenId,
+      groupId,
+    );
+  }
+
+  @Patch('product-groups/:groupId')
+  @ApiOperation({ summary: 'Zmiana nazwy grupy' })
+  @ApiOkResponse({ type: ProductGroupDto })
+  updateProductGroup(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Param('groupId', ParseUUIDPipe) groupId: string,
+    @Body() body: UpdateProductGroupDto,
+  ): Promise<ProductGroupDto> {
+    return this.productGroupService.updateGroup(
+      session.user.id,
+      kitchenId,
+      groupId,
+      body,
+    );
+  }
+
+  @Delete('product-groups/:groupId')
+  @ApiOperation({
+    summary: 'Usunięcie grupy (produkty zostają, groupId → null)',
+  })
+  async deleteProductGroup(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Param('groupId', ParseUUIDPipe) groupId: string,
+  ): Promise<{ ok: true }> {
+    return this.productGroupService.deleteGroup(
+      session.user.id,
+      kitchenId,
+      groupId,
+    );
+  }
 
   @Get('products')
   @ApiOperation({ summary: 'Katalog produktów kuchni' })
@@ -87,8 +225,43 @@ export class StockController {
     return this.stockService.createProduct(session.user.id, kitchenId, body);
   }
 
+  @Get('products/match')
+  @ApiOperation({
+    summary:
+      'Dopasowanie produktu po EAN/nazwie (bez automatycznego scalania podobnych nazw)',
+  })
+  @ApiOkResponse({ type: ProductMatchResultDto })
+  matchProducts(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Query() query: ProductMatchQueryDto,
+  ): Promise<ProductMatchResultDto> {
+    return this.stockService.matchProducts(session.user.id, kitchenId, query);
+  }
+
+  @Post('product-intakes')
+  @ApiOperation({
+    summary:
+      'Atomowe przyjęcie produktu (nowy lub istniejący) z opcjonalnym zapasem i nutrition',
+  })
+  @ApiOkResponse({ type: ProductIntakeResultDto })
+  createProductIntake(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Body() body: CreateProductIntakeDto,
+  ): Promise<ProductIntakeResultDto> {
+    return this.stockService.createProductIntake(
+      session.user.id,
+      kitchenId,
+      body,
+    );
+  }
+
   @Patch('products/:productId')
-  @ApiOperation({ summary: 'Aktualizacja produktu (m.in. purchaseMode)' })
+  @ApiOperation({
+    summary:
+      'Aktualizacja produktu (name, defaultUnit, ean, category, purchaseMode, grupa, wariant)',
+  })
   @ApiOkResponse({ type: ProductDto })
   updateProduct(
     @Session() session: UserSession,
@@ -97,6 +270,23 @@ export class StockController {
     @Body() body: UpdateProductDto,
   ): Promise<ProductDto> {
     return this.stockService.updateProduct(
+      session.user.id,
+      kitchenId,
+      productId,
+      body,
+    );
+  }
+
+  @Post('products/:productId/assign-group')
+  @ApiOperation({ summary: 'Przypisanie produktu do grupy (lub odłączenie)' })
+  @ApiOkResponse({ type: ProductDto })
+  assignProductGroup(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Param('productId', ParseUUIDPipe) productId: string,
+    @Body() body: AssignProductGroupDto,
+  ): Promise<ProductDto> {
+    return this.productGroupService.assignProduct(
       session.user.id,
       kitchenId,
       productId,
@@ -190,6 +380,26 @@ export class StockController {
       kitchenId,
       productId,
       body,
+    );
+  }
+
+  @Delete('products/:productId/nutrition')
+  @ApiOperation({ summary: 'Usunięcie wartości odżywczych produktu' })
+  @ApiOkResponse({
+    schema: {
+      type: 'object',
+      properties: { deleted: { type: 'boolean', example: true } },
+    },
+  })
+  deleteProductNutrition(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Param('productId', ParseUUIDPipe) productId: string,
+  ): Promise<{ deleted: true }> {
+    return this.stockService.deleteProductNutrition(
+      session.user.id,
+      kitchenId,
+      productId,
     );
   }
 

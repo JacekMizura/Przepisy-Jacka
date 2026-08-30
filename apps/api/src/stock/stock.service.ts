@@ -12,9 +12,7 @@ import {
   ProductUnit,
   ShoppingListItemStatus,
   StorageLocation,
-  type MediaAsset,
   type Product,
-  type ProductNutrition,
   type ProductPurchaseOption,
   type StockItem,
 } from '../generated/prisma/client';
@@ -27,7 +25,6 @@ import {
 } from '../common/quantity';
 import { PrismaService } from '../prisma/prisma.service';
 import { requireKitchenMember } from '../kitchens/kitchen-access';
-import { MediaImageDto } from '../media/dto/media.dto';
 import { MediaService } from '../media/media.service';
 import {
   CreateProductIntakeDto,
@@ -72,7 +69,18 @@ import {
   type StockBatchRow,
 } from './stock-consume';
 import { resolveStockConsumptionKindAndReason } from './stock-consumption-kind';
+import { packageCountToStockQuantity } from './package-quantity';
 import { buildProductMatchMessage } from './product-match-message';
+import { ProductGroupService } from './product-group.service';
+import {
+  applyOptionalPackageFieldUpdates,
+  parsePackageFields,
+} from './product-package-fields';
+import {
+  toProductDto,
+  toProductNutritionDto,
+  type ProductWithRelations,
+} from './product-mapper';
 
 const stockBatchInclude = {
   purchaseLineItem: {
@@ -130,13 +138,15 @@ const productInclude = {
   },
   imageMedia: true,
   nutrition: true,
-};
+  group: { select: { id: true, name: true } },
+} satisfies Prisma.ProductInclude;
 
 @Injectable()
 export class StockService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mediaService: MediaService,
+    private readonly productGroupService: ProductGroupService,
   ) {}
 
   async listProducts(
@@ -176,6 +186,14 @@ export class StockService {
     const ean = normalizeOptionalEan(dto.ean);
     const imageUrl = normalizeOptionalImageUrl(dto.imageUrl);
     const category = normalizeOptionalCategory(dto.category);
+    const packageFields = parsePackageFields(dto);
+    if (dto.groupId) {
+      await this.productGroupService.assertGroupInKitchen(
+        this.prisma,
+        kitchenId,
+        dto.groupId,
+      );
+    }
 
     const archivedByName = await this.prisma.product.findFirst({
       where: { kitchenId, normalizedName, archivedAt: { not: null } },
@@ -204,9 +222,15 @@ export class StockService {
           ean,
           imageUrl,
           category,
+          groupId: dto.groupId ?? null,
+          brand: packageFields.brand,
+          variantLabel: packageFields.variantLabel,
+          packageQuantity: packageFields.packageQuantity,
+          packageUnit: packageFields.packageUnit,
         },
+        include: productInclude,
       });
-      return this.toProductDtoWithMedia({ ...product, purchaseOptions: [] });
+      return this.toProductDtoWithMedia(product);
     } catch (error) {
       throw toProductWriteError(error);
     }
@@ -281,15 +305,28 @@ export class StockService {
       data.purchaseMode = dto.purchaseMode;
     }
 
+    if (dto.groupId !== undefined) {
+      if (dto.groupId !== null) {
+        await this.productGroupService.assertGroupInKitchen(
+          this.prisma,
+          kitchenId,
+          dto.groupId,
+        );
+      }
+      data.group =
+        dto.groupId === null
+          ? { disconnect: true }
+          : { connect: { id: dto.groupId } };
+    }
+
+    applyOptionalPackageFieldUpdates(data, dto);
+
     if (Object.keys(data).length === 0) {
-      const options = await this.prisma.productPurchaseOption.findMany({
-        where: { productId: product.id, isActive: true },
-        orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
+      const current = await this.prisma.product.findFirstOrThrow({
+        where: { id: product.id },
+        include: productInclude,
       });
-      return this.toProductDtoWithMedia({
-        ...product,
-        purchaseOptions: options,
-      });
+      return this.toProductDtoWithMedia(current);
     }
 
     try {
@@ -432,11 +469,16 @@ export class StockService {
       }
     }
 
+    const suggestedGroups = nameQuery
+      ? await this.productGroupService.suggestGroupsByName(kitchenId, nameQuery)
+      : [];
+
     return {
       exactEan,
       exactName,
       archivedMatch,
       nameSuggestions,
+      suggestedGroups,
       message: buildProductMatchMessage({
         exactEan,
         exactName,
@@ -517,6 +559,36 @@ export class StockService {
           }
           const ean = normalizeOptionalEan(newProduct.ean);
           const category = normalizeOptionalCategory(newProduct.category);
+          const packageFields = parsePackageFields(newProduct);
+
+          const hasGroupId =
+            newProduct.groupId !== undefined &&
+            newProduct.groupId !== null &&
+            newProduct.groupId !== '';
+          const createGroupName = newProduct.createGroupName?.trim() ?? '';
+          if (hasGroupId && createGroupName) {
+            throw new BadRequestException(
+              'Podaj groupId albo createGroupName — nie oba naraz.',
+            );
+          }
+
+          let groupId: string | null = null;
+          if (hasGroupId) {
+            await this.productGroupService.assertGroupInKitchen(
+              tx,
+              kitchenId,
+              newProduct.groupId!,
+            );
+            groupId = newProduct.groupId!;
+          } else if (createGroupName) {
+            const createdGroup =
+              await this.productGroupService.createGroupInClient(
+                tx,
+                kitchenId,
+                createGroupName,
+              );
+            groupId = createdGroup.id;
+          }
 
           const archivedByName = await tx.product.findFirst({
             where: { kitchenId, normalizedName, archivedAt: { not: null } },
@@ -543,6 +615,11 @@ export class StockService {
               defaultUnit: newProduct.defaultUnit,
               ean,
               category,
+              groupId,
+              brand: packageFields.brand,
+              variantLabel: packageFields.variantLabel,
+              packageQuantity: packageFields.packageQuantity,
+              packageUnit: packageFields.packageUnit,
             },
           });
 
@@ -586,7 +663,7 @@ export class StockService {
 
         let stockItem: StockItem | null = null;
         if (dto.stock) {
-          const quantity = parseQuantityString(dto.stock.quantity, 'quantity');
+          const quantity = resolveIntakeStockQuantity(product, dto.stock);
           assertStockQuantities(quantity, quantity);
           const priceMinor =
             dto.stock.purchasePriceMinor === undefined
@@ -1715,67 +1792,43 @@ function assertProductNotArchived(product: { archivedAt: Date | null }): void {
   }
 }
 
-type ProductWithRelations = Product & {
-  purchaseOptions?: ProductPurchaseOption[];
-  imageMedia?: MediaAsset | null;
-  nutrition?: ProductNutrition | null;
-};
+function resolveIntakeStockQuantity(
+  product: Product,
+  stock: {
+    quantity?: string;
+    packageCount?: string;
+  },
+): Prisma.Decimal {
+  const hasQuantity =
+    stock.quantity !== undefined &&
+    stock.quantity !== null &&
+    stock.quantity.trim() !== '';
+  const hasPackageCount =
+    stock.packageCount !== undefined &&
+    stock.packageCount !== null &&
+    stock.packageCount.trim() !== '';
 
-function toProductDto(
-  product: ProductWithRelations,
-  image: MediaImageDto | null,
-): ProductDto {
-  return {
-    id: product.id,
-    kitchenId: product.kitchenId,
-    name: product.name,
-    normalizedName: product.normalizedName,
-    defaultUnit: product.defaultUnit,
-    purchaseMode: product.purchaseMode,
-    ean: product.ean,
-    imageUrl: product.imageUrl,
-    image,
-    nutrition: product.nutrition
-      ? toProductNutritionDto(product.nutrition)
-      : null,
-    category: product.category,
-    archivedAt: product.archivedAt?.toISOString() ?? null,
-    isArchived: product.archivedAt !== null,
-    createdAt: product.createdAt.toISOString(),
-    updatedAt: product.updatedAt.toISOString(),
-    purchaseOptions: product.purchaseOptions?.map(toPurchaseOptionDto) ?? [],
-  };
-}
+  if (hasQuantity === hasPackageCount) {
+    throw new BadRequestException(
+      'Podaj dokładnie jedno z: stock.quantity albo stock.packageCount.',
+    );
+  }
 
-function toProductNutritionDto(
-  nutrition: ProductNutrition,
-): ProductNutritionDto {
-  return {
-    productId: nutrition.productId,
-    baseQuantity: formatQuantity(nutrition.baseQuantity),
-    baseUnit: nutrition.baseUnit,
-    kcal: formatQuantity(nutrition.kcal),
-    proteinGrams: formatQuantity(nutrition.proteinGrams),
-    carbsGrams: formatQuantity(nutrition.carbsGrams),
-    fatGrams: formatQuantity(nutrition.fatGrams),
-    fiberGrams:
-      nutrition.fiberGrams !== null
-        ? formatQuantity(nutrition.fiberGrams)
-        : null,
-    saltGrams:
-      nutrition.saltGrams !== null ? formatQuantity(nutrition.saltGrams) : null,
-    source: nutrition.source,
-    sourceFetchedAt: nutrition.sourceFetchedAt?.toISOString() ?? null,
-    sourceLabel: nutrition.sourceLabel,
-    sourceBrand: nutrition.sourceBrand,
-    sourceGenericFoodId: nutrition.sourceGenericFoodId,
-    sourceFdcId: nutrition.sourceFdcId,
-    sourcePieceGrams:
-      nutrition.sourcePieceGrams !== null
-        ? formatQuantity(nutrition.sourcePieceGrams)
-        : null,
-    updatedAt: nutrition.updatedAt.toISOString(),
-  };
+  if (hasPackageCount) {
+    if (product.packageQuantity === null || product.packageUnit === null) {
+      throw new BadRequestException(
+        'packageCount wymaga ustawionych packageQuantity i packageUnit na produkcie.',
+      );
+    }
+    return packageCountToStockQuantity({
+      packageCount: stock.packageCount!,
+      packageQuantity: product.packageQuantity,
+      packageUnit: product.packageUnit,
+      defaultUnit: product.defaultUnit,
+    }).quantity;
+  }
+
+  return parseQuantityString(stock.quantity!, 'quantity');
 }
 
 function parseOptionalNutritionValue(

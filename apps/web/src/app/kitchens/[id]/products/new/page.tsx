@@ -15,6 +15,7 @@ function NewProductPageInner() {
   const stockParam = searchParams.get("stock");
   const defaultPutInStock = stockParam !== "0";
   const initialName = searchParams.get("name") ?? "";
+  const initialGroupId = searchParams.get("groupId");
   const from = searchParams.get("from");
 
   return (
@@ -24,9 +25,16 @@ function NewProductPageInner() {
         mode="create"
         defaultPutInStock={defaultPutInStock}
         initialName={initialName}
+        initialGroupId={initialGroupId}
         onSuccess={({ putInStock, product }) => {
           if (putInStock || from === "stock") {
             router.push(`/kitchens/${kitchenId}/stock`);
+            return;
+          }
+          if (from === "group" && product.groupId) {
+            router.push(
+              `/kitchens/${kitchenId}/product-groups/${product.groupId}`,
+            );
             return;
           }
           router.push(

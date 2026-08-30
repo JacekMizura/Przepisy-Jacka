@@ -13,6 +13,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { MediaImageField } from "@/components/media-image-field";
 import {
+  initialKindFromGroupId,
+  initialKindFromProduct,
+  ProductKindField,
+  type ProductKindSelection,
+} from "@/components/product-entry/product-kind-field";
+import {
   buildUpsertProductNutritionDto,
   createEmptyNutritionDraft,
   draftHasNutritionValues,
@@ -33,6 +39,12 @@ import {
   formatMoneyMinor,
 } from "@/lib/format-quantity";
 import { deleteKitchenMedia } from "@/lib/media-upload";
+import {
+  PACKAGE_UNIT_OPTIONS,
+  packageCountToBaseQuantity,
+  suggestedPackageUnitsFor,
+  type PackageUnit,
+} from "@/lib/package-quantity";
 import {
   PRODUCT_CATEGORY_OPTIONS,
   validateOptionalEan,
@@ -70,6 +82,9 @@ type ProductEntryFormProps = {
   defaultPutInStock?: boolean;
   initialName?: string;
   initialQuantity?: string;
+  /** Prefill rodzaju (np. z `/products/new?groupId=`). */
+  initialGroupId?: string | null;
+  initialGroupName?: string | null;
   onSuccess: (result: ProductEntrySuccess) => void;
 };
 
@@ -118,6 +133,8 @@ export function ProductEntryForm({
   defaultPutInStock = true,
   initialName = "",
   initialQuantity = "",
+  initialGroupId = null,
+  initialGroupName = null,
   onSuccess,
 }: ProductEntryFormProps) {
   const queryClient = useQueryClient();
@@ -129,6 +146,23 @@ export function ProductEntryForm({
     (initialProduct?.defaultUnit as BaseUnit | undefined) ?? "gram",
   );
   const [category, setCategory] = useState(initialProduct?.category ?? "");
+  const [brand, setBrand] = useState(initialProduct?.brand ?? "");
+  const [variantLabel, setVariantLabel] = useState(
+    initialProduct?.variantLabel ?? "",
+  );
+  const [packageQuantity, setPackageQuantity] = useState(
+    initialProduct?.packageQuantity
+      ? String(Number(initialProduct.packageQuantity))
+      : "",
+  );
+  const [packageUnit, setPackageUnit] = useState<PackageUnit | "">(
+    (initialProduct?.packageUnit as PackageUnit | null | undefined) ?? "",
+  );
+  const [kind, setKind] = useState<ProductKindSelection>(() =>
+    mode === "edit" || initialProduct
+      ? initialKindFromProduct(initialProduct)
+      : initialKindFromGroupId(initialGroupId, initialGroupName),
+  );
   const [purchaseMode, setPurchaseMode] = useState<
     UpdateProduct["purchaseMode"]
   >(initialProduct?.purchaseMode ?? "unconfigured");
@@ -145,6 +179,8 @@ export function ProductEntryForm({
 
   const [putInStock, setPutInStock] = useState(defaultPutInStock);
   const [quantity, setQuantity] = useState(initialQuantity);
+  const [packageCount, setPackageCount] = useState("");
+  const [stockByPackages, setStockByPackages] = useState(false);
   const [inputUnit, setInputUnit] = useState<InputUnit>(
     () =>
       inputUnitsFor(
@@ -176,6 +212,13 @@ export function ProductEntryForm({
       ean: initialProduct.ean ?? "",
       defaultUnit: initialProduct.defaultUnit,
       category: initialProduct.category ?? "",
+      brand: initialProduct.brand ?? "",
+      variantLabel: initialProduct.variantLabel ?? "",
+      packageQuantity: initialProduct.packageQuantity
+        ? String(Number(initialProduct.packageQuantity))
+        : "",
+      packageUnit: initialProduct.packageUnit ?? "",
+      kind: kindSnapshot(initialKindFromProduct(initialProduct)),
       purchaseMode: initialProduct.purchaseMode,
       nutrition: initialNutritionDraft(
         initialProduct.nutrition,
@@ -192,6 +235,41 @@ export function ProductEntryForm({
     return () => window.clearTimeout(timer);
   }, [name, ean]);
 
+  useEffect(() => {
+    if (mode !== "create" || !initialGroupId || initialGroupName) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const client = createWebApiClient();
+      const { data, error } = await client.GET(
+        "/api/kitchens/{kitchenId}/product-groups/{groupId}",
+        {
+          params: {
+            path: { kitchenId, groupId: initialGroupId },
+          },
+        },
+      );
+      if (cancelled || error || !data) {
+        return;
+      }
+      setKind({
+        mode: "existing",
+        group: {
+          id: data.id,
+          kitchenId: data.kitchenId,
+          name: data.name,
+          normalizedName: data.normalizedName,
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt,
+        },
+      });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [initialGroupId, initialGroupName, kitchenId, mode]);
+
   function applyDefaultUnit(nextUnit: BaseUnit) {
     setDefaultUnit(nextUnit);
     const units = inputUnitsFor(nextUnit);
@@ -199,6 +277,12 @@ export function ProductEntryForm({
       units.some((unit) => unit.value === current)
         ? current
         : (units[0]?.value ?? "gram"),
+    );
+    const packageUnits = suggestedPackageUnitsFor(nextUnit);
+    setPackageUnit((current) =>
+      current && packageUnits.includes(current)
+        ? current
+        : (packageUnits[0] ?? ""),
     );
     setNutrition((current) => {
       if (draftHasNutritionValues(current)) {
@@ -312,20 +396,33 @@ export function ProductEntryForm({
       ean: ean.trim(),
       defaultUnit,
       category: category.trim(),
+      brand: brand.trim(),
+      variantLabel: variantLabel.trim(),
+      packageQuantity: packageQuantity.trim(),
+      packageUnit,
+      kind: kindSnapshot(kind),
       purchaseMode,
       nutrition,
     });
     return current !== baselineSnapshot;
   }, [
     baselineSnapshot,
+    brand,
     category,
     defaultUnit,
     ean,
+    kind,
     mode,
     name,
     nutrition,
+    packageQuantity,
+    packageUnit,
     purchaseMode,
+    variantLabel,
   ]);
+
+  const packageConfigured =
+    Boolean(packageQuantity.trim()) && Boolean(packageUnit);
 
   const stockUnit =
     mode === "add-batch"
@@ -335,6 +432,25 @@ export function ProductEntryForm({
           (resolvedProduct?.defaultUnit as BaseUnit | undefined) ??
           defaultUnit)
         : defaultUnit;
+
+  const computedPackageStock = useMemo(() => {
+    if (!stockByPackages || !packageConfigured || !packageUnit) {
+      return null;
+    }
+    return packageCountToBaseQuantity({
+      packageCount,
+      packageQuantity,
+      packageUnit,
+      defaultUnit: stockUnit,
+    });
+  }, [
+    packageConfigured,
+    packageCount,
+    packageQuantity,
+    packageUnit,
+    stockByPackages,
+    stockUnit,
+  ]);
 
   async function discardPendingMedia() {
     if (mediaAssetId) {
@@ -356,10 +472,7 @@ export function ProductEntryForm({
     if (mode === "edit") {
       return { ok: true, stock: undefined };
     }
-    const converted = convertToBaseQuantity(quantity, inputUnit, stockUnit);
-    if (!converted.ok) {
-      return { ok: false, message: converted.message };
-    }
+
     const purchasePriceMinor = price.trim() ? minorFromZloty(price) : null;
     if (price.trim() && purchasePriceMinor === null) {
       return {
@@ -367,19 +480,82 @@ export function ProductEntryForm({
         message: "Podaj cenę w złotych, np. 5,99, albo zostaw puste.",
       };
     }
+
+    const stockMeta = {
+      location,
+      ...(purchasePriceMinor !== null ? { purchasePriceMinor } : {}),
+      storeName: storeName.trim() || null,
+      purchasedAt: purchasedAt
+        ? new Date(purchasedAt).toISOString()
+        : undefined,
+      expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
+    } as Omit<
+      NonNullable<CreateProductIntake["stock"]>,
+      "quantity" | "packageCount"
+    >;
+
+    if (stockByPackages && packageConfigured) {
+      if (!packageCount.trim()) {
+        return { ok: false, message: "Podaj liczbę opakowań." };
+      }
+      const converted = packageCountToBaseQuantity({
+        packageCount,
+        packageQuantity,
+        packageUnit: packageUnit as PackageUnit,
+        defaultUnit: stockUnit,
+      });
+      if (!converted.ok) {
+        return { ok: false, message: converted.message };
+      }
+      return {
+        ok: true,
+        stock: {
+          packageCount: packageCount.trim().replace(",", "."),
+          ...stockMeta,
+        } as CreateProductIntake["stock"],
+      };
+    }
+
+    const converted = convertToBaseQuantity(quantity, inputUnit, stockUnit);
+    if (!converted.ok) {
+      return { ok: false, message: converted.message };
+    }
     return {
       ok: true,
       stock: {
         quantity: converted.quantity,
-        location,
-        ...(purchasePriceMinor !== null ? { purchasePriceMinor } : {}),
-        storeName: storeName.trim() || null,
-        purchasedAt: purchasedAt
-          ? new Date(purchasedAt).toISOString()
-          : undefined,
-        expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
+        ...stockMeta,
       } as CreateProductIntake["stock"],
     };
+  }
+
+  function buildPackageFields(): {
+    packageQuantity?: string | null;
+    packageUnit?: PackageUnit | null;
+  } {
+    if (!packageQuantity.trim() && !packageUnit) {
+      return { packageQuantity: null, packageUnit: null };
+    }
+    if (!packageQuantity.trim() || !packageUnit) {
+      return {};
+    }
+    return {
+      packageQuantity: toApiDecimal(packageQuantity),
+      packageUnit,
+    };
+  }
+
+  function buildKindFields(): {
+    groupId?: string | null;
+    createGroupName?: string;
+  } {
+    if (kind.mode === "existing") {
+      return { groupId: kind.group.id };
+    }
+    if (kind.mode === "create") {
+      return { createGroupName: kind.name };
+    }
+    return { groupId: null };
   }
 
   const createIntake = useMutation({
@@ -432,11 +608,30 @@ export function ProductEntryForm({
         }
         body.existingProductId = id;
       } else {
+        const kindFields = buildKindFields();
+        const packageFields = buildPackageFields();
+        if (
+          (packageQuantity.trim() && !packageUnit) ||
+          (!packageQuantity.trim() && packageUnit)
+        ) {
+          throw new Error(
+            "Podaj zarówno ilość w opakowaniu, jak i jednostkę — albo wyczyść oba pola.",
+          );
+        }
         body.newProduct = {
           name: name.trim(),
           defaultUnit,
           ean: ean.trim() || null,
           category: category.trim() || null,
+          brand: brand.trim() || null,
+          variantLabel: variantLabel.trim() || null,
+          ...packageFields,
+          ...(kindFields.groupId !== undefined
+            ? { groupId: kindFields.groupId }
+            : {}),
+          ...(kindFields.createGroupName
+            ? { createGroupName: kindFields.createGroupName }
+            : {}),
           ...(mediaAssetId ? { imageMediaId: mediaAssetId } : {}),
         };
       }
@@ -462,6 +657,10 @@ export function ProductEntryForm({
         queryKey: ["stock-summary", kitchenId],
       });
       await queryClient.invalidateQueries({ queryKey: ["stock", kitchenId] });
+      await queryClient.invalidateQueries({ queryKey: ["catalog", kitchenId] });
+      await queryClient.invalidateQueries({
+        queryKey: ["product-groups", kitchenId],
+      });
       setMediaAssetId(null);
       const putStock = Boolean(result.stockItem);
       const message = result.restoredFromArchive
@@ -508,11 +707,23 @@ export function ProductEntryForm({
       }
 
       const client = createWebApiClient();
+      if (
+        (packageQuantity.trim() && !packageUnit) ||
+        (!packageQuantity.trim() && packageUnit)
+      ) {
+        throw new Error(
+          "Podaj zarówno ilość w opakowaniu, jak i jednostkę — albo wyczyść oba pola.",
+        );
+      }
+      const packageFields = buildPackageFields();
       const patchBody: UpdateProduct = {
         name: name.trim(),
         defaultUnit,
         ean: ean.trim() || null,
         category: category.trim() || null,
+        brand: brand.trim() || null,
+        variantLabel: variantLabel.trim() || null,
+        ...packageFields,
         purchaseMode,
       };
       const { data, error } = await client.PATCH(
@@ -526,6 +737,64 @@ export function ProductEntryForm({
         throw new Error(
           readApiError(error, "Nie udało się zapisać produktu."),
         );
+      }
+
+      const nextGroupId =
+        kind.mode === "existing"
+          ? kind.group.id
+          : kind.mode === "create"
+            ? null
+            : null;
+      const previousGroupId = initialProduct?.groupId ?? resolvedProduct?.groupId ?? null;
+
+      if (kind.mode === "create") {
+        const { data: createdGroup, error: createGroupError } = await client.POST(
+          "/api/kitchens/{kitchenId}/product-groups",
+          {
+            params: { path: { kitchenId } },
+            body: { name: kind.name },
+          },
+        );
+        if (createGroupError || !createdGroup) {
+          throw new Error(
+            readApiError(
+              createGroupError,
+              "Zapisano produkt, ale nie udało się utworzyć rodzaju.",
+            ),
+          );
+        }
+        const { error: assignError } = await client.POST(
+          "/api/kitchens/{kitchenId}/products/{productId}/assign-group",
+          {
+            params: { path: { kitchenId, productId: id } },
+            body: { groupId: createdGroup.id },
+          },
+        );
+        if (assignError) {
+          throw new Error(
+            readApiError(
+              assignError,
+              "Zapisano produkt, ale nie udało się przypisać rodzaju.",
+            ),
+          );
+        }
+        setKind({ mode: "existing", group: createdGroup });
+      } else if (nextGroupId !== previousGroupId) {
+        const { error: assignError } = await client.POST(
+          "/api/kitchens/{kitchenId}/products/{productId}/assign-group",
+          {
+            params: { path: { kitchenId, productId: id } },
+            body: { groupId: nextGroupId },
+          },
+        );
+        if (assignError) {
+          throw new Error(
+            readApiError(
+              assignError,
+              "Zapisano produkt, ale nie udało się zmienić rodzaju.",
+            ),
+          );
+        }
       }
 
       if (nutritionResult.value) {
@@ -563,6 +832,10 @@ export function ProductEntryForm({
     },
     onSuccess: async (product) => {
       await queryClient.invalidateQueries({ queryKey: ["products", kitchenId] });
+      await queryClient.invalidateQueries({ queryKey: ["catalog", kitchenId] });
+      await queryClient.invalidateQueries({
+        queryKey: ["product-groups", kitchenId],
+      });
       await queryClient.invalidateQueries({
         queryKey: ["product-nutrition", kitchenId, product.id],
       });
@@ -572,6 +845,11 @@ export function ProductEntryForm({
           ean: product.ean ?? "",
           defaultUnit: product.defaultUnit,
           category: product.category ?? "",
+          brand: brand.trim(),
+          variantLabel: variantLabel.trim(),
+          packageQuantity: packageQuantity.trim(),
+          packageUnit,
+          kind: kindSnapshot(kind),
           purchaseMode: product.purchaseMode,
           nutrition,
         }),
@@ -672,6 +950,17 @@ export function ProductEntryForm({
         <h2 className="text-sm font-semibold tracking-wide text-emerald-800 uppercase">
           {mode === "edit" ? "Dane produktu" : "Produkt"}
         </h2>
+        {(mode === "create" && !existingProductId) || mode === "edit" ? (
+          <ProductKindField
+            kitchenId={kitchenId}
+            value={kind}
+            onChange={setKind}
+            suggestedGroups={
+              mode === "create" ? (match?.suggestedGroups ?? []) : []
+            }
+            disabled={Boolean(existingProductId) && mode === "create"}
+          />
+        ) : null}
         {mode === "edit" && resolvedProduct ? (
           <ProductPhotoField
             kitchenId={kitchenId}
@@ -712,6 +1001,26 @@ export function ProductEntryForm({
             ) : null}
           </div>
           <div>
+            <Label htmlFor="product-entry-brand">Marka (opcjonalnie)</Label>
+            <Input
+              id="product-entry-brand"
+              value={brand}
+              onChange={(event) => setBrand(event.target.value)}
+              placeholder="np. Galbani"
+              disabled={Boolean(existingProductId) && mode === "create"}
+            />
+          </div>
+          <div>
+            <Label htmlFor="product-entry-variant">Wariant (opcjonalnie)</Label>
+            <Input
+              id="product-entry-variant"
+              value={variantLabel}
+              onChange={(event) => setVariantLabel(event.target.value)}
+              placeholder="np. kulka / light"
+              disabled={Boolean(existingProductId) && mode === "create"}
+            />
+          </div>
+          <div>
             <Label htmlFor="product-entry-ean">EAN (opcjonalnie)</Label>
             <Input
               id="product-entry-ean"
@@ -742,6 +1051,48 @@ export function ProductEntryForm({
                 </option>
               ))}
             </select>
+          </div>
+          <div>
+            <Label htmlFor="product-entry-package-qty">
+              Ilość w opakowaniu
+            </Label>
+            <div className="flex gap-2">
+              <Input
+                id="product-entry-package-qty"
+                inputMode="decimal"
+                value={packageQuantity}
+                onChange={(event) => {
+                  setPackageQuantity(event.target.value);
+                  if (!event.target.value.trim()) {
+                    setStockByPackages(false);
+                  }
+                }}
+                placeholder="np. 125"
+                disabled={Boolean(existingProductId) && mode === "create"}
+                className="flex-1"
+              />
+              <select
+                aria-label="Jednostka opakowania"
+                className="rounded-lg border border-gray-200 bg-white px-2 text-sm"
+                value={packageUnit}
+                onChange={(event) =>
+                  setPackageUnit(event.target.value as PackageUnit | "")
+                }
+                disabled={Boolean(existingProductId) && mode === "create"}
+              >
+                <option value="">—</option>
+                {PACKAGE_UNIT_OPTIONS.filter((option) =>
+                  suggestedPackageUnitsFor(defaultUnit).includes(option.value),
+                ).map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <p className="mt-1 text-xs text-gray-400">
+              Opcjonalnie — ułatwia odkładanie zapasu w opakowaniach.
+            </p>
           </div>
           <div className="sm:col-span-2">
             <Label htmlFor="product-entry-category">Kategoria</Label>
@@ -806,6 +1157,17 @@ export function ProductEntryForm({
                   setEan(catalogHit.ean ?? "");
                   applyDefaultUnit(catalogHit.defaultUnit as BaseUnit);
                   setCategory(catalogHit.category ?? "");
+                  setBrand(catalogHit.brand ?? "");
+                  setVariantLabel(catalogHit.variantLabel ?? "");
+                  setPackageQuantity(
+                    catalogHit.packageQuantity
+                      ? String(Number(catalogHit.packageQuantity))
+                      : "",
+                  );
+                  setPackageUnit(
+                    (catalogHit.packageUnit as PackageUnit | null) ?? "",
+                  );
+                  setKind(initialKindFromProduct(catalogHit));
                   setPutInStock(true);
                 }}
               >
@@ -876,23 +1238,98 @@ export function ProductEntryForm({
             Odłóż od razu do zapasów
           </label>
           {putInStock ? (
-            <StockFields
-              quantity={quantity}
-              setQuantity={setQuantity}
-              inputUnit={inputUnit}
-              setInputUnit={setInputUnit}
-              stockUnit={stockUnit}
-              price={price}
-              setPrice={setPrice}
-              storeName={storeName}
-              setStoreName={setStoreName}
-              purchasedAt={purchasedAt}
-              setPurchasedAt={setPurchasedAt}
-              expiresAt={expiresAt}
-              setExpiresAt={setExpiresAt}
-              location={location}
-              setLocation={setLocation}
-            />
+            <div className="space-y-4">
+              {packageConfigured ? (
+                <div className="space-y-3 rounded-2xl border border-amber-100 bg-amber-50/40 px-4 py-3">
+                  <label className="flex items-center gap-3 text-sm text-gray-800">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                      checked={stockByPackages}
+                      onChange={(event) =>
+                        setStockByPackages(event.target.checked)
+                      }
+                    />
+                    Odłóż w opakowaniach
+                  </label>
+                  {stockByPackages ? (
+                    <div>
+                      <Label htmlFor="entry-package-count">Opakowania</Label>
+                      <Input
+                        id="entry-package-count"
+                        inputMode="decimal"
+                        value={packageCount}
+                        onChange={(event) =>
+                          setPackageCount(event.target.value)
+                        }
+                        placeholder="np. 2"
+                        required
+                      />
+                      {computedPackageStock?.ok ? (
+                        <p className="mt-1 text-xs text-emerald-700">
+                          Razem:{" "}
+                          {formatQuantityWithUnit(
+                            computedPackageStock.quantity,
+                            stockUnit,
+                          )}{" "}
+                          ({packageCount || "?"} × {packageQuantity}{" "}
+                          {PACKAGE_UNIT_OPTIONS.find(
+                            (option) => option.value === packageUnit,
+                          )?.label ?? packageUnit}
+                          )
+                        </p>
+                      ) : computedPackageStock && !computedPackageStock.ok ? (
+                        <p className="mt-1 text-xs text-red-600">
+                          {computedPackageStock.message}
+                        </p>
+                      ) : (
+                        <p className="mt-1 text-xs text-gray-500">
+                          Podaj liczbę opakowań, aby zobaczyć przeliczoną ilość.
+                        </p>
+                      )}
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+              {!stockByPackages ? (
+                <StockFields
+                  quantity={quantity}
+                  setQuantity={setQuantity}
+                  inputUnit={inputUnit}
+                  setInputUnit={setInputUnit}
+                  stockUnit={stockUnit}
+                  price={price}
+                  setPrice={setPrice}
+                  storeName={storeName}
+                  setStoreName={setStoreName}
+                  purchasedAt={purchasedAt}
+                  setPurchasedAt={setPurchasedAt}
+                  expiresAt={expiresAt}
+                  setExpiresAt={setExpiresAt}
+                  location={location}
+                  setLocation={setLocation}
+                />
+              ) : (
+                <StockFields
+                  quantity={quantity}
+                  setQuantity={setQuantity}
+                  inputUnit={inputUnit}
+                  setInputUnit={setInputUnit}
+                  stockUnit={stockUnit}
+                  price={price}
+                  setPrice={setPrice}
+                  storeName={storeName}
+                  setStoreName={setStoreName}
+                  purchasedAt={purchasedAt}
+                  setPurchasedAt={setPurchasedAt}
+                  expiresAt={expiresAt}
+                  setExpiresAt={setExpiresAt}
+                  location={location}
+                  setLocation={setLocation}
+                  hideQuantity
+                />
+              )}
+            </div>
           ) : null}
         </section>
       ) : null}
@@ -1015,6 +1452,7 @@ function StockFields({
   setExpiresAt,
   location,
   setLocation,
+  hideQuantity = false,
 }: {
   quantity: string;
   setQuantity: (value: string) => void;
@@ -1031,37 +1469,40 @@ function StockFields({
   setExpiresAt: (value: string) => void;
   location: keyof typeof LOCATION_LABELS;
   setLocation: (value: keyof typeof LOCATION_LABELS) => void;
+  hideQuantity?: boolean;
 }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      <div>
-        <Label htmlFor="entry-qty">Ilość</Label>
-        <div className="flex gap-2">
-          <Input
-            id="entry-qty"
-            inputMode="decimal"
-            value={quantity}
-            onChange={(event) => setQuantity(event.target.value)}
-            placeholder="0"
-            required
-            className="flex-1"
-          />
-          <select
-            aria-label="Jednostka ilości"
-            className="rounded-lg border border-gray-200 bg-white px-2 text-sm"
-            value={inputUnit}
-            onChange={(event) =>
-              setInputUnit(event.target.value as InputUnit)
-            }
-          >
-            {inputUnitsFor(stockUnit).map((unit) => (
-              <option key={unit.value} value={unit.value}>
-                {unit.label}
-              </option>
-            ))}
-          </select>
+      {!hideQuantity ? (
+        <div>
+          <Label htmlFor="entry-qty">Ilość</Label>
+          <div className="flex gap-2">
+            <Input
+              id="entry-qty"
+              inputMode="decimal"
+              value={quantity}
+              onChange={(event) => setQuantity(event.target.value)}
+              placeholder="0"
+              required
+              className="flex-1"
+            />
+            <select
+              aria-label="Jednostka ilości"
+              className="rounded-lg border border-gray-200 bg-white px-2 text-sm"
+              value={inputUnit}
+              onChange={(event) =>
+                setInputUnit(event.target.value as InputUnit)
+              }
+            >
+              {inputUnitsFor(stockUnit).map((unit) => (
+                <option key={unit.value} value={unit.value}>
+                  {unit.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-      </div>
+      ) : null}
       <div>
         <Label htmlFor="entry-price">Cena (zł, opcjonalnie)</Label>
         <div className="relative">
@@ -1138,4 +1579,23 @@ function StockFields({
       </p>
     </div>
   );
+}
+
+function kindSnapshot(kind: ProductKindSelection): string {
+  if (kind.mode === "existing") {
+    return `existing:${kind.group.id}`;
+  }
+  if (kind.mode === "create") {
+    return `create:${kind.name}`;
+  }
+  return "none";
+}
+
+function toApiDecimal(value: string): string {
+  const normalized = value.trim().replace(",", ".");
+  const numeric = Number(normalized);
+  if (!Number.isFinite(numeric)) {
+    return normalized;
+  }
+  return numeric.toFixed(3);
 }

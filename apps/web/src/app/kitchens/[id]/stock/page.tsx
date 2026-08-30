@@ -16,16 +16,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AppShell } from "@/components/app-shell";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ImageLightbox } from "@/components/image-lightbox";
-import { ProductPurchaseOptions } from "@/components/product-purchase-options";
+import { ProductCatalogPanel } from "@/components/product-entry/product-catalog-panel";
 import { StockConsumeDialog } from "@/components/stock-consume-dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createWebApiClient } from "@/lib/api";
 import { LOCATION_LABELS, UNIT_LABELS, readApiError } from "@/lib/errors";
-import {
-  formatNutritionNumber,
-  formatQuantityWithUnit,
-} from "@/lib/format-quantity";
+import { formatQuantityWithUnit } from "@/lib/format-quantity";
 import { isDisplayableUrl, mediaDisplayUrl } from "@/lib/media-upload";
 import { PRODUCT_CATEGORY_OPTIONS } from "@/lib/product-media";
 import {
@@ -99,9 +96,6 @@ export default function StockPage() {
     name: string;
   } | null>(null);
   const [expandedStockIds, setExpandedStockIds] = useState<Set<string>>(
-    () => new Set(),
-  );
-  const [expandedProductIds, setExpandedProductIds] = useState<Set<string>>(
     () => new Set(),
   );
   const [preview, setPreview] = useState<{ src: string; alt: string } | null>(
@@ -328,6 +322,7 @@ export default function StockPage() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["products", kitchenId] });
+      await queryClient.invalidateQueries({ queryKey: ["catalog", kitchenId] });
       await queryClient.invalidateQueries({
         queryKey: ["stock-summary", kitchenId],
       });
@@ -355,6 +350,7 @@ export default function StockPage() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["products", kitchenId] });
+      await queryClient.invalidateQueries({ queryKey: ["catalog", kitchenId] });
       await queryClient.invalidateQueries({
         queryKey: ["stock-summary", kitchenId],
       });
@@ -410,18 +406,6 @@ export default function StockPage() {
       setListFeedback(readApiError(error));
     },
   });
-
-  function toggleProductDetails(productId: string) {
-    setExpandedProductIds((current) => {
-      const next = new Set(current);
-      if (next.has(productId)) {
-        next.delete(productId);
-      } else {
-        next.add(productId);
-      }
-      return next;
-    });
-  }
 
   function requestAddToList(product: { id: string; name: string }) {
     setListFeedback(null);
@@ -1007,151 +991,15 @@ export default function StockPage() {
             />
           </button>
           {catalogOpen ? (
-            <div className="border-t border-gray-100">
-              {(productsQuery.data ?? []).length === 0 ? (
-                <div className="p-8 text-center text-gray-500">
-                  Katalog jest pusty.{" "}
-                  <Link
-                    href={newProductCatalogHref}
-                    className="font-semibold text-emerald-700 hover:underline"
-                  >
-                    Dodaj produkt
-                  </Link>
-                  .
-                </div>
-              ) : (
-                <ul>
-                  {(productsQuery.data ?? []).map((product) => {
-                    const { thumbnail, full } = productImageUrls(product);
-                    const detailsOpen = expandedProductIds.has(product.id);
-                    return (
-                      <li
-                        key={product.id}
-                        className="border-b border-gray-100 px-4 py-3 last:border-0"
-                      >
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                          <div className="flex min-w-0 items-center gap-3">
-                            {thumbnail && full ? (
-                              <button
-                                type="button"
-                                className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-emerald-50 bg-emerald-50/40 transition-shadow hover:shadow-md"
-                                onClick={() =>
-                                  setPreview({
-                                    src: full,
-                                    alt: product.name,
-                                  })
-                                }
-                                aria-label={`Powiększ zdjęcie: ${product.name}`}
-                              >
-                                {/* eslint-disable-next-line @next/next/no-img-element -- podpisane URL-e magazynu zdjęć */}
-                                <img
-                                  src={thumbnail}
-                                  alt=""
-                                  className="h-full w-full object-cover"
-                                />
-                              </button>
-                            ) : (
-                              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-emerald-50 bg-emerald-50/40">
-                                <Package
-                                  size={18}
-                                  className="text-emerald-300"
-                                />
-                              </div>
-                            )}
-                            <div className="min-w-0">
-                              <p className="font-medium text-gray-900">
-                                {product.name}{" "}
-                                <span className="font-normal text-gray-500">
-                                  ({UNIT_LABELS[product.defaultUnit]})
-                                </span>
-                              </p>
-                              <p className="truncate text-xs text-gray-400">
-                                {product.category ?? UNCATEGORIZED}
-                                {product.ean ? ` · EAN ${product.ean}` : ""}
-                              </p>
-                              {product.nutrition ? (
-                                <p className="mt-1 text-xs text-emerald-700">
-                                  {formatNutritionNumber(
-                                    product.nutrition.kcal,
-                                    0,
-                                  )}{" "}
-                                  kcal /{" "}
-                                  {formatQuantityWithUnit(
-                                    product.nutrition.baseQuantity,
-                                    product.nutrition.baseUnit,
-                                  )}
-                                </p>
-                              ) : null}
-                            </div>
-                          </div>
-                          <div className="flex flex-wrap gap-2">
-                            <Link
-                              href={`/kitchens/${kitchenId}/products/${product.id}/edit`}
-                              className={linkButtonSmClass}
-                            >
-                              Edytuj
-                            </Link>
-                            <Link
-                              href={`/kitchens/${kitchenId}/products/${product.id}/add-batch`}
-                              className={linkButtonSmClass}
-                            >
-                              Dodaj kolejną partię
-                            </Link>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() =>
-                                requestAddToList({
-                                  id: product.id,
-                                  name: product.name,
-                                })
-                              }
-                              disabled={addToShoppingList.isPending}
-                            >
-                              Dodaj do listy zakupów
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() =>
-                                setProductToArchive({
-                                  id: product.id,
-                                  name: product.name,
-                                })
-                              }
-                            >
-                              Archiwizuj produkt
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant={detailsOpen ? "secondary" : "outline"}
-                              aria-expanded={detailsOpen}
-                              onClick={() => toggleProductDetails(product.id)}
-                            >
-                              {detailsOpen ? "Zwiń szczegóły" : "Szczegóły"}
-                              <ChevronDown
-                                size={14}
-                                className={cn(
-                                  "ml-1 transition-transform",
-                                  detailsOpen && "rotate-180",
-                                )}
-                              />
-                            </Button>
-                          </div>
-                        </div>
-                        {detailsOpen ? (
-                          <ProductPurchaseOptions
-                            kitchenId={kitchenId}
-                            productId={product.id}
-                            defaultUnit={product.defaultUnit as BaseUnit}
-                            purchaseMode={product.purchaseMode}
-                          />
-                        ) : null}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
+            <>
+              <ProductCatalogPanel
+                kitchenId={kitchenId}
+                newProductCatalogHref={newProductCatalogHref}
+                onPreview={(src, alt) => setPreview({ src, alt })}
+                onArchiveProduct={setProductToArchive}
+                onAddToList={requestAddToList}
+                addToListPending={addToShoppingList.isPending}
+              />
               <div className="border-t border-gray-50 px-4 py-3">
                 <button
                   type="button"
@@ -1193,7 +1041,7 @@ export default function StockPage() {
                   zakupy, zużycia i przepisy zostają.
                 </p>
               </div>
-            </div>
+            </>
           ) : null}
         </section>
       </div>

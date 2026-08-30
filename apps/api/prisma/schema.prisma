@@ -92,6 +92,15 @@ enum ProductUnit {
   milliliter
 }
 
+/// Jednostka wielkości opakowania handlowego (może różnić się od defaultUnit zapasu).
+enum PackageContentUnit {
+  piece
+  gram
+  kilogram
+  milliliter
+  liter
+}
+
 enum ProductPurchaseMode {
   unconfigured
   packaged
@@ -180,6 +189,7 @@ model Kitchen {
   recipeCategories RecipeCategory[]
   mediaAssets     MediaAsset[]
   productIntakeIdempotencies ProductIntakeIdempotency[]
+  productGroups   ProductGroup[]
 }
 
 model MediaAsset {
@@ -237,14 +247,37 @@ model KitchenInvite {
   @@index([kitchenId, email])
 }
 
+model ProductGroup {
+  id             String    @id @default(uuid())
+  kitchenId      String
+  name           String
+  normalizedName String
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  kitchen        Kitchen   @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+  products       Product[]
+
+  @@unique([kitchenId, normalizedName])
+  @@index([kitchenId])
+}
+
 model Product {
   id             String              @id @default(uuid())
   kitchenId      String
+  /// Opcjonalny rodzaj (np. Mozzarella) — tylko organizacja katalogu.
+  groupId        String?
   name           String
   normalizedName String
   defaultUnit    ProductUnit
   purchaseMode   ProductPurchaseMode @default(unconfigured)
   ean            String?             @db.VarChar(14)
+  /// Marka / producent konkretnego opakowania.
+  brand          String?             @db.VarChar(120)
+  /// Postać / wariant handlowy (kulka, mini, tarta, light…).
+  variantLabel   String?             @db.VarChar(80)
+  /// Ilość w jednym opakowaniu (np. 125); null = nieznana.
+  packageQuantity Decimal?           @db.Decimal(12, 3)
+  packageUnit    PackageContentUnit?
   /// Zdjęcie zapasowe (http lub data URL). Nowe zdjęcia trafiają do imageMedia.
   imageUrl       String?
   imageMediaId   String?             @unique
@@ -254,6 +287,7 @@ model Product {
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
   kitchen            Kitchen             @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
+  group              ProductGroup?       @relation(fields: [groupId], references: [id], onDelete: SetNull)
   imageMedia         MediaAsset?         @relation(fields: [imageMediaId], references: [id], onDelete: SetNull)
   nutrition          ProductNutrition?
   stockItems         StockItem[]
@@ -266,6 +300,8 @@ model Product {
   @@unique([kitchenId, normalizedName])
   @@unique([kitchenId, ean])
   @@index([kitchenId, category])
+  @@index([kitchenId, groupId])
+  @@index([kitchenId, brand])
 }
 
 model ProductNutrition {

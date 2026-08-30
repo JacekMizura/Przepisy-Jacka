@@ -16,17 +16,23 @@ import {
   ValidateNested,
 } from 'class-validator';
 
-import { ProductUnit, StorageLocation } from '../../generated/prisma/client';
+import {
+  PackageContentUnit,
+  ProductUnit,
+  StorageLocation,
+} from '../../generated/prisma/client';
 import { UpsertProductNutritionDto } from './product-nutrition.dto';
 import {
   CreateProductDto,
   EAN_PATTERN,
   isPresentOptional,
   ProductDto,
+  ProductPackageFieldsDto,
 } from './product.dto';
+import { ProductGroupDto } from './product-group.dto';
 import { StockItemDto } from './stock-item.dto';
 
-export class ProductIntakeNewProductDto {
+export class ProductIntakeNewProductDto extends ProductPackageFieldsDto {
   @ApiProperty({ example: 'Mleko' })
   @IsString()
   @MinLength(1)
@@ -65,13 +71,54 @@ export class ProductIntakeNewProductDto {
   @ValidateIf(isPresentOptional)
   @IsUUID()
   imageMediaId?: string | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    description:
+      'Utwórz nową grupę o tej nazwie w tej samej transakcji (wzajemnie z groupId).',
+  })
+  @IsOptional()
+  @ValidateIf(isPresentOptional)
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  createGroupName?: string;
 }
 
 export class ProductIntakeStockDto {
-  @ApiProperty({ type: String, example: '1000.000' })
+  @ApiPropertyOptional({
+    type: String,
+    example: '1000.000',
+    description:
+      'Ilość zapasu w defaultUnit produktu. Wymagane dokładnie jedno z: quantity albo packageCount.',
+  })
+  @IsOptional()
+  @ValidateIf(
+    (dto: ProductIntakeStockDto) =>
+      dto.packageCount === undefined ||
+      dto.packageCount === null ||
+      dto.packageCount === '',
+  )
   @IsString()
   @MinLength(1)
-  quantity!: string;
+  quantity?: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    example: '2',
+    description:
+      'Liczba opakowań — wymaga packageQuantity/packageUnit produktu; wynik w defaultUnit.',
+  })
+  @IsOptional()
+  @ValidateIf(
+    (dto: ProductIntakeStockDto) =>
+      dto.quantity === undefined ||
+      dto.quantity === null ||
+      dto.quantity === '',
+  )
+  @IsString()
+  @MinLength(1)
+  packageCount?: string;
 
   @ApiProperty({ enum: StorageLocation, default: StorageLocation.pantry })
   @IsEnum(StorageLocation)
@@ -218,6 +265,12 @@ export class ProductMatchResultDto {
   nameSuggestions!: ProductDto[];
 
   @ApiProperty({
+    type: [ProductGroupDto],
+    description: 'Sugestie grup o podobnej nazwie (organizacja katalogu).',
+  })
+  suggestedGroups!: ProductGroupDto[];
+
+  @ApiProperty({
     example:
       'Ten produkt jest już w katalogu. Możesz odłożyć nową kupioną ilość do zapasów.',
     nullable: true,
@@ -226,4 +279,4 @@ export class ProductMatchResultDto {
 }
 
 /** Re-export for OpenAPI discovery alongside CreateProductDto fields. */
-export { CreateProductDto };
+export { CreateProductDto, PackageContentUnit };

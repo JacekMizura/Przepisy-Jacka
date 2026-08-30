@@ -2,6 +2,7 @@
 
 import { CheckCircle2, Image as ImageIcon } from "lucide-react";
 
+import { ProductCategoryBadge } from "@/components/product-entry/product-category-selector";
 import { LOCATION_LABELS } from "@/lib/errors";
 import {
   PACKAGE_UNIT_OPTIONS,
@@ -131,11 +132,12 @@ export function ProductLivePreview({
       </div>
 
       <div className="space-y-3 text-sm">
-        <div className="flex justify-between border-b border-gray-100 py-2">
-          <span className="text-gray-500">Kategoria</span>
-          <span className="font-medium text-gray-900">
-            {category.trim() || "Bez kategorii"}
-          </span>
+        <div className="flex justify-between gap-3 border-b border-gray-100 py-2">
+          <span className="shrink-0 text-gray-500">Kategoria</span>
+          <ProductCategoryBadge
+            category={category}
+            className="justify-end text-right font-medium"
+          />
         </div>
         <div className="flex justify-between border-b border-gray-100 py-2">
           <span className="text-gray-500">Rodzaj</span>

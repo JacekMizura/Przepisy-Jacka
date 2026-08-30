@@ -1,15 +1,5 @@
 /** Suggested product categories for the web catalog / stock filters. */
-export const PRODUCT_CATEGORY_OPTIONS = [
-  "Nabiał",
-  "Pieczywo",
-  "Mięso i wędliny",
-  "Warzywa i owoce",
-  "Napoje",
-  "Suche i sypkie",
-  "Mrożonki",
-  "Przyprawy",
-  "Inne",
-] as const;
+export { PRODUCT_CATEGORY_OPTIONS } from "./product-category-presentation";
 
 /** EAN-8 / UPC-A / EAN-13 / GTIN-14 */
 export const EAN_PATTERN = /^\d{8}$|^\d{12}$|^\d{13}$|^\d{14}$/;

@@ -4,6 +4,7 @@ import type { components } from "@moja-kuchnia/api-client";
 import { ChevronDown, Package } from "lucide-react";
 import Link from "next/link";
 
+import { ProductCategoryBadge } from "@/components/product-entry/product-category-selector";
 import {
   ProductActionsMenu,
   type ProductActionItem,
@@ -131,6 +132,12 @@ export function StockProductRow({
                 </span>
               ) : null}
             </div>
+            {(product?.category ?? summary.category) ? (
+              <ProductCategoryBadge
+                category={product?.category ?? summary.category}
+                className="mt-0.5 text-xs"
+              />
+            ) : null}
             {meta ? (
               <p className="truncate text-xs text-gray-500">{meta}</p>
             ) : null}

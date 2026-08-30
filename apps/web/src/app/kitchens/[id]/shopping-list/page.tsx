@@ -586,22 +586,6 @@ function ShoppingRow({
         >
           {name}
         </h4>
-        {purchaseLine ? (
-          <p
-            className={cn(
-              "mt-1 text-base font-extrabold tracking-tight text-zinc-950 sm:text-lg",
-              isBought && "font-bold text-zinc-500 line-through",
-              isSkipped && "text-zinc-500",
-            )}
-            data-testid="shopping-item-quantity"
-          >
-            {purchaseLine}
-          </p>
-        ) : (
-          <p className="mt-1 text-sm font-semibold text-zinc-400">
-            Ilość nieustalona
-          </p>
-        )}
         {!isBought && category ? (
           <div className="mt-1.5">
             <ProductCategoryBadge category={category} variant="pill" />
@@ -626,21 +610,29 @@ function ShoppingRow({
         ) : null}
       </div>
 
-      {estimate ? (
-        <div className="shrink-0 text-right">
-          <p className="text-[10px] font-bold tracking-wide text-zinc-400 uppercase">
-            Szacunek
-          </p>
+      <div className="flex shrink-0 flex-col items-end gap-1.5">
+        <span
+          className={cn(
+            "inline-flex max-w-[12rem] items-center justify-center rounded-xl px-3 py-2 text-center text-sm leading-snug font-black tracking-tight break-words sm:max-w-[15rem] sm:px-3.5 sm:text-base",
+            isBought || isSkipped
+              ? "bg-zinc-100 text-zinc-500 line-through"
+              : "bg-emerald-600 text-white shadow-sm shadow-emerald-600/25",
+          )}
+          data-testid="shopping-item-quantity"
+        >
+          {purchaseLine || "—"}
+        </span>
+        {estimate ? (
           <p
             className={cn(
-              "text-sm font-bold tabular-nums text-zinc-900",
-              isBought && "text-zinc-500 line-through",
+              "text-xs font-semibold tabular-nums text-zinc-500",
+              isBought && "line-through",
             )}
           >
-            {estimate}
+            ~{estimate}
           </p>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
       <div className="relative shrink-0" onClick={(event) => event.stopPropagation()}>
         <button

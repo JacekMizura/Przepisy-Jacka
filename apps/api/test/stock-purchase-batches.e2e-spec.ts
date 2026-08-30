@@ -377,7 +377,13 @@ describe('Stock purchase batches and consumption (e2e)', () => {
       { webOrigin: WEB_ORIGIN, cookies: ownerB.cookies },
     );
     expect(listedB.status).toBe(200);
-    expect(listedB.body).toEqual([]);
+    expect(listedB.body).toEqual({
+      items: [],
+      page: 1,
+      limit: 50,
+      total: 0,
+      pageCount: 0,
+    });
   });
 
   it('does not duplicate stock batches on repeated checkout', async () => {

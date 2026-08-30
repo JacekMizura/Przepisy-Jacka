@@ -5,7 +5,7 @@ import { useEffect, useId, useState } from "react";
 
 import {
   CatalogGroupCard,
-  CatalogProductCard,
+  CatalogProductRow,
 } from "@/components/stock/catalog-card";
 import type { ProductActionItem } from "@/components/stock/product-actions-menu";
 import { StockViewTabs } from "@/components/stock/stock-view-tabs";
@@ -111,47 +111,56 @@ export function ProductCatalogPanel({
       {items.length > 0 ? (
         <>
           <div
-            className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+            className="overflow-hidden rounded-[24px] border border-zinc-200 bg-white shadow-sm"
             data-testid="catalog-cards-grid"
           >
-            {items.map((entry) => {
-              if (entry.kind === "product") {
-                const product = entry.product;
-                const menuItems =
-                  buildMenuItems?.({
-                    id: product.id,
-                    name: product.name,
-                    groupId: product.groupId,
-                    totalQuantity: product.totalQuantity,
-                  }) ?? [];
+            <div className="hidden grid-cols-12 gap-4 border-b border-zinc-200 bg-zinc-50 p-4 text-xs font-black tracking-wider text-zinc-500 uppercase sm:grid">
+              <div className="col-span-5 pl-4">Produkt & Marka</div>
+              <div className="col-span-2">Kategoria</div>
+              <div className="col-span-2">Kod EAN</div>
+              <div className="col-span-2">Domyślna jedn.</div>
+              <div className="col-span-1 pr-4 text-right">Akcje</div>
+            </div>
+            <div className="divide-y divide-zinc-100">
+              {items.map((entry) => {
+                if (entry.kind === "product") {
+                  const product = entry.product;
+                  const menuItems =
+                    buildMenuItems?.({
+                      id: product.id,
+                      name: product.name,
+                      groupId: product.groupId,
+                      totalQuantity: product.totalQuantity,
+                    }) ?? [];
+                  return (
+                    <CatalogProductRow
+                      key={product.id}
+                      kitchenId={kitchenId}
+                      product={product}
+                      menuItems={menuItems}
+                      onPreview={onPreview}
+                    />
+                  );
+                }
                 return (
-                  <CatalogProductCard
-                    key={product.id}
+                  <CatalogGroupCard
+                    key={`group:${entry.groupId}`}
                     kitchenId={kitchenId}
-                    product={product}
-                    menuItems={menuItems}
-                    onPreview={onPreview}
+                    groupId={entry.groupId}
+                    groupName={entry.groupName}
+                    variantCount={entry.variantCount}
+                    category={entry.variants[0]?.category ?? null}
                   />
                 );
-              }
-              return (
-                <CatalogGroupCard
-                  key={`group:${entry.groupId}`}
-                  kitchenId={kitchenId}
-                  groupId={entry.groupId}
-                  groupName={entry.groupName}
-                  variantCount={entry.variantCount}
-                  category={entry.variants[0]?.category ?? null}
-                />
-              );
-            })}
+              })}
+            </div>
           </div>
 
           {pageCount > 1 ? (
-            <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-600 shadow-sm">
               <button
                 type="button"
-                className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 font-medium disabled:opacity-40"
+                className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 font-medium disabled:opacity-40"
                 disabled={page <= 1}
                 onClick={() => onUrlPatch({ page: page - 1 })}
               >
@@ -162,7 +171,7 @@ export function ProductCatalogPanel({
               </span>
               <button
                 type="button"
-                className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 font-medium disabled:opacity-40"
+                className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 font-medium disabled:opacity-40"
                 disabled={page >= pageCount}
                 onClick={() => onUrlPatch({ page: page + 1 })}
               >

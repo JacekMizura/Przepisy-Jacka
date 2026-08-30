@@ -1,39 +1,17 @@
 "use client";
 
-import { MoreVertical, Package, Plus } from "lucide-react";
+import { ArrowRight, MoreVertical, Package, Tag } from "lucide-react";
 import Link from "next/link";
 
 import {
   ProductActionsMenu,
   type ProductActionItem,
 } from "@/components/stock/product-actions-menu";
+import { UNIT_LABELS } from "@/lib/errors";
 import { isDisplayableUrl, mediaDisplayUrl } from "@/lib/media-upload";
 import type { components } from "@moja-kuchnia/api-client";
-import { cn } from "@/lib/utils";
 
 type CatalogProduct = components["schemas"]["CatalogProductDto"];
-
-function getCategoryColor(category: string | null | undefined): string {
-  switch (category) {
-    case "Warzywa i owoce":
-    case "Warzywa":
-      return "bg-orange-100 text-orange-700 border-orange-200";
-    case "Nabiał":
-      return "bg-blue-100 text-blue-700 border-blue-200";
-    case "Mięso i ryby":
-      return "bg-rose-100 text-rose-700 border-rose-200";
-    case "Pieczywo":
-      return "bg-amber-100 text-amber-800 border-amber-200";
-    case "Spiżarnia":
-      return "bg-yellow-100 text-yellow-800 border-yellow-200";
-    case "Mrożonki":
-      return "bg-cyan-100 text-cyan-700 border-cyan-200";
-    case "Napoje":
-      return "bg-indigo-100 text-indigo-700 border-indigo-200";
-    default:
-      return "bg-slate-100 text-slate-700 border-slate-200";
-  }
-}
 
 function productImageUrl(product: CatalogProduct): string | null {
   return (
@@ -42,44 +20,37 @@ function productImageUrl(product: CatalogProduct): string | null {
   );
 }
 
-type CatalogProductCardProps = {
+type CatalogProductRowProps = {
   kitchenId: string;
   product: CatalogProduct;
   menuItems: ProductActionItem[];
   onPreview?: (src: string, alt: string) => void;
 };
 
-export function CatalogProductCard({
+export function CatalogProductRow({
   kitchenId,
   product,
   menuItems,
   onPreview,
-}: CatalogProductCardProps) {
+}: CatalogProductRowProps) {
   const image = productImageUrl(product);
+  const brand =
+    [product.brand?.trim(), product.variantLabel?.trim()]
+      .filter(Boolean)
+      .join(" · ") || null;
   const category = product.category?.trim() || "Bez kategorii";
-  const brand = product.brand?.trim() || null;
-  const subtitle = product.variantLabel?.trim() || null;
   const addBatchHref = `/kitchens/${kitchenId}/products/${product.id}/add-batch`;
 
   return (
-    <article
-      className="group relative flex h-full flex-col rounded-3xl border border-slate-200/60 bg-white p-5 shadow-sm transition-all duration-300 hover:border-emerald-200 hover:shadow-xl"
+    <div
+      className="group grid grid-cols-1 items-center gap-4 p-4 transition-colors hover:bg-zinc-50 sm:grid-cols-12"
       data-testid="catalog-product-card"
       data-product-id={product.id}
     >
-      <div className="absolute top-4 right-4 z-20">
-        <ProductActionsMenu
-          label={`Akcje: ${product.name}`}
-          items={menuItems}
-          triggerClassName="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-400 shadow-sm transition-colors hover:bg-slate-50 hover:text-slate-600"
-          icon={<MoreVertical size={16} />}
-        />
-      </div>
-
-      <div className="mb-4 flex flex-col items-center pt-2">
+      <div className="flex items-center gap-4 sm:col-span-5 sm:pl-4">
         <button
           type="button"
-          className="mb-4 flex h-24 w-24 items-center justify-center overflow-hidden rounded-2xl border border-slate-100 bg-slate-50 p-3 transition-transform duration-300 group-hover:scale-105"
+          className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50 shadow-sm"
           disabled={!image || !onPreview}
           onClick={() => {
             if (image && onPreview) {
@@ -92,50 +63,64 @@ export function CatalogProductCard({
             <img
               src={image}
               alt=""
-              className="h-full w-full object-contain drop-shadow-sm"
+              className="h-full w-full object-cover"
             />
           ) : (
-            <Package size={36} className="text-slate-300" aria-hidden />
+            <span className="flex h-full w-full items-center justify-center text-zinc-300">
+              <Package size={22} aria-hidden />
+            </span>
           )}
         </button>
-        <span
-          className={cn(
-            "rounded-full border px-3 py-1 text-[10px] font-bold tracking-wider uppercase",
-            getCategoryColor(product.category),
-          )}
-        >
+        <div className="min-w-0">
+          <h4 className="truncate text-lg font-bold text-zinc-900">
+            {product.name}
+          </h4>
+          {brand ? (
+            <p className="truncate text-sm font-medium text-zinc-500">{brand}</p>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="sm:col-span-2">
+        <span className="rounded-lg border border-zinc-200 bg-zinc-100 px-3 py-1.5 text-xs font-bold text-zinc-700">
           {category}
         </span>
       </div>
 
-      <div className="flex-1 text-center">
-        {brand ? (
-          <p className="mb-0.5 text-[10px] font-bold tracking-wider text-slate-400 uppercase">
-            {brand}
-          </p>
-        ) : null}
-        <h3 className="text-lg leading-tight font-bold text-slate-800">
-          {product.name}
-        </h3>
-        {subtitle ? (
-          <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
-        ) : null}
+      <div className="flex items-center gap-2 text-sm font-medium text-zinc-600 sm:col-span-2">
+        <Tag size={14} className="shrink-0 text-zinc-400" aria-hidden />
+        <span className="truncate">{product.ean ?? "—"}</span>
       </div>
 
-      <div className="mt-5 flex justify-center border-t border-slate-50 pt-4">
+      <div className="font-bold text-zinc-900 sm:col-span-2">
+        {UNIT_LABELS[product.defaultUnit]}
+      </div>
+
+      <div className="flex justify-end gap-2 sm:col-span-1 sm:pr-4 sm:opacity-0 sm:transition-opacity sm:group-hover:opacity-100">
         <Link
           href={addBatchHref}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-600 transition-colors hover:bg-emerald-500 hover:text-white"
+          className="rounded-lg border border-transparent p-2 text-zinc-500 transition-all hover:border-zinc-200 hover:bg-white hover:text-emerald-600"
+          title="Dodaj do zapasów"
         >
-          <Plus size={16} aria-hidden />
-          Dodaj do zapasów
+          <ArrowRight size={18} />
         </Link>
+        <ProductActionsMenu
+          label={`Akcje: ${product.name}`}
+          items={menuItems}
+          triggerClassName="rounded-lg border border-transparent p-2 text-zinc-500 transition-all hover:border-zinc-200 hover:bg-white hover:text-zinc-900"
+          icon={<MoreVertical size={18} />}
+        />
       </div>
-    </article>
+    </div>
   );
 }
 
-type CatalogGroupCardProps = {
+/** @deprecated Prefer CatalogProductRow — retained name for older imports. */
+export function CatalogProductCard(props: CatalogProductRowProps) {
+  return <CatalogProductRow {...props} />;
+}
+
+type CatalogGroupRowProps = {
   kitchenId: string;
   groupId: string;
   groupName: string;
@@ -149,63 +134,42 @@ export function CatalogGroupCard({
   groupName,
   variantCount,
   category,
-}: CatalogGroupCardProps) {
-  const label = category?.trim() || "Rodzaj";
-  const href = `/kitchens/${kitchenId}/product-groups/${groupId}`;
-
+}: CatalogGroupRowProps) {
   return (
-    <article
-      className="group relative flex h-full flex-col rounded-3xl border border-slate-200/60 bg-white p-5 shadow-sm transition-all duration-300 hover:border-emerald-200 hover:shadow-xl"
+    <div
+      className="grid grid-cols-1 items-center gap-4 p-4 transition-colors hover:bg-zinc-50 sm:grid-cols-12"
       data-testid="catalog-group-card"
       data-group-id={groupId}
     >
-      <div className="absolute top-4 right-4 z-20">
-        <ProductActionsMenu
-          label={`Akcje rodzaju: ${groupName}`}
-          items={[
-            { id: "manage", label: "Zarządzaj rodzajem", href },
-            {
-              id: "add-variant",
-              label: "Dodaj wariant",
-              href: `/kitchens/${kitchenId}/products/new?groupId=${groupId}`,
-            },
-          ]}
-          triggerClassName="rounded-lg border border-slate-200 bg-white p-1.5 text-slate-400 shadow-sm hover:bg-slate-50 hover:text-slate-600"
-          icon={<MoreVertical size={16} />}
-        />
-      </div>
-
-      <div className="mb-4 flex flex-col items-center pt-2">
-        <div className="mb-4 flex h-24 w-24 items-center justify-center rounded-2xl border border-slate-100 bg-slate-50 p-3 transition-transform duration-300 group-hover:scale-105">
-          <Package size={36} className="text-slate-300" aria-hidden />
+      <div className="flex items-center gap-4 sm:col-span-5 sm:pl-4">
+        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50">
+          <Package size={22} className="text-zinc-300" aria-hidden />
         </div>
-        <span
-          className={cn(
-            "rounded-full border px-3 py-1 text-[10px] font-bold tracking-wider uppercase",
-            getCategoryColor(category),
-          )}
-        >
-          {label}
+        <div className="min-w-0">
+          <h4 className="truncate text-lg font-bold text-zinc-900">
+            {groupName}
+          </h4>
+          <p className="text-sm font-medium text-zinc-500">
+            {variantCount} {variantCount === 1 ? "wariant" : "warianty"}
+          </p>
+        </div>
+      </div>
+      <div className="sm:col-span-2">
+        <span className="rounded-lg border border-zinc-200 bg-zinc-100 px-3 py-1.5 text-xs font-bold text-zinc-700">
+          {category?.trim() || "Rodzaj"}
         </span>
       </div>
-
-      <div className="flex-1 text-center">
-        <h3 className="text-lg leading-tight font-bold text-slate-800">
-          {groupName}
-        </h3>
-        <p className="mt-1 text-xs text-slate-500">
-          {variantCount} {variantCount === 1 ? "wariant" : "warianty"}
-        </p>
-      </div>
-
-      <div className="mt-5 flex justify-center border-t border-slate-50 pt-4">
+      <div className="text-sm font-medium text-zinc-500 sm:col-span-2">—</div>
+      <div className="font-bold text-zinc-900 sm:col-span-2">—</div>
+      <div className="flex justify-end sm:col-span-1 sm:pr-4">
         <Link
-          href={href}
-          className="flex w-full items-center justify-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-600 transition-colors hover:bg-emerald-500 hover:text-white"
+          href={`/kitchens/${kitchenId}/product-groups/${groupId}`}
+          className="rounded-lg border border-transparent p-2 text-zinc-500 transition-all hover:border-zinc-200 hover:bg-white hover:text-emerald-600"
+          title="Otwórz rodzaj"
         >
-          Zarządzaj rodzajem
+          <ArrowRight size={18} />
         </Link>
       </div>
-    </article>
+    </div>
   );
 }

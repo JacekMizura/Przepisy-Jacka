@@ -127,7 +127,7 @@ export function StockTab({
       {items.length > 0 ? (
         <>
           <div
-            className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3"
+            className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
             data-testid="stock-cards-grid"
           >
             {items.map((entry) => {
@@ -136,6 +136,7 @@ export function StockTab({
                 return (
                   <InventoryProductCard
                     key={product.productId}
+                    kitchenId={kitchenId}
                     product={product}
                     onConsume={() => onConsume(product)}
                     onPreviewImage={onPreviewImage}
@@ -150,6 +151,7 @@ export function StockTab({
               return (
                 <InventoryGroupCard
                   key={`group:${entry.groupId}`}
+                  kitchenId={kitchenId}
                   group={entry}
                   onConsumeVariant={(product) => onConsume(product)}
                   onPreviewImage={onPreviewImage}
@@ -212,36 +214,38 @@ function StockModernChrome({
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-col gap-2 rounded-3xl border border-slate-200/60 bg-white p-2 shadow-sm lg:flex-row">
-        <div className="min-w-0 overflow-x-auto">
-          <StockViewTabs
-            kitchenId={kitchenId}
-            active="stock"
-            urlState={state}
-            variant="modern"
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="relative min-w-0 flex-1">
+          <Search
+            className="pointer-events-none absolute top-1/2 left-4 -translate-y-1/2 text-zinc-400"
+            size={20}
+            aria-hidden
           />
-        </div>
-
-        <div className="flex flex-1 items-center rounded-2xl bg-white px-4 transition-all focus-within:ring-2 focus-within:ring-emerald-500/20">
-          <Search size={18} className="shrink-0 text-slate-400" aria-hidden />
           <input
             type="search"
             aria-label="Szukaj w zapasach"
-            placeholder="Szukaj produktu, kategorii..."
+            placeholder="Szukaj po nazwie, kodzie EAN..."
             value={searchDraft}
             onChange={(event) => setSearchDraft(event.target.value)}
-            className="w-full border-none bg-transparent px-3 py-3 font-medium text-slate-700 placeholder:font-normal placeholder:text-slate-400 focus:outline-none"
+            className="w-full rounded-xl border border-zinc-200 bg-white py-3.5 pr-4 pl-12 text-sm font-medium shadow-sm transition-all focus:ring-2 focus:ring-zinc-900 focus:outline-none"
           />
         </div>
-
-        <div className="flex items-center gap-2 border-slate-100 py-1 pl-2 lg:border-l">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="min-w-0 overflow-x-auto">
+            <StockViewTabs
+              kitchenId={kitchenId}
+              active="stock"
+              urlState={state}
+              variant="modern"
+            />
+          </div>
           <button
             type="button"
             className={cn(
-              "flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors",
+              "flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors",
               filtersActive
-                ? "bg-emerald-50 text-emerald-800"
-                : "text-slate-600 hover:bg-slate-50",
+                ? "border-zinc-900 bg-zinc-900 text-white"
+                : "border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50",
             )}
             aria-expanded={filtersOpen}
             aria-controls={panelId}
@@ -250,8 +254,7 @@ function StockModernChrome({
             <Filter size={16} aria-hidden />
             Filtry
           </button>
-          <div className="mx-1 hidden h-8 w-px bg-slate-200 sm:block" />
-          <span className="whitespace-nowrap px-3 text-sm font-medium text-slate-400">
+          <span className="whitespace-nowrap px-2 text-sm font-medium text-zinc-400">
             {resultTotal} pozycji
           </span>
         </div>

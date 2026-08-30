@@ -10,13 +10,14 @@ function read(name: string): string {
   return readFileSync(join(__dirname, name), "utf8");
 }
 
-describe("stock modern cards layout contracts", () => {
-  it("uses card grid matching reference breakpoints", () => {
+describe("stock revolution layout contracts", () => {
+  it("uses photo card grid matching reference breakpoints", () => {
     const tab = read("stock-tab.tsx");
     assert.match(tab, /data-testid="stock-cards-grid"/);
     assert.match(tab, /grid-cols-1/);
     assert.match(tab, /md:grid-cols-2/);
-    assert.match(tab, /xl:grid-cols-3/);
+    assert.match(tab, /lg:grid-cols-3/);
+    assert.match(tab, /xl:grid-cols-4/);
     assert.match(tab, /gap-6/);
     assert.doesNotMatch(tab, /data-testid="stock-compact-list"/);
   });
@@ -31,14 +32,16 @@ describe("stock modern cards layout contracts", () => {
       />\s*Zużyj\s*</,
     );
     assert.match(card, /data-testid="stock-group-card"/);
-    assert.match(card, /Warianty \(/);
+    assert.match(card, /Warianty/);
   });
 
   it("product card uses portal menu and consume action", () => {
     const card = read("inventory-card.tsx");
     assert.match(card, /ProductActionsMenu/);
     assert.match(card, />\s*Zużyj\s*</);
+    assert.match(card, /Dodaj partię/);
     assert.match(card, /data-testid="stock-inventory-card"/);
+    assert.match(card, /h-48/);
   });
 
   it("actions menu uses portal", () => {
@@ -48,24 +51,14 @@ describe("stock modern cards layout contracts", () => {
     assert.match(menu, /data-testid="product-actions-menu-portal"/);
   });
 
-  it("group thumb field is neutral package icon not first variant photo", () => {
-    const card = read("inventory-card.tsx");
-    const groupStart = card.indexOf("export function InventoryGroupCard");
-    const variantStart = card.indexOf("function VariantRow");
-    const groupBlock = card.slice(groupStart, variantStart);
-    assert.match(groupBlock, /Package/);
-    assert.doesNotMatch(groupBlock, /variants\[0\]/);
-    assert.doesNotMatch(groupBlock, /imageUrl/);
-  });
-
-  it("catalog uses modern card grid", () => {
+  it("catalog uses table list layout", () => {
     const panel = readFileSync(
       join(__dirname, "../product-entry/product-catalog-panel.tsx"),
       "utf8",
     );
     assert.match(panel, /data-testid="catalog-cards-grid"/);
-    assert.match(panel, /xl:grid-cols-4/);
-    assert.match(panel, /gap-5/);
+    assert.match(panel, /Produkt & Marka/);
+    assert.match(panel, /Kod EAN/);
     assert.doesNotMatch(panel, /data-testid="catalog-compact-list"/);
   });
 });

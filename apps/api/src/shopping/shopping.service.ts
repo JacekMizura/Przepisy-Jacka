@@ -118,8 +118,11 @@ export class ShoppingService {
       ),
     ];
     const estimates = await this.loadLastPurchaseEstimates(productIds);
+    const stockOnHand = await this.loadStockOnHand(productIds);
     return Promise.all(
-      items.map((item) => this.toShoppingListItemDto(item, estimates)),
+      items.map((item) =>
+        this.toShoppingListItemDto(item, estimates, stockOnHand),
+      ),
     );
   }
 
@@ -656,6 +659,29 @@ export class ShoppingService {
     };
   }
 
+  private async loadStockOnHand(
+    productIds: string[],
+  ): Promise<Map<string, Prisma.Decimal>> {
+    const map = new Map<string, Prisma.Decimal>();
+    if (productIds.length === 0) {
+      return map;
+    }
+    const rows = await this.prisma.stockItem.groupBy({
+      by: ['productId'],
+      where: {
+        productId: { in: productIds },
+        quantity: { gt: 0 },
+      },
+      _sum: { quantity: true },
+    });
+    for (const row of rows) {
+      if (row._sum.quantity && row._sum.quantity.gt(0)) {
+        map.set(row.productId, row._sum.quantity);
+      }
+    }
+    return map;
+  }
+
   private async loadLastPurchaseEstimates(
     productIds: string[],
   ): Promise<
@@ -755,8 +781,13 @@ export class ShoppingService {
         initialQuantity: Prisma.Decimal;
       }
     >,
+    stockOnHand?: Map<string, Prisma.Decimal>,
   ): Promise<ShoppingListItemDto> {
     const priceMap = estimates ?? new Map();
+    const stockQty =
+      item.productId && stockOnHand
+        ? (stockOnHand.get(item.productId) ?? null)
+        : null;
     return {
       id: item.id,
       shoppingListId: item.shoppingListId,
@@ -786,6 +817,8 @@ export class ShoppingService {
         ? await this.toShoppingListItemProductDto(item.product)
         : null,
       estimatedPriceMinor: this.estimateShoppingItemPriceMinor(item, priceMap),
+      stockQuantity: stockQty ? formatQuantity(stockQty) : null,
+      stockUnit: stockQty && item.product ? item.product.defaultUnit : null,
     };
   }
 

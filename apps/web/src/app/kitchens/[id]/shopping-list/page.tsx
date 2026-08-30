@@ -34,7 +34,8 @@ import { inputUnitsFor, type BaseUnit, type InputUnit } from "@/lib/quantity-inp
 import {
   formatPriceMinor,
   formatRequiredForRecipe,
-  formatShoppingPurchaseLine,
+  formatShoppingPurchaseParts,
+  formatStockOnHand,
   INPUT_UNIT_LABELS,
 } from "@/lib/shopping-labels";
 import { buildAddToShoppingListBody } from "@/lib/shopping-list-add";
@@ -500,7 +501,8 @@ function ShoppingRow({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const name = item.product?.name ?? item.customName ?? "Pozycja bez nazwy";
-  const purchaseLine = formatShoppingPurchaseLine(item);
+  const purchaseParts = formatShoppingPurchaseParts(item);
+  const stockLine = formatStockOnHand(item.stockQuantity, item.stockUnit);
   const requiredHint = formatRequiredForRecipe(
     item.requiredQuantity,
     item.requiredUnit,
@@ -591,6 +593,12 @@ function ShoppingRow({
             <ProductCategoryBadge category={category} variant="pill" />
           </div>
         ) : null}
+        {stockLine && !isBought ? (
+          <p className="mt-1.5 text-xs font-medium text-zinc-500">
+            W zapasie:{" "}
+            <span className="font-semibold text-zinc-700">{stockLine}</span>
+          </p>
+        ) : null}
         {item.sourceRecipeName ? (
           <p className="mt-1 text-xs font-medium text-emerald-700">
             Z przepisu: {item.sourceRecipeName}
@@ -610,27 +618,46 @@ function ShoppingRow({
         ) : null}
       </div>
 
-      <div className="flex shrink-0 flex-col items-end gap-1.5">
-        <span
-          className={cn(
-            "inline-flex max-w-[12rem] items-center justify-center rounded-xl px-3 py-2 text-center text-sm leading-snug font-black tracking-tight break-words sm:max-w-[15rem] sm:px-3.5 sm:text-base",
-            isBought || isSkipped
-              ? "bg-zinc-100 text-zinc-500 line-through"
-              : "bg-emerald-600 text-white shadow-sm shadow-emerald-600/25",
-          )}
-          data-testid="shopping-item-quantity"
-        >
-          {purchaseLine || "—"}
-        </span>
+      <div
+        className={cn(
+          "flex min-w-[5.5rem] shrink-0 flex-col items-end justify-center text-right sm:min-w-[6.5rem]",
+          (isBought || isSkipped) && "opacity-60",
+        )}
+        data-testid="shopping-item-quantity"
+      >
+        {purchaseParts ? (
+          <>
+            <span
+              className={cn(
+                "text-2xl leading-none font-black tracking-tight tabular-nums text-zinc-950 sm:text-3xl",
+                isBought && "line-through",
+              )}
+            >
+              {purchaseParts.amount}
+            </span>
+            {purchaseParts.detail ? (
+              <span
+                className={cn(
+                  "mt-1 max-w-[9rem] text-xs font-semibold text-zinc-600 sm:max-w-[11rem] sm:text-sm",
+                  isBought && "line-through",
+                )}
+              >
+                {purchaseParts.detail}
+              </span>
+            ) : null}
+          </>
+        ) : (
+          <span className="text-sm font-semibold text-zinc-400">—</span>
+        )}
         {estimate ? (
-          <p
+          <span
             className={cn(
-              "text-xs font-semibold tabular-nums text-zinc-500",
+              "mt-1.5 text-xs font-medium tabular-nums text-zinc-400",
               isBought && "line-through",
             )}
           >
             ~{estimate}
-          </p>
+          </span>
         ) : null}
       </div>
 

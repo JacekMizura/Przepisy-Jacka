@@ -1,10 +1,8 @@
 "use client";
 
 import {
-  AlertCircle,
   Calendar,
   Check,
-  Clock,
   MapPin,
   MoreVertical,
   Package,
@@ -110,132 +108,107 @@ export function InventoryProductCard({
 
   return (
     <article
-      className="group flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+      className="group relative flex gap-3 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white p-3 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md sm:gap-4 sm:p-4"
       data-testid="stock-inventory-card"
       data-product-id={product.productId}
     >
-      <div className="relative h-28 w-full overflow-hidden bg-zinc-50/80">
-        <button
-          type="button"
-          className="flex h-full w-full items-center justify-center p-3"
-          disabled={!image || !onPreviewImage}
-          onClick={() => {
-            if (image && onPreviewImage) {
-              onPreviewImage(image, product.productName);
-            }
-          }}
-        >
-          {image ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={image}
-              alt=""
-              className="max-h-full max-w-full object-contain transition-transform duration-500 group-hover:scale-105"
-            />
-          ) : (
-            <Package size={36} className="text-zinc-300" aria-hidden />
-          )}
-        </button>
-
-        <div className="absolute top-2 right-2 flex flex-col gap-1.5">
-          {status === "warning" ? (
-            <span className="flex items-center gap-1 rounded-full bg-amber-500 px-2 py-1 text-[10px] font-black text-white shadow">
-              <Clock size={11} aria-hidden /> TERMIN
-            </span>
-          ) : null}
-          {status === "critical" ? (
-            <span className="flex items-center gap-1 rounded-full bg-red-600 px-2 py-1 text-[10px] font-black text-white shadow">
-              <AlertCircle size={11} aria-hidden /> PRZETERMINOWANE
-            </span>
-          ) : null}
-        </div>
-      </div>
-
-      <div className="flex flex-1 flex-col p-4">
-        <div className="mb-2 flex items-start justify-between gap-2">
-          <ProductCategoryBadge
-            category={product.category}
-            variant="pill"
+      <button
+        type="button"
+        className="relative h-28 w-28 shrink-0 overflow-hidden rounded-xl sm:h-32 sm:w-32"
+        disabled={!image || !onPreviewImage}
+        onClick={() => {
+          if (image && onPreviewImage) {
+            onPreviewImage(image, product.productName);
+          }
+        }}
+      >
+        {image ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={image}
+            alt=""
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
           />
+        ) : (
+          <span className="flex h-full w-full items-center justify-center bg-zinc-50 text-zinc-300">
+            <Package size={32} aria-hidden />
+          </span>
+        )}
+        {status === "warning" || status === "critical" ? (
+          <span
+            className={cn(
+              "absolute top-1.5 left-1.5 rounded-full px-1.5 py-0.5 text-[9px] font-black text-white shadow",
+              status === "critical" ? "bg-red-600" : "bg-amber-500",
+            )}
+          >
+            {status === "critical" ? "!" : "Termin"}
+          </span>
+        ) : null}
+      </button>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="mb-1 flex items-start justify-between gap-2">
+          <ProductCategoryBadge category={product.category} variant="pill" />
           <ProductActionsMenu
             label={`Akcje: ${product.productName}`}
             items={menuItems}
-            triggerClassName="shrink-0 text-zinc-400 transition-colors hover:text-zinc-800"
+            triggerClassName="shrink-0 text-zinc-400 hover:text-zinc-800"
             icon={<MoreVertical size={18} />}
           />
         </div>
-        <h3 className="text-base leading-tight font-bold text-zinc-900">
+        <h3 className="text-base leading-tight font-bold text-zinc-900 sm:text-lg">
           {product.productName}
         </h3>
         {brand ? (
           <p className="mt-0.5 text-xs font-medium text-zinc-500">{brand}</p>
         ) : null}
 
-        <div className="mt-3 grid grid-cols-2 gap-3 rounded-xl bg-zinc-50 p-3">
-          <div>
-            <p className="mb-0.5 flex items-center gap-1 text-[10px] font-bold tracking-wider text-zinc-400 uppercase">
-              <Scale size={11} aria-hidden /> Stan
-            </p>
-            <p className="text-sm font-bold text-zinc-900">
-              {amount}
-              {unit ? (
-                <span className="ml-1 text-xs font-semibold text-zinc-500">
-                  {unit}
-                </span>
-              ) : null}
-            </p>
-          </div>
-          <div>
-            <p className="mb-0.5 flex items-center gap-1 text-[10px] font-bold tracking-wider text-zinc-400 uppercase">
-              <MapPin size={11} aria-hidden /> Miejsce
-            </p>
-            <p className="text-sm font-semibold text-zinc-700">{location}</p>
-          </div>
+        <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+          <span className="inline-flex items-center gap-1 font-bold text-zinc-900">
+            <Scale size={13} className="text-zinc-400" aria-hidden />
+            {amount}
+            {unit ? (
+              <span className="font-semibold text-zinc-500">{unit}</span>
+            ) : null}
+          </span>
+          <span className="inline-flex items-center gap-1 font-medium text-zinc-600">
+            <MapPin size={13} className="text-zinc-400" aria-hidden />
+            {location}
+          </span>
           {hasExpiry ? (
-            <div className="col-span-2 border-t border-zinc-200/80 pt-2">
-              <p className="mb-0.5 flex items-center gap-1 text-[10px] font-bold tracking-wider text-zinc-400 uppercase">
-                <Calendar size={11} aria-hidden /> Data ważności
-              </p>
-              <p
-                className={cn(
-                  "text-sm font-semibold",
-                  status === "critical"
-                    ? "text-red-600"
-                    : status === "warning"
-                      ? "text-amber-600"
-                      : "text-zinc-700",
-                )}
-              >
-                {formatExpiryDate(product.nearestExpiry!)}
-              </p>
-            </div>
-          ) : null}
-          {cost ? (
-            <div
+            <span
               className={cn(
-                "col-span-2",
-                hasExpiry ? "pt-0" : "border-t border-zinc-200/80 pt-2",
+                "inline-flex items-center gap-1 font-medium",
+                status === "critical"
+                  ? "text-red-600"
+                  : status === "warning"
+                    ? "text-amber-600"
+                    : "text-zinc-600",
               )}
             >
-              <p className="mb-0.5 flex items-center gap-1 text-[10px] font-bold tracking-wider text-zinc-400 uppercase">
-                <Wallet size={11} aria-hidden /> Koszt
-              </p>
-              <p className="text-sm font-semibold text-zinc-700">{cost}</p>
-            </div>
+              <Calendar size={13} aria-hidden />
+              {formatExpiryDate(product.nearestExpiry!)}
+            </span>
+          ) : null}
+          {cost ? (
+            <span className="inline-flex items-center gap-1 font-medium text-zinc-600">
+              <Wallet size={13} className="text-zinc-400" aria-hidden />
+              {cost}
+            </span>
           ) : null}
         </div>
 
         <div className="mt-auto flex gap-2 pt-3">
           <button
             type="button"
-            className="flex-1 rounded-xl bg-emerald-600 py-2.5 text-sm font-bold text-white transition-colors hover:bg-emerald-700"
+            className="flex-1 rounded-xl bg-emerald-600 py-2 text-sm font-bold text-white transition-colors hover:bg-emerald-700"
             onClick={onConsume}
           >
             Zużyj
           </button>
           <Link
             href={addBatchHref}
-            className="flex-1 rounded-xl border border-zinc-200 bg-white py-2.5 text-center text-sm font-bold text-zinc-800 transition-colors hover:border-emerald-300 hover:bg-emerald-50"
+            className="flex-1 rounded-xl border border-zinc-200 bg-white py-2 text-center text-sm font-bold text-zinc-800 transition-colors hover:border-emerald-300 hover:bg-emerald-50"
           >
             Dodaj partię
           </Link>
@@ -282,109 +255,89 @@ export function InventoryGroupCard({
 
   return (
     <article
-      className="group flex h-full flex-col overflow-hidden rounded-2xl border border-zinc-200/80 bg-white shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md"
+      className="flex flex-col gap-3 overflow-hidden rounded-2xl border border-zinc-200/80 bg-white p-3 shadow-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md sm:p-4"
       data-testid="stock-group-card"
       data-group-id={group.groupId}
     >
-      <div className="relative h-28 w-full overflow-hidden bg-zinc-50/80">
-        <div className="flex h-full w-full items-center justify-center p-3">
+      <div className="flex gap-3 sm:gap-4">
+        <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-xl sm:h-32 sm:w-32">
           {cover ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={cover}
-              alt=""
-              className="max-h-full max-w-full object-contain"
-            />
+            <img src={cover} alt="" className="h-full w-full object-cover" />
           ) : (
-            <Package size={36} className="text-zinc-300" aria-hidden />
+            <span className="flex h-full w-full items-center justify-center bg-zinc-50 text-zinc-300">
+              <Package size={32} aria-hidden />
+            </span>
           )}
-        </div>
-        <div className="absolute top-2 right-2 flex flex-col gap-1.5">
-          {status === "warning" ? (
-            <span className="flex items-center gap-1 rounded-full bg-amber-500 px-2 py-1 text-[10px] font-black text-white shadow">
-              <Clock size={11} aria-hidden /> TERMIN
-            </span>
-          ) : null}
-          {status === "critical" ? (
-            <span className="flex items-center gap-1 rounded-full bg-red-600 px-2 py-1 text-[10px] font-black text-white shadow">
-              <AlertCircle size={11} aria-hidden /> PRZETERMINOWANE
+          {status === "warning" || status === "critical" ? (
+            <span
+              className={cn(
+                "absolute top-1.5 left-1.5 rounded-full px-1.5 py-0.5 text-[9px] font-black text-white shadow",
+                status === "critical" ? "bg-red-600" : "bg-amber-500",
+              )}
+            >
+              {status === "critical" ? "!" : "Termin"}
             </span>
           ) : null}
         </div>
-      </div>
-
-      <div className="flex flex-1 flex-col p-4">
-        <div className="mb-2">
+        <div className="min-w-0 flex-1">
           <ProductCategoryBadge category={category} variant="pill" />
-        </div>
-        <h3 className="text-base leading-tight font-bold text-zinc-900">
-          {group.groupName}
-        </h3>
-        <p className="mt-0.5 text-xs font-medium text-zinc-500">
-          {group.variantCount}{" "}
-          {group.variantCount === 1 ? "wariant" : "warianty"}
-        </p>
-
-        <div className="mt-3 grid grid-cols-2 gap-3 rounded-xl bg-zinc-50 p-3">
-          <div>
-            <p className="mb-0.5 flex items-center gap-1 text-[10px] font-bold tracking-wider text-zinc-400 uppercase">
-              <Scale size={11} aria-hidden /> Stan
-            </p>
-            <p className="text-sm font-bold text-zinc-900">
+          <h3 className="mt-1 text-base leading-tight font-bold text-zinc-900 sm:text-lg">
+            {group.groupName}
+          </h3>
+          <p className="mt-0.5 text-xs font-medium text-zinc-500">
+            {group.variantCount}{" "}
+            {group.variantCount === 1 ? "wariant" : "warianty"}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            <span className="inline-flex items-center gap-1 font-bold text-zinc-900">
+              <Scale size={13} className="text-zinc-400" aria-hidden />
               {amount}
               {unit ? (
-                <span className="ml-1 text-xs font-semibold text-zinc-500">
-                  {unit}
-                </span>
+                <span className="font-semibold text-zinc-500">{unit}</span>
               ) : null}
-            </p>
-          </div>
-          <div>
-            <p className="mb-0.5 flex items-center gap-1 text-[10px] font-bold tracking-wider text-zinc-400 uppercase">
-              <MapPin size={11} aria-hidden /> Miejsce
-            </p>
-            <p className="text-sm font-semibold text-zinc-700">{location}</p>
-          </div>
-          {hasExpiry ? (
-            <div className="col-span-2 border-t border-zinc-200/80 pt-2">
-              <p className="mb-0.5 flex items-center gap-1 text-[10px] font-bold tracking-wider text-zinc-400 uppercase">
-                <Calendar size={11} aria-hidden /> Data ważności
-              </p>
-              <p
+            </span>
+            <span className="inline-flex items-center gap-1 font-medium text-zinc-600">
+              <MapPin size={13} className="text-zinc-400" aria-hidden />
+              {location}
+            </span>
+            {hasExpiry ? (
+              <span
                 className={cn(
-                  "text-sm font-semibold",
+                  "inline-flex items-center gap-1 font-medium",
                   status === "critical"
                     ? "text-red-600"
                     : status === "warning"
                       ? "text-amber-600"
-                      : "text-zinc-700",
+                      : "text-zinc-600",
                 )}
               >
+                <Calendar size={13} aria-hidden />
                 {formatExpiryDate(group.nearestExpiry!)}
-              </p>
-            </div>
-          ) : null}
+              </span>
+            ) : null}
+          </div>
         </div>
+      </div>
 
-        <div className="mt-3 space-y-2">
-          <p className="text-[10px] font-bold tracking-wider text-zinc-400 uppercase">
-            Warianty
-          </p>
-          {group.variants.map((variant) => (
-            <VariantRow
-              key={variant.productId}
-              kitchenId={kitchenId}
-              variant={variant}
-              onConsume={() => onConsumeVariant(variant)}
-              onPreviewImage={onPreviewImage}
-              menuItems={buildMenuItems({
-                productId: variant.productId,
-                productName: variant.productName,
-                summary: variant,
-              })}
-            />
-          ))}
-        </div>
+      <div className="space-y-2 border-t border-zinc-100 pt-3">
+        <p className="text-[10px] font-bold tracking-wider text-zinc-400 uppercase">
+          Warianty
+        </p>
+        {group.variants.map((variant) => (
+          <VariantRow
+            key={variant.productId}
+            kitchenId={kitchenId}
+            variant={variant}
+            onConsume={() => onConsumeVariant(variant)}
+            onPreviewImage={onPreviewImage}
+            menuItems={buildMenuItems({
+              productId: variant.productId,
+              productName: variant.productName,
+              summary: variant,
+            })}
+          />
+        ))}
       </div>
     </article>
   );
@@ -410,11 +363,11 @@ function VariantRow({
   );
 
   return (
-    <div className="flex items-center justify-between gap-2 rounded-xl bg-zinc-50/90 p-2.5 transition-colors hover:bg-white hover:shadow-sm">
+    <div className="flex items-center justify-between gap-2 rounded-xl bg-zinc-50/80 p-2">
       <div className="flex min-w-0 items-center gap-2.5">
         <button
           type="button"
-          className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg bg-white"
+          className="h-11 w-11 shrink-0 overflow-hidden rounded-lg"
           disabled={!image || !onPreviewImage}
           onClick={() => {
             if (image && onPreviewImage) {
@@ -424,9 +377,11 @@ function VariantRow({
         >
           {image ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={image} alt="" className="max-h-full max-w-full object-contain p-1" />
+            <img src={image} alt="" className="h-full w-full object-cover" />
           ) : (
-            <Package size={14} className="text-zinc-300" aria-hidden />
+            <span className="flex h-full w-full items-center justify-center bg-white text-zinc-300">
+              <Package size={16} aria-hidden />
+            </span>
           )}
         </button>
         <div className="min-w-0">
@@ -450,7 +405,7 @@ function VariantRow({
         </div>
         <button
           type="button"
-          className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-emerald-600 shadow-sm transition-colors hover:bg-emerald-50"
+          className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-emerald-600 shadow-sm hover:bg-emerald-50"
           aria-label={`Zużyj ${variant.productName}`}
           onClick={onConsume}
         >
@@ -465,7 +420,7 @@ function VariantRow({
         <ProductActionsMenu
           label={`Akcje: ${variant.productName}`}
           items={menuItems}
-          triggerClassName="h-8 w-8 rounded-lg bg-white p-0 text-zinc-400 shadow-sm hover:bg-zinc-50"
+          triggerClassName="h-8 w-8 rounded-lg bg-white p-0 text-zinc-400 shadow-sm"
           icon={<MoreVertical size={14} />}
         />
       </div>

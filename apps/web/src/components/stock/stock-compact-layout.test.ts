@@ -16,8 +16,8 @@ describe("stock polish layout contracts", () => {
     assert.match(tab, /data-testid="stock-cards-grid"/);
     assert.match(tab, /grid-cols-1/);
     assert.match(tab, /md:grid-cols-2/);
-    assert.match(tab, /xl:grid-cols-3/);
-    assert.match(tab, /gap-5/);
+    assert.match(tab, /2xl:grid-cols-3/);
+    assert.match(tab, /gap-4/);
     assert.doesNotMatch(tab, /data-testid="stock-compact-list"/);
   });
 
@@ -34,11 +34,12 @@ describe("stock polish layout contracts", () => {
     assert.match(card, /Warianty/);
   });
 
-  it("product card uses contain image and category badge", () => {
+  it("product card uses square cover image and category badge", () => {
     const card = read("inventory-card.tsx");
     assert.match(card, /ProductActionsMenu/);
     assert.match(card, /ProductCategoryBadge/);
-    assert.match(card, /object-contain/);
+    assert.match(card, /object-cover/);
+    assert.match(card, /h-28 w-28|sm:h-32 sm:w-32/);
     assert.match(card, />\s*Zużyj\s*</);
     assert.match(card, /Dodaj partię/);
     assert.match(card, /data-testid="stock-inventory-card"/);
@@ -61,6 +62,6 @@ describe("stock polish layout contracts", () => {
     assert.match(panel, /Produkt & Marka/);
     assert.match(catalog, /setExpanded/);
     assert.match(catalog, /ProductCategoryBadge/);
-    assert.match(catalog, /object-contain/);
+    assert.match(catalog, /object-cover/);
   });
 });

@@ -1295,16 +1295,21 @@ export class StockService {
         },
       },
       include: {
-        product: { include: { group: true } },
+        product: { include: { group: true, imageMedia: true } },
         ...stockBatchInclude,
       },
       orderBy: [{ expiresAt: 'asc' }, { createdAt: 'asc' }],
     });
 
     const byProduct = new Map<string, StockListProductAggregate>();
+    const mediaAssets: Array<NonNullable<(typeof items)[number]['product']['imageMedia']>> =
+      [];
     for (const item of items) {
       let agg = byProduct.get(item.productId);
       if (!agg) {
+        if (item.product.imageMedia) {
+          mediaAssets.push(item.product.imageMedia);
+        }
         agg = {
           productId: item.product.id,
           productName: item.product.name,
@@ -1349,6 +1354,38 @@ export class StockService {
     const aggregates = Array.from(byProduct.values()).filter((agg) =>
       matchesExpiryStatus(agg.nearestExpiry, now, filters.expiryStatus),
     );
+
+    const mediaByProductId = new Map<string, string | null>();
+    const uniqueAssets = new Map(
+      mediaAssets.map((asset) => [asset.id, asset] as const),
+    );
+    const summaries = await this.mediaService.buildImageSummaries(
+      Array.from(uniqueAssets.values()),
+    );
+    for (const item of items) {
+      if (mediaByProductId.has(item.productId)) {
+        continue;
+      }
+      const mediaId = item.product.imageMedia?.id;
+      const summary = mediaId ? summaries.get(mediaId) : null;
+      const signed =
+        summary?.thumbnailUrl ?? summary?.url ?? null;
+      mediaByProductId.set(
+        item.productId,
+        signed &&
+          (signed.startsWith('http://') ||
+            signed.startsWith('https://') ||
+            signed.startsWith('data:image/'))
+          ? signed
+          : null,
+      );
+    }
+    for (const agg of aggregates) {
+      const signed = mediaByProductId.get(agg.productId);
+      if (signed) {
+        agg.imageUrl = signed;
+      }
+    }
 
     const entries = sortStockListEntries(
       buildStockListEntries(aggregates),

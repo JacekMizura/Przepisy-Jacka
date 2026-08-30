@@ -57,7 +57,7 @@ export function CatalogProductRow({
       <div className="flex items-center gap-3 sm:col-span-5 sm:pl-2">
         <button
           type="button"
-          className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-zinc-50"
+          className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl"
           disabled={!image || !onPreview}
           onClick={() => {
             if (image && onPreview) {
@@ -70,10 +70,10 @@ export function CatalogProductRow({
             <img
               src={image}
               alt=""
-              className="max-h-full max-w-full object-contain p-1.5"
+              className="h-full w-full object-cover"
             />
           ) : (
-            <Package size={20} className="text-zinc-300" aria-hidden />
+            <Package size={22} className="text-zinc-300" aria-hidden />
           )}
         </button>
         <div className="min-w-0">
@@ -156,16 +156,16 @@ export function CatalogGroupCard({
     <div data-testid="catalog-group-card" data-group-id={groupId}>
       <div className="grid grid-cols-1 items-center gap-3 px-4 py-3 transition-colors hover:bg-zinc-50 sm:grid-cols-12 sm:gap-4">
         <div className="flex items-center gap-3 sm:col-span-5 sm:pl-2">
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-zinc-50">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-xl">
             {cover ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={cover}
                 alt=""
-                className="max-h-full max-w-full object-contain p-1.5"
+                className="h-full w-full object-cover"
               />
             ) : (
-              <Package size={20} className="text-zinc-300" aria-hidden />
+              <Package size={22} className="text-zinc-300" aria-hidden />
             )}
           </div>
           <div className="min-w-0">

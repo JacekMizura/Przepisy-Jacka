@@ -12,7 +12,11 @@ type ProductLike = Pick<Product, "id" | "purchaseMode"> & {
 /** Body POST pozycji listy — packaged wymaga opcji i liczby opakowań. */
 export function buildAddToShoppingListBody(
   product: ProductLike,
-  options?: { mergeQuantity?: boolean },
+  options?: {
+    mergeQuantity?: boolean;
+    purchaseOptionId?: string;
+    packageCount?: number;
+  },
 ): CreateShoppingListItem {
   const body: CreateShoppingListItem = { productId: product.id };
   if (options?.mergeQuantity) {
@@ -21,16 +25,27 @@ export function buildAddToShoppingListBody(
 
   if (product.purchaseMode === "packaged") {
     const option =
+      (options?.purchaseOptionId
+        ? product.purchaseOptions?.find(
+            (entry) =>
+              entry.id === options.purchaseOptionId && entry.isActive,
+          )
+        : undefined) ??
       product.purchaseOptions?.find(
         (entry) => entry.isActive && entry.isDefault,
-      ) ?? product.purchaseOptions?.find((entry) => entry.isActive);
+      ) ??
+      product.purchaseOptions?.find((entry) => entry.isActive);
     if (!option) {
       throw new Error(
         "Ten produkt jest w opakowaniach, ale nie ma aktywnej opcji zakupu. Ustaw opakowanie w edycji produktu.",
       );
     }
+    const packages = options?.packageCount ?? 1;
+    if (!Number.isFinite(packages) || packages < 1) {
+      throw new Error("Podaj liczbę opakowań (co najmniej 1).");
+    }
     body.purchaseOptionId = option.id;
-    body.packageCount = 1;
+    body.packageCount = Math.round(packages);
   }
 
   return body;

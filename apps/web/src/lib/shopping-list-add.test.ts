@@ -36,6 +36,42 @@ describe("buildAddToShoppingListBody", () => {
     assert.equal(body.packageCount, 1);
   });
 
+  it("accepts selected purchase option and package count", () => {
+    const body = buildAddToShoppingListBody(
+      {
+        id: "p2",
+        purchaseMode: "packaged",
+        purchaseOptions: [
+          {
+            id: "opt-1",
+            productId: "p2",
+            name: "6 szt",
+            contentQuantity: "6.000",
+            contentUnit: "piece",
+            isDefault: true,
+            isActive: true,
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+          },
+          {
+            id: "opt-2",
+            productId: "p2",
+            name: "10 szt",
+            contentQuantity: "10.000",
+            contentUnit: "piece",
+            isDefault: false,
+            isActive: true,
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+          },
+        ],
+      },
+      { purchaseOptionId: "opt-2", packageCount: 3 },
+    );
+    assert.equal(body.purchaseOptionId, "opt-2");
+    assert.equal(body.packageCount, 3);
+  });
+
   it("throws when packaged product has no active options", () => {
     assert.throws(
       () =>

@@ -110,7 +110,17 @@ export class ShoppingService {
       include: shoppingItemInclude,
       orderBy: [{ status: 'asc' }, { id: 'asc' }],
     });
-    return Promise.all(items.map((item) => this.toShoppingListItemDto(item)));
+    const productIds = [
+      ...new Set(
+        items
+          .map((item) => item.productId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const estimates = await this.loadLastPurchaseEstimates(productIds);
+    return Promise.all(
+      items.map((item) => this.toShoppingListItemDto(item, estimates)),
+    );
   }
 
   async createShoppingListItem(
@@ -646,9 +656,107 @@ export class ShoppingService {
     };
   }
 
+  private async loadLastPurchaseEstimates(
+    productIds: string[],
+  ): Promise<
+    Map<
+      string,
+      {
+        purchasePriceMinor: number;
+        packageCount: number | null;
+        initialQuantity: Prisma.Decimal;
+      }
+    >
+  > {
+    const map = new Map<
+      string,
+      {
+        purchasePriceMinor: number;
+        packageCount: number | null;
+        initialQuantity: Prisma.Decimal;
+      }
+    >();
+    if (productIds.length === 0) {
+      return map;
+    }
+    const batches = await this.prisma.stockItem.findMany({
+      where: {
+        productId: { in: productIds },
+        purchasePriceMinor: { not: null },
+      },
+      orderBy: [{ purchasedAt: 'desc' }, { createdAt: 'desc' }],
+      select: {
+        productId: true,
+        purchasePriceMinor: true,
+        packageCount: true,
+        initialQuantity: true,
+      },
+    });
+    for (const batch of batches) {
+      if (map.has(batch.productId) || batch.purchasePriceMinor === null) {
+        continue;
+      }
+      map.set(batch.productId, {
+        purchasePriceMinor: batch.purchasePriceMinor,
+        packageCount: batch.packageCount,
+        initialQuantity: batch.initialQuantity,
+      });
+    }
+    return map;
+  }
+
+  private estimateShoppingItemPriceMinor(
+    item: ShoppingListItemWithProduct,
+    estimates: Map<
+      string,
+      {
+        purchasePriceMinor: number;
+        packageCount: number | null;
+        initialQuantity: Prisma.Decimal;
+      }
+    >,
+  ): number | null {
+    if (!item.productId) {
+      return null;
+    }
+    const last = estimates.get(item.productId);
+    if (!last) {
+      return null;
+    }
+    if (
+      item.packageCount != null &&
+      item.packageCount > 0 &&
+      last.packageCount != null &&
+      last.packageCount > 0
+    ) {
+      return Math.round(
+        (last.purchasePriceMinor / last.packageCount) * item.packageCount,
+      );
+    }
+    if (item.plannedQuantity !== null && last.initialQuantity.gt(0)) {
+      return Math.round(
+        Number(
+          new Prisma.Decimal(last.purchasePriceMinor)
+            .mul(item.plannedQuantity)
+            .div(last.initialQuantity),
+        ),
+      );
+    }
+    return last.purchasePriceMinor;
+  }
+
   private async toShoppingListItemDto(
     item: ShoppingListItemWithProduct,
+    estimates?: Map<
+      string,
+      {
+        purchasePriceMinor: number;
+        packageCount: number | null;
+        initialQuantity: Prisma.Decimal;
+      }
+    >,
   ): Promise<ShoppingListItemDto> {
+    const priceMap = estimates ?? new Map();
     return {
       id: item.id,
       shoppingListId: item.shoppingListId,
@@ -677,6 +785,7 @@ export class ShoppingService {
       product: item.product
         ? await this.toShoppingListItemProductDto(item.product)
         : null,
+      estimatedPriceMinor: this.estimateShoppingItemPriceMinor(item, priceMap),
     };
   }
 

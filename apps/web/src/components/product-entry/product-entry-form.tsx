@@ -20,6 +20,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { MediaImageField } from "@/components/media-image-field";
+import { ProductCategorySelector } from "@/components/product-entry/product-category-selector";
 import {
   initialKindFromGroupId,
   initialKindFromProduct,
@@ -1516,28 +1517,12 @@ export function ProductEntryForm({
                     </p>
                   </div>
 
-                  <div>
-                    <label
-                      htmlFor="product-entry-category"
-                      className="mb-1 block text-sm font-medium text-gray-700"
-                    >
-                      Kategoria
-                    </label>
-                    <select
-                      id="product-entry-category"
-                      value={category}
-                      onChange={(event) => setCategory(event.target.value)}
-                      disabled={lockCatalogFields}
-                      className={cn(FIELD_CLASS, "bg-white")}
-                    >
-                      <option value="">Bez kategorii</option>
-                      {categoryOptions.map((entry) => (
-                        <option key={entry} value={entry}>
-                          {entry}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <ProductCategorySelector
+                    value={category}
+                    onChange={setCategory}
+                    extraOptions={categoryOptions}
+                    disabled={lockCatalogFields}
+                  />
                 </div>
               </section>
             ) : null}
@@ -2041,27 +2026,11 @@ export function ProductEntryForm({
               </div>
             </div>
 
-            <div>
-              <label
-                htmlFor="product-entry-category"
-                className="mb-1 block text-sm font-medium text-gray-700"
-              >
-                Kategoria
-              </label>
-              <select
-                id="product-entry-category"
-                value={category}
-                onChange={(event) => setCategory(event.target.value)}
-                className={cn(FIELD_CLASS, "bg-white")}
-              >
-                <option value="">Bez kategorii</option>
-                {categoryOptions.map((entry) => (
-                  <option key={entry} value={entry}>
-                    {entry}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <ProductCategorySelector
+              value={category}
+              onChange={setCategory}
+              extraOptions={categoryOptions}
+            />
 
             <div>
               <label

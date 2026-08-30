@@ -79,7 +79,7 @@ Produkt może mieć opcjonalnie:
 - `imageUrl` — starsze źródło zdjęcia: URL http(s) albo skompresowany data URL obrazu,
 - `image` — zdjęcie z magazynu zdjęć (patrz „Zdjęcia”), ma pierwszeństwo nad `imageUrl`,
 - `nutrition` — wartości odżywcze na wybraną ilość odniesienia,
-- `category` — etykieta kategorii do filtrowania i grupowania w stanie magazynowym.
+- `category` — etykieta kategorii do filtrowania i grupowania w stanie magazynowym (na webie: wybór kafelkami z ikoną; prezentacja ikona+kolor tylko w UI, nie w bazie),
 
 ### Wartości odżywcze produktu
 

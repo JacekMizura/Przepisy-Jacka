@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+import { ProductCategoryBadge } from "@/components/product-entry/product-category-selector";
 import {
   ProductActionsMenu,
   type ProductActionItem,
@@ -434,6 +435,12 @@ function CatalogProductRow({
         </button>
         <div className="min-w-0">
           <p className="truncate font-medium text-gray-900">{product.name}</p>
+          {product.category ? (
+            <ProductCategoryBadge
+              category={product.category}
+              className="mt-0.5 text-xs"
+            />
+          ) : null}
           {meta ? (
             <p className="truncate text-xs text-gray-500">{meta}</p>
           ) : null}

@@ -12,6 +12,7 @@ type ProductPhotoFieldProps = {
   productId: string;
   image: MediaImage | null;
   label?: string;
+  size?: "sm" | "md" | "wide" | "lg";
 };
 
 /** Zdjęcie istniejącego produktu — wysyłka i odpięcie działają od razu. */
@@ -20,6 +21,7 @@ export function ProductPhotoField({
   productId,
   image,
   label = "Zdjęcie produktu",
+  size = "lg",
 }: ProductPhotoFieldProps) {
   const queryClient = useQueryClient();
 
@@ -66,7 +68,7 @@ export function ProductPhotoField({
       target={{ productId }}
       currentImage={image}
       label={label}
-      size="sm"
+      size={size}
       onUploaded={(mediaAssetId) => attach.mutateAsync(mediaAssetId)}
       onRemoved={() => detach.mutateAsync()}
     />

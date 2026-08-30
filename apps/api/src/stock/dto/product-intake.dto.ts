@@ -30,6 +30,7 @@ import {
   ProductPackageFieldsDto,
 } from './product.dto';
 import { ProductGroupDto } from './product-group.dto';
+import { ProductRemovalHintDto } from './product-removal.dto';
 import { StockItemDto } from './stock-item.dto';
 
 export class ProductIntakeNewProductDto extends ProductPackageFieldsDto {
@@ -227,6 +228,13 @@ export class ProductIntakeResultDto {
     description: 'true gdy produkt był przywrócony z archiwum w tym żądaniu.',
   })
   restoredFromArchive!: boolean;
+
+  @ApiProperty({
+    type: ProductRemovalHintDto,
+    description:
+      'Podpowiedź UX: czy wolno cofnąć omyłkowe dodanie (POST …/undo-addition) bez dodatkowego GET.',
+  })
+  removalHint!: ProductRemovalHintDto;
 }
 
 export class ProductMatchQueryDto {

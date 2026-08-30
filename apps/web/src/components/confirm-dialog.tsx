@@ -8,7 +8,9 @@ type ConfirmDialogProps = {
   title: string;
   description: string;
   confirmLabel: string;
+  pendingLabel?: string;
   pending?: boolean;
+  confirmVariant?: "destructive" | "default" | "amber";
   onConfirm: () => void;
   onCancel: () => void;
 };
@@ -17,7 +19,9 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel,
+  pendingLabel,
   pending,
+  confirmVariant = "destructive",
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -62,11 +66,11 @@ export function ConfirmDialog({
           </Button>
           <Button
             ref={confirmRef}
-            variant="destructive"
+            variant={confirmVariant}
             onClick={onConfirm}
             disabled={pending}
           >
-            {pending ? "Usuwanie…" : confirmLabel}
+            {pending ? (pendingLabel ?? "Proszę czekać…") : confirmLabel}
           </Button>
         </div>
       </div>

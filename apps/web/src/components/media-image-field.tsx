@@ -1,6 +1,6 @@
 "use client";
 
-import { ImagePlus } from "lucide-react";
+import { Image as ImageIcon, ImagePlus } from "lucide-react";
 import { type ReactNode, useEffect, useId, useMemo, useState } from "react";
 
 import { Label } from "@/components/ui/label";
@@ -16,12 +16,14 @@ import {
 } from "@/lib/media-upload";
 import { cn } from "@/lib/utils";
 
-type FrameSize = "sm" | "md" | "wide";
+type FrameSize = "sm" | "md" | "wide" | "lg";
+type FieldLayout = "default" | "inline";
 
 const FRAME_CLASSES: Record<FrameSize, string> = {
   sm: "h-20 w-20",
   md: "h-28 w-28",
   wide: "h-32 w-full max-w-xs sm:h-36",
+  lg: "aspect-square h-auto w-full max-w-sm min-h-44",
 };
 
 type MediaImageFieldProps = {
@@ -36,6 +38,9 @@ type MediaImageFieldProps = {
   label?: string;
   hint?: string;
   size?: FrameSize;
+  /** `inline` = układ z referencji create (96×96 + przycisk obok). */
+  layout?: FieldLayout;
+  onPreviewUrlChange?: (url: string | null) => void;
 };
 
 export function MediaImageField({
@@ -49,6 +54,8 @@ export function MediaImageField({
   label = "Zdjęcie",
   hint = MEDIA_FILE_HINT,
   size = "md",
+  layout = "default",
+  onPreviewUrlChange,
 }: MediaImageFieldProps) {
   const [localPreview, setLocalPreview] = useState<string | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
@@ -65,6 +72,11 @@ export function MediaImageField({
 
   const remoteUrl = mediaDisplayUrl(currentImage);
   const previewSrc = localPreview ?? remoteUrl;
+
+  useEffect(() => {
+    onPreviewUrlChange?.(previewSrc);
+  }, [onPreviewUrlChange, previewSrc]);
+
   const hasImage = Boolean(previewSrc || currentImage);
   const busy = progress !== null || removing;
 
@@ -130,6 +142,7 @@ export function MediaImageField({
       hint={hint}
       previewSrc={previewSrc}
       size={size}
+      layout={layout}
       disabled={disabled || busy}
       busyLabel={
         removing ? "Usuwanie…" : progress !== null ? "Wysyłanie…" : null
@@ -152,6 +165,7 @@ type PendingImageFieldProps = {
   note?: ReactNode;
   disabled?: boolean;
   size?: FrameSize;
+  layout?: FieldLayout;
 };
 
 /**
@@ -166,6 +180,7 @@ export function PendingImageField({
   note,
   disabled = false,
   size = "md",
+  layout = "default",
 }: PendingImageFieldProps) {
   const [error, setError] = useState<string | null>(null);
   const preview = useMemo(
@@ -187,6 +202,7 @@ export function PendingImageField({
       note={note}
       previewSrc={preview}
       size={size}
+      layout={layout}
       disabled={disabled}
       busyLabel={null}
       pickLabel={file ? "Zmień zdjęcie" : "Wybierz zdjęcie"}
@@ -220,6 +236,7 @@ type ImageFieldShellProps = {
   note?: ReactNode;
   previewSrc: string | null;
   size: FrameSize;
+  layout: FieldLayout;
   disabled: boolean;
   busyLabel: string | null;
   pickLabel: string;
@@ -236,6 +253,7 @@ function ImageFieldShell({
   note,
   previewSrc,
   size,
+  layout,
   disabled,
   busyLabel,
   pickLabel,
@@ -246,16 +264,190 @@ function ImageFieldShell({
   error,
 }: ImageFieldShellProps) {
   const inputId = `${useId()}-file`;
+  const [dragOver, setDragOver] = useState(false);
+  const stacked = layout === "default" && (size === "lg" || size === "wide");
+  const inline = layout === "inline";
+
+  function acceptDroppedFile(fileList: FileList | null) {
+    const file = fileList?.[0];
+    if (!file) {
+      onPickError("Nie wybrano pliku.");
+      return;
+    }
+    void onPick(file);
+  }
+
+  if (inline) {
+    return (
+      <div>
+        <label
+          htmlFor={inputId}
+          className="mb-2 block text-sm font-medium text-gray-700"
+        >
+          {label}
+        </label>
+        <div className="flex items-center gap-4">
+          <div
+            className={cn(
+              "flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-lg border-2 border-dashed bg-gray-50",
+              dragOver
+                ? "border-emerald-400 bg-emerald-50/60"
+                : "border-gray-300",
+              !disabled && "cursor-pointer",
+            )}
+            onDragEnter={(event) => {
+              event.preventDefault();
+              if (!disabled) {
+                setDragOver(true);
+              }
+            }}
+            onDragOver={(event) => {
+              event.preventDefault();
+              if (!disabled) {
+                setDragOver(true);
+              }
+            }}
+            onDragLeave={(event) => {
+              event.preventDefault();
+              setDragOver(false);
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              setDragOver(false);
+              if (disabled) {
+                return;
+              }
+              acceptDroppedFile(event.dataTransfer.files);
+            }}
+            onClick={() => {
+              if (!disabled) {
+                document.getElementById(inputId)?.click();
+              }
+            }}
+          >
+            {previewSrc ? (
+              // eslint-disable-next-line @next/next/no-img-element -- podpisane URL-e magazynu zdjęć
+              <img
+                src={previewSrc}
+                alt=""
+                className="h-full w-full object-contain"
+              />
+            ) : (
+              <ImageIcon className="h-6 w-6 text-gray-400" />
+            )}
+          </div>
+          <div>
+            <label
+              htmlFor={inputId}
+              className={cn(
+                "inline-flex cursor-pointer rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-emerald-500",
+                disabled && "cursor-not-allowed opacity-60",
+              )}
+            >
+              {busyLabel ?? pickLabel}
+            </label>
+            <input
+              id={inputId}
+              type="file"
+              accept={MEDIA_FILE_ACCEPT}
+              className="sr-only"
+              disabled={disabled}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = "";
+                if (!file) {
+                  onPickError("Nie wybrano pliku.");
+                  return;
+                }
+                void onPick(file);
+              }}
+            />
+            {onRemove ? (
+              <button
+                type="button"
+                className="ml-3 text-xs font-medium text-gray-500 hover:text-red-600 disabled:opacity-60"
+                disabled={disabled}
+                onClick={() => void onRemove()}
+              >
+                Usuń
+              </button>
+            ) : null}
+            {progress !== null ? (
+              <div
+                className="mt-2 h-1.5 w-40 overflow-hidden rounded-full bg-gray-100"
+                role="progressbar"
+                aria-valuenow={progress}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-label="Postęp wysyłki zdjęcia"
+              >
+                <div
+                  className="h-full rounded-full bg-emerald-500 transition-all"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+            ) : null}
+            {hint ? (
+              <p className="mt-2 text-xs text-gray-500">{hint}</p>
+            ) : null}
+            {error ? (
+              <p className="mt-1 text-xs text-red-600" role="alert">
+                {error}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2">
       <Label htmlFor={inputId}>{label}</Label>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+      <div
+        className={cn(
+          "flex gap-3",
+          stacked ? "flex-col" : "flex-col sm:flex-row sm:items-start",
+        )}
+      >
         <div
           className={cn(
-            "flex shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-dashed border-gray-200 bg-gray-50",
+            "flex shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-dashed bg-gray-50 transition-colors",
             FRAME_CLASSES[size],
+            dragOver
+              ? "border-emerald-400 bg-emerald-50/60"
+              : "border-gray-200",
+            !disabled && "cursor-pointer",
           )}
+          onDragEnter={(event) => {
+            event.preventDefault();
+            if (!disabled) {
+              setDragOver(true);
+            }
+          }}
+          onDragOver={(event) => {
+            event.preventDefault();
+            if (!disabled) {
+              setDragOver(true);
+            }
+          }}
+          onDragLeave={(event) => {
+            event.preventDefault();
+            setDragOver(false);
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            setDragOver(false);
+            if (disabled) {
+              return;
+            }
+            acceptDroppedFile(event.dataTransfer.files);
+          }}
+          onClick={() => {
+            if (!disabled) {
+              document.getElementById(inputId)?.click();
+            }
+          }}
         >
           {previewSrc ? (
             // eslint-disable-next-line @next/next/no-img-element -- podpisane URL-e magazynu zdjęć
@@ -265,7 +457,14 @@ function ImageFieldShell({
               className="h-full w-full object-contain"
             />
           ) : (
-            <ImagePlus size={24} className="text-gray-300" />
+            <div className="flex flex-col items-center gap-2 px-4 text-center">
+              <ImagePlus size={28} className="text-gray-300" />
+              {stacked ? (
+                <p className="text-xs text-gray-400">
+                  Przeciągnij zdjęcie albo kliknij, aby wybrać
+                </p>
+              ) : null}
+            </div>
           )}
         </div>
         <div className="min-w-0 flex-1 space-y-2">
@@ -278,6 +477,7 @@ function ImageFieldShell({
                   ? "cursor-not-allowed opacity-60"
                   : "cursor-pointer hover:bg-gray-50",
               )}
+              onClick={(event) => event.stopPropagation()}
             >
               {busyLabel ?? pickLabel}
             </label>
@@ -302,7 +502,10 @@ function ImageFieldShell({
                 type="button"
                 className="text-xs font-medium text-gray-500 hover:text-red-600 disabled:opacity-60"
                 disabled={disabled}
-                onClick={() => void onRemove()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void onRemove();
+                }}
               >
                 Usuń zdjęcie
               </button>

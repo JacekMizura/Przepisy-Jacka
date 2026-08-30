@@ -1,6 +1,7 @@
 "use client";
 
 import type { components } from "@moja-kuchnia/api-client";
+import { ScanBarcode, Search } from "lucide-react";
 import { useId, useState } from "react";
 
 import {
@@ -9,9 +10,6 @@ import {
   type NutritionFormValues,
 } from "@/components/nutrition-ean-lookup";
 import { NutritionUsdaLookup } from "@/components/nutrition-usda-lookup";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { UNIT_LABELS } from "@/lib/errors";
 import { unitLabel } from "@/lib/format-quantity";
 import {
@@ -37,6 +35,8 @@ export {
 
 type ProductNutrition = components["schemas"]["ProductNutritionDto"];
 
+type NutritionMode = "manual" | "ean" | "db";
+
 type ProductNutritionEditorProps = {
   kitchenId: string;
   productUnit: BaseUnit;
@@ -44,12 +44,24 @@ type ProductNutritionEditorProps = {
   value: NutritionFormDraft;
   onChange: (next: NutritionFormDraft) => void;
   className?: string;
-  /** When true, fields stay visible even before the user picks an action. */
-  forceShowFields?: boolean;
+  /** When true, starts with manual form expanded. */
+  defaultOpen?: boolean;
 };
 
 function toLookupValues(draft: NutritionFormDraft): NutritionFormValues {
   return draft;
+}
+
+const FIELD_CLASS =
+  "w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm";
+
+function modeButtonClass(active: boolean): string {
+  return cn(
+    "px-4 py-2 text-sm font-medium rounded-lg border transition-colors",
+    active
+      ? "bg-emerald-50 border-emerald-500 text-emerald-700"
+      : "bg-white border-gray-300 text-gray-700 hover:bg-gray-50",
+  );
 }
 
 export function ProductNutritionEditor({
@@ -59,21 +71,21 @@ export function ProductNutritionEditor({
   value,
   onChange,
   className,
-  forceShowFields = false,
+  defaultOpen = false,
 }: ProductNutritionEditorProps) {
   const id = useId();
-  const [manualOpen, setManualOpen] = useState(
-    () => forceShowFields || draftHasNutritionValues(value),
-  );
-  const [eanPanelOpen, setEanPanelOpen] = useState(false);
-  const [usdaPanelOpen, setUsdaPanelOpen] = useState(false);
-
-  const showFields =
-    forceShowFields ||
-    manualOpen ||
-    draftHasNutritionValues(value) ||
-    value.source === "open_food_facts" ||
-    value.source === "usda_fdc";
+  const hasValues = draftHasNutritionValues(value);
+  const [mode, setMode] = useState<NutritionMode | null>(() => {
+    if (
+      defaultOpen ||
+      hasValues ||
+      value.source === "open_food_facts" ||
+      value.source === "usda_fdc"
+    ) {
+      return "manual";
+    }
+    return null;
+  });
 
   function updateField(patch: Partial<NutritionFormDraft>) {
     const touchedValues =
@@ -94,115 +106,115 @@ export function ProductNutritionEditor({
 
   function applyLookup(values: NutritionFormValues) {
     onChange(values);
-    setManualOpen(true);
+    setMode("manual");
+  }
+
+  function toggleMode(next: NutritionMode) {
+    setMode((current) => (current === next ? null : next));
   }
 
   return (
-    <div className={cn("space-y-3", className)}>
-      <div>
-        <h3 className="text-sm font-semibold text-gray-900">
+    <div
+      className={cn(
+        "space-y-0 bg-white p-6 rounded-xl shadow-sm border border-gray-200",
+        className,
+      )}
+    >
+      <div className="mb-4">
+        <h3 className="text-base font-semibold text-gray-900">
           Wartości odżywcze
         </h3>
-        <p className="mt-0.5 text-xs text-gray-500">
+        <p className="mt-1 text-sm text-gray-500">
           Opcjonalne — z nich liczymy kalorie i makro w przepisach. Lookup tylko
           wypełnia formularz; zapis następuje przy zapisie produktu.
         </p>
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Button
+      <div className="flex flex-wrap gap-3">
+        <button
           type="button"
-          size="sm"
-          variant={manualOpen || showFields ? "secondary" : "outline"}
-          onClick={() => {
-            setManualOpen(true);
-            if (!draftHasNutritionValues(value)) {
-              onChange({
-                ...createEmptyNutritionDraft(productUnit),
-                baseUnit: productUnit,
-              });
-            }
-          }}
+          onClick={() => toggleMode("manual")}
+          className={modeButtonClass(mode === "manual")}
         >
           Wpisz ręcznie
-        </Button>
-        <Button
+        </button>
+        <button
           type="button"
-          size="sm"
-          variant={eanPanelOpen ? "secondary" : "outline"}
-          onClick={() => {
-            setEanPanelOpen((open) => !open);
-            setUsdaPanelOpen(false);
-          }}
+          onClick={() => toggleMode("ean")}
+          className={cn(modeButtonClass(mode === "ean"), "flex items-center gap-2")}
         >
-          Pobierz po EAN
-        </Button>
-        <Button
+          <ScanBarcode className="h-4 w-4" /> Pobierz po EAN
+        </button>
+        <button
           type="button"
-          size="sm"
-          variant={usdaPanelOpen ? "secondary" : "outline"}
-          onClick={() => {
-            setUsdaPanelOpen((open) => !open);
-            setEanPanelOpen(false);
-          }}
+          onClick={() => toggleMode("db")}
+          className={cn(modeButtonClass(mode === "db"), "flex items-center gap-2")}
         >
-          Wybierz z bazy produktów
-        </Button>
+          <Search className="h-4 w-4" /> Wybierz z bazy produktów
+        </button>
       </div>
 
-      {eanPanelOpen ? (
-        <NutritionEanLookup
-          kitchenId={kitchenId}
-          ean={ean}
-          productUnit={productUnit}
-          hasExistingValues={lookupDraftHasValues(toLookupValues(value))}
-          onApply={applyLookup}
-        />
+      {mode === "ean" ? (
+        <div className="mt-4">
+          <NutritionEanLookup
+            kitchenId={kitchenId}
+            ean={ean}
+            productUnit={productUnit}
+            hasExistingValues={lookupDraftHasValues(toLookupValues(value))}
+            onApply={applyLookup}
+          />
+        </div>
       ) : null}
 
-      {usdaPanelOpen ? (
-        <NutritionUsdaLookup
-          kitchenId={kitchenId}
-          productUnit={productUnit}
-          hasExistingValues={lookupDraftHasValues(toLookupValues(value))}
-          onApply={applyLookup}
-        />
+      {mode === "db" ? (
+        <div className="mt-4">
+          <NutritionUsdaLookup
+            kitchenId={kitchenId}
+            productUnit={productUnit}
+            hasExistingValues={lookupDraftHasValues(toLookupValues(value))}
+            onApply={applyLookup}
+          />
+        </div>
       ) : null}
 
-      {value.source === "open_food_facts" ? (
-        <p className="text-xs text-emerald-700">
-          Formularz wypełniony danymi Open Food Facts
-          {value.sourceLabel ? ` („${value.sourceLabel}”)` : ""}. Zapis
-          zatwierdzisz przy zapisie produktu.
-        </p>
-      ) : null}
+      {mode === "manual" ? (
+        <div className="mt-4 space-y-3">
+          {value.source === "open_food_facts" ? (
+            <p className="text-xs text-emerald-700">
+              Formularz wypełniony danymi Open Food Facts
+              {value.sourceLabel ? ` („${value.sourceLabel}”)` : ""}.
+            </p>
+          ) : null}
 
-      {value.source === "usda_fdc" ? (
-        <p className="text-xs text-sky-800">
-          Formularz wypełniony danymi USDA (wartości referencyjne — szacunkowe)
-          {value.sourceLabel ? ` („${value.sourceLabel}”)` : ""}. Zapis
-          zatwierdzisz przy zapisie produktu.
-        </p>
-      ) : null}
+          {value.source === "usda_fdc" ? (
+            <p className="text-xs text-sky-800">
+              Formularz wypełniony danymi USDA (wartości referencyjne —
+              szacunkowe)
+              {value.sourceLabel ? ` („${value.sourceLabel}”)` : ""}.
+            </p>
+          ) : null}
 
-      {showFields ? (
-        <div className="space-y-3">
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <Label htmlFor={`${id}-base`}>Ilość odniesienia</Label>
+              <label
+                htmlFor={`${id}-base`}
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
+                Ilość odniesienia
+              </label>
               <div className="flex gap-2">
-                <Input
+                <input
                   id={`${id}-base`}
                   inputMode="decimal"
                   value={value.baseQuantity}
                   onChange={(event) =>
                     updateField({ baseQuantity: event.target.value })
                   }
-                  className="flex-1"
+                  className={cn(FIELD_CLASS, "flex-1")}
                 />
                 <select
                   aria-label="Jednostka odniesienia"
-                  className="rounded-lg border border-gray-200 bg-white px-2 text-sm"
+                  className={cn(FIELD_CLASS, "w-28 bg-white")}
                   value={value.baseUnit}
                   onChange={(event) =>
                     updateField({
@@ -222,82 +234,117 @@ export function ProductNutritionEditor({
               </p>
             </div>
             <div>
-              <Label htmlFor={`${id}-kcal`}>kcal</Label>
-              <Input
+              <label
+                htmlFor={`${id}-kcal`}
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
+                kcal
+              </label>
+              <input
                 id={`${id}-kcal`}
                 inputMode="decimal"
                 placeholder="np. 64"
                 value={value.kcal}
                 onChange={(event) => updateField({ kcal: event.target.value })}
+                className={FIELD_CLASS}
               />
             </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <div>
-              <Label htmlFor={`${id}-protein`}>Białko (g)</Label>
-              <Input
+              <label
+                htmlFor={`${id}-protein`}
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
+                Białko (g)
+              </label>
+              <input
                 id={`${id}-protein`}
                 inputMode="decimal"
                 value={value.proteinGrams}
                 onChange={(event) =>
                   updateField({ proteinGrams: event.target.value })
                 }
+                className={FIELD_CLASS}
               />
             </div>
             <div>
-              <Label htmlFor={`${id}-carbs`}>Węglowodany (g)</Label>
-              <Input
+              <label
+                htmlFor={`${id}-carbs`}
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
+                Węglowodany (g)
+              </label>
+              <input
                 id={`${id}-carbs`}
                 inputMode="decimal"
                 value={value.carbsGrams}
                 onChange={(event) =>
                   updateField({ carbsGrams: event.target.value })
                 }
+                className={FIELD_CLASS}
               />
             </div>
             <div>
-              <Label htmlFor={`${id}-fat`}>Tłuszcz (g)</Label>
-              <Input
+              <label
+                htmlFor={`${id}-fat`}
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
+                Tłuszcz (g)
+              </label>
+              <input
                 id={`${id}-fat`}
                 inputMode="decimal"
                 value={value.fatGrams}
                 onChange={(event) =>
                   updateField({ fatGrams: event.target.value })
                 }
+                className={FIELD_CLASS}
               />
             </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
-              <Label htmlFor={`${id}-fiber`}>Błonnik (g, opcjonalnie)</Label>
-              <Input
+              <label
+                htmlFor={`${id}-fiber`}
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
+                Błonnik (g, opcjonalnie)
+              </label>
+              <input
                 id={`${id}-fiber`}
                 inputMode="decimal"
                 value={value.fiberGrams}
                 onChange={(event) =>
                   updateField({ fiberGrams: event.target.value })
                 }
+                className={FIELD_CLASS}
               />
             </div>
             <div>
-              <Label htmlFor={`${id}-salt`}>Sól (g, opcjonalnie)</Label>
-              <Input
+              <label
+                htmlFor={`${id}-salt`}
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
+                Sól (g, opcjonalnie)
+              </label>
+              <input
                 id={`${id}-salt`}
                 inputMode="decimal"
                 value={value.saltGrams}
                 onChange={(event) =>
                   updateField({ saltGrams: event.target.value })
                 }
+                className={FIELD_CLASS}
               />
             </div>
           </div>
-          {draftHasNutritionValues(value) ? (
+          {hasValues ? (
             <button
               type="button"
               className="text-xs font-medium text-gray-500 hover:text-red-700 hover:underline"
               onClick={() => {
                 onChange(createEmptyNutritionDraft(productUnit));
-                setManualOpen(false);
               }}
             >
               Wyczyść wartości odżywcze

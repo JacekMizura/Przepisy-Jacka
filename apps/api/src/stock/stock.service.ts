@@ -42,6 +42,10 @@ import {
   UpdateProductDto,
 } from './dto/product.dto';
 import {
+  ProductRemovalPreviewDto,
+  ProductUndoAdditionResultDto,
+} from './dto/product-removal.dto';
+import {
   CreatePurchaseOptionDto,
   PurchaseOptionDto,
   UpdatePurchaseOptionDto,
@@ -76,6 +80,11 @@ import {
   applyOptionalPackageFieldUpdates,
   parsePackageFields,
 } from './product-package-fields';
+import {
+  canUndoProductAddition,
+  resolveProductRemovalMode,
+  type ProductRemovalFacts,
+} from './product-removal';
 import {
   toProductDto,
   toProductNutritionDto,
@@ -510,11 +519,14 @@ export class StockService {
       if (existingIdempotency.kitchenId !== kitchenId) {
         throw new ConflictException('Klucz idempotencji jest już użyty.');
       }
-      return replayIntakeResult(existingIdempotency.resultJson);
+      return this.withRemovalHint(
+        kitchenId,
+        replayIntakeResult(existingIdempotency.resultJson),
+      );
     }
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const created = await this.prisma.$transaction(async (tx) => {
         const raced = await tx.productIntakeIdempotency.findUnique({
           where: { idempotencyKey: dto.idempotencyKey },
         });
@@ -705,7 +717,7 @@ export class StockService {
         });
         const productDto =
           await this.toProductDtoWithMedia(productWithRelations);
-        const result: ProductIntakeResultDto = {
+        const result = {
           product: productDto,
           stockItem: stockItem ? toStockItemDto(stockItem) : null,
           replayed: false,
@@ -722,6 +734,7 @@ export class StockService {
 
         return result;
       });
+      return this.withRemovalHint(kitchenId, created);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -741,7 +754,10 @@ export class StockService {
             if (stored.kitchenId !== kitchenId) {
               throw new ConflictException('Klucz idempotencji jest już użyty.');
             }
-            return replayIntakeResult(stored.resultJson);
+            return this.withRemovalHint(
+              kitchenId,
+              replayIntakeResult(stored.resultJson),
+            );
           }
         }
       }
@@ -822,6 +838,115 @@ export class StockService {
       include: productInclude,
     });
     return this.toProductDtoWithMedia(updated);
+  }
+
+  async getProductRemovalPreview(
+    userId: string,
+    kitchenId: string,
+    productId: string,
+  ): Promise<ProductRemovalPreviewDto> {
+    const facts = await this.loadProductRemovalFacts(
+      userId,
+      kitchenId,
+      productId,
+    );
+    return resolveProductRemovalMode(facts);
+  }
+
+  async undoProductAddition(
+    userId: string,
+    kitchenId: string,
+    productId: string,
+  ): Promise<ProductUndoAdditionResultDto> {
+    const facts = await this.loadProductRemovalFacts(
+      userId,
+      kitchenId,
+      productId,
+    );
+    const preview = resolveProductRemovalMode(facts);
+    if (preview.mode !== 'undo') {
+      throw new ConflictException(
+        preview.reason ??
+          'Nie można cofnąć dodania tego produktu. Użyj archiwizacji.',
+      );
+    }
+
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, kitchenId },
+      select: { id: true, imageMediaId: true },
+    });
+    if (!product) {
+      throw new BadRequestException('Nie znaleziono produktu.');
+    }
+
+    if (product.imageMediaId) {
+      try {
+        await this.mediaService.detachProductImage(
+          userId,
+          kitchenId,
+          product.id,
+        );
+      } catch {
+        // Nie blokuj undo, gdy usuwanie mediów się nie uda — odłączymy FK w transakcji.
+      }
+    }
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const stockItems = await tx.stockItem.findMany({
+          where: { productId: product.id },
+          include: {
+            purchaseLineItem: { select: { id: true } },
+            _count: { select: { consumptionLines: true } },
+          },
+        });
+        for (const item of stockItems) {
+          if (
+            item.purchaseLineItem !== null ||
+            item._count.consumptionLines > 0
+          ) {
+            throw new ConflictException(
+              'Nie można cofnąć dodania: partia ma powiązanie z zakupem lub historią zużycia.',
+            );
+          }
+        }
+
+        if (stockItems.length > 0) {
+          await tx.stockItem.deleteMany({
+            where: { id: { in: stockItems.map((item) => item.id) } },
+          });
+        }
+
+        await tx.productNutrition.deleteMany({
+          where: { productId: product.id },
+        });
+
+        await tx.product.update({
+          where: { id: product.id },
+          data: { imageMediaId: null },
+        });
+
+        try {
+          await tx.productIntakeIdempotency.deleteMany({
+            where: {
+              kitchenId,
+              resultJson: {
+                path: ['product', 'id'],
+                equals: product.id,
+              },
+            },
+          });
+        } catch {
+          // Best-effort: brak wsparcia filtra JSON nie blokuje undo.
+        }
+
+        await tx.product.delete({ where: { id: product.id } });
+      });
+    } catch (error) {
+      throw toProductWriteError(error);
+    }
+
+    return { undone: true };
   }
 
   async deleteProduct(
@@ -1614,6 +1739,112 @@ export class StockService {
     await this.prisma.stockItem.delete({ where: { id: existing.id } });
   }
 
+  private async withRemovalHint(
+    kitchenId: string,
+    result: Omit<ProductIntakeResultDto, 'removalHint'> & {
+      removalHint?: ProductIntakeResultDto['removalHint'];
+    },
+  ): Promise<ProductIntakeResultDto> {
+    const canUndo = await this.computeCanUndoForProduct(
+      kitchenId,
+      result.product.id,
+    );
+    return {
+      ...result,
+      removalHint: { canUndo },
+    };
+  }
+
+  private async computeCanUndoForProduct(
+    kitchenId: string,
+    productId: string,
+  ): Promise<boolean> {
+    try {
+      const facts = await this.loadProductRemovalFactsForKnownProduct(
+        kitchenId,
+        productId,
+      );
+      return canUndoProductAddition(facts);
+    } catch {
+      return false;
+    }
+  }
+
+  private async loadProductRemovalFacts(
+    userId: string,
+    kitchenId: string,
+    productId: string,
+  ): Promise<ProductRemovalFacts> {
+    await requireKitchenMember(this.prisma, kitchenId, userId);
+    return this.loadProductRemovalFactsForKnownProduct(kitchenId, productId);
+  }
+
+  private async loadProductRemovalFactsForKnownProduct(
+    kitchenId: string,
+    productId: string,
+  ): Promise<ProductRemovalFacts> {
+    const product = await this.prisma.product.findFirst({
+      where: { id: productId, kitchenId },
+      include: {
+        nutrition: { select: { productId: true } },
+        stockItems: {
+          include: {
+            purchaseLineItem: { select: { id: true } },
+            _count: { select: { consumptionLines: true } },
+          },
+        },
+        _count: {
+          select: {
+            purchaseLineItems: true,
+            stockConsumptions: true,
+            recipeIngredients: true,
+            purchaseOptions: true,
+          },
+        },
+      },
+    });
+    if (!product) {
+      throw new BadRequestException('Nie znaleziono produktu.');
+    }
+
+    const pendingShoppingCount = await this.prisma.shoppingListItem.count({
+      where: {
+        productId: product.id,
+        status: ShoppingListItemStatus.pending,
+        shoppingList: { kitchenId },
+      },
+    });
+
+    let remainingStockQuantity = new Prisma.Decimal(0);
+    let purchaseLinkedStockItemCount = 0;
+    let stockItemsWithConsumptionCount = 0;
+    for (const item of product.stockItems) {
+      remainingStockQuantity = remainingStockQuantity.plus(item.quantity);
+      if (item.purchaseLineItem !== null) {
+        purchaseLinkedStockItemCount += 1;
+      }
+      if (item._count.consumptionLines > 0) {
+        stockItemsWithConsumptionCount += 1;
+      }
+    }
+
+    return {
+      isArchived: product.archivedAt !== null,
+      pendingShoppingCount,
+      recipeIngredientCount: product._count.recipeIngredients,
+      purchaseLineItemCount: product._count.purchaseLineItems,
+      stockConsumptionCount: product._count.stockConsumptions,
+      purchaseLinkedStockItemCount,
+      stockItemsWithConsumptionCount,
+      stockItemCount: product.stockItems.length,
+      hasNutrition: product.nutrition !== null,
+      hasPurchaseOptions: product._count.purchaseOptions > 0,
+      hasImageMedia: product.imageMediaId !== null,
+      remainingStockQuantity,
+      defaultUnit: product.defaultUnit,
+    };
+  }
+
   private async toProductDtoWithMedia(
     product: ProductWithRelations,
   ): Promise<ProductDto> {
@@ -1769,7 +2000,7 @@ function toProductWriteError(error: unknown): Error {
     (error.code === 'P2003' || error.code === 'P2014')
   ) {
     return new ConflictException(
-      'Nie można trwale usunąć produktu powiązanego z historią. Użyj archiwizacji.',
+      'Nie można trwale usunąć produktu powiązanego z historią. Użyj archiwizacji albo cofnięcia dodania, gdy jest dostępne.',
     );
   }
   return error instanceof Error ? error : new Error('Nieznany błąd zapisu.');
@@ -2068,7 +2299,9 @@ async function buildProductNutritionWriteData(
   };
 }
 
-function replayIntakeResult(value: Prisma.JsonValue): ProductIntakeResultDto {
+function replayIntakeResult(
+  value: Prisma.JsonValue,
+): Omit<ProductIntakeResultDto, 'removalHint'> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new ConflictException(
       'Uszkodzony wynik idempotencji przyjęcia produktu.',
@@ -2076,7 +2309,9 @@ function replayIntakeResult(value: Prisma.JsonValue): ProductIntakeResultDto {
   }
   const stored = value as unknown as ProductIntakeResultDto;
   return {
-    ...stored,
+    product: stored.product,
+    stockItem: stored.stockItem,
+    restoredFromArchive: stored.restoredFromArchive,
     replayed: true,
   };
 }

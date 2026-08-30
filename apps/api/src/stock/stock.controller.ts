@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -48,6 +49,10 @@ import {
   ProductDto,
   UpdateProductDto,
 } from './dto/product.dto';
+import {
+  ProductRemovalPreviewDto,
+  ProductUndoAdditionResultDto,
+} from './dto/product-removal.dto';
 import {
   CreatePurchaseOptionDto,
   PurchaseOptionDto,
@@ -314,10 +319,47 @@ export class StockController {
     );
   }
 
+  @Get('products/:productId/removal-preview')
+  @ApiOperation({
+    summary:
+      'Podgląd bezpiecznego usunięcia: undo (omyłkowe dodanie), archiwizacja albo blokada',
+  })
+  @ApiOkResponse({ type: ProductRemovalPreviewDto })
+  getProductRemovalPreview(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Param('productId', ParseUUIDPipe) productId: string,
+  ): Promise<ProductRemovalPreviewDto> {
+    return this.stockService.getProductRemovalPreview(
+      session.user.id,
+      kitchenId,
+      productId,
+    );
+  }
+
+  @Post('products/:productId/undo-addition')
+  @HttpCode(200)
+  @ApiOperation({
+    summary:
+      'Cofnięcie omyłkowego dodania produktu (zapas ręczny + nutrition). Preferowane względem ?permanent=true.',
+  })
+  @ApiOkResponse({ type: ProductUndoAdditionResultDto })
+  undoProductAddition(
+    @Session() session: UserSession,
+    @Param('kitchenId', ParseUUIDPipe) kitchenId: string,
+    @Param('productId', ParseUUIDPipe) productId: string,
+  ): Promise<ProductUndoAdditionResultDto> {
+    return this.stockService.undoProductAddition(
+      session.user.id,
+      kitchenId,
+      productId,
+    );
+  }
+
   @Delete('products/:productId')
   @ApiOperation({
     summary:
-      'Archiwizacja produktu (historia zostaje). ?permanent=true tylko dla nigdy nieużytego.',
+      'Archiwizacja produktu (historia zostaje). ?permanent=true tylko dla nigdy nieużytego bez zapasu/nutrition — UX cofnięcia: POST …/undo-addition.',
   })
   @ApiQuery({ name: 'permanent', required: false, type: Boolean })
   @ApiOkResponse({ type: ProductDto })

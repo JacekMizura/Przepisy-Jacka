@@ -57,4 +57,15 @@ describe("stock modern cards layout contracts", () => {
     assert.doesNotMatch(groupBlock, /variants\[0\]/);
     assert.doesNotMatch(groupBlock, /imageUrl/);
   });
+
+  it("catalog uses modern card grid", () => {
+    const panel = readFileSync(
+      join(__dirname, "../product-entry/product-catalog-panel.tsx"),
+      "utf8",
+    );
+    assert.match(panel, /data-testid="catalog-cards-grid"/);
+    assert.match(panel, /xl:grid-cols-4/);
+    assert.match(panel, /gap-5/);
+    assert.doesNotMatch(panel, /data-testid="catalog-compact-list"/);
+  });
 });

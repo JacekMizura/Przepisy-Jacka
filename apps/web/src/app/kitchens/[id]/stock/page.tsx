@@ -195,7 +195,7 @@ function StockPageInner() {
       const client = createWebApiClient();
       const query: Record<string, string | number> = {
         page: urlState.page,
-        limit: 50,
+        limit: 24,
         sort: urlState.sort,
         archived: urlState.archived,
       };
@@ -610,7 +610,7 @@ function StockPageInner() {
           </div>
         </header>
 
-        {view !== "stock" ? (
+        {view === "history" ? (
           <StockViewTabs
             kitchenId={kitchenId}
             active={view}

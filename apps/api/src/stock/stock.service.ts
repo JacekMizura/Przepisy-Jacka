@@ -74,7 +74,10 @@ import {
   type StockBatchRow,
 } from './stock-consume';
 import { resolveStockConsumptionKindAndReason } from './stock-consumption-kind';
-import { packageCountToStockQuantity, convertPackageContentToProductUnit } from './package-quantity';
+import {
+  packageCountToStockQuantity,
+  convertPackageContentToProductUnit,
+} from './package-quantity';
 import { parsePositivePackageCount } from './package-price';
 import { buildProductMatchMessage } from './product-match-message';
 import { ProductGroupService } from './product-group.service';

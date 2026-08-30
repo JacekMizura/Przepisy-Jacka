@@ -13,7 +13,10 @@ import {
   ValidateIf,
 } from 'class-validator';
 
-import { StorageLocation, PackageContentUnit } from '../../generated/prisma/client';
+import {
+  StorageLocation,
+  PackageContentUnit,
+} from '../../generated/prisma/client';
 import {
   EAN_PATTERN,
   IMAGE_URL_PATTERN,

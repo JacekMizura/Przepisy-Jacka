@@ -1,6 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-import { ProductUnit, StorageLocation, PackageContentUnit } from '../../generated/prisma/client';
+import {
+  ProductUnit,
+  StorageLocation,
+  PackageContentUnit,
+} from '../../generated/prisma/client';
 
 export class StockBatchDetailDto {
   @ApiProperty()

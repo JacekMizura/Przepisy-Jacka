@@ -234,8 +234,9 @@ export function ProductNutritionEditor({
                   ))}
                 </select>
               </div>
-              <p className="mt-1 text-xs text-gray-400">
-                Zwykle 100 g / 100 ml albo 1 szt.
+              <p className="mt-1 text-xs text-gray-500">
+                100&nbsp;g (lub inna ilość odniesienia) dotyczy wartości
+                odżywczych — to nie jest wielkość opakowania produktu.
               </p>
             </div>
             <div>

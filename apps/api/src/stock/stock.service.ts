@@ -862,7 +862,11 @@ export class StockService {
     if (dto.mode === ProductPurchaseMode.exact) {
       const updated = await this.prisma.product.update({
         where: { id: product.id },
-        data: { purchaseMode: ProductPurchaseMode.exact },
+        data: {
+          purchaseMode: ProductPurchaseMode.exact,
+          packageQuantity: null,
+          packageUnit: null,
+        },
         include: productInclude,
       });
       return this.toProductDtoWithMedia(updated);

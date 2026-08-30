@@ -32,12 +32,14 @@ import { productImageUrls } from "@/lib/product-image";
 import { uploadKitchenMedia } from "@/lib/media-upload";
 import { inputUnitsFor, type BaseUnit, type InputUnit } from "@/lib/quantity-input";
 import {
+  formatPriceMinor,
   formatRequiredForRecipe,
   formatShoppingPurchaseLine,
   INPUT_UNIT_LABELS,
 } from "@/lib/shopping-labels";
 import { buildAddToShoppingListBody } from "@/lib/shopping-list-add";
 import { cn } from "@/lib/utils";
+import { ProductCategoryBadge } from "@/components/product-entry/product-category-selector";
 
 type ShoppingListItem = components["schemas"]["ShoppingListItemDto"];
 type ShoppingStatus = components["schemas"]["UpdateShoppingListItemStatusDto"]["status"];
@@ -62,6 +64,17 @@ function AddProductModal({
   const [formError, setFormError] = useState<string | null>(null);
 
   const selectedProduct = products.find((entry) => entry.id === productId);
+  const isPackaged = selectedProduct?.purchaseMode === "packaged";
+  const packagedOptions = useMemo(() => {
+    if (!selectedProduct?.purchaseOptions) {
+      return [];
+    }
+    return selectedProduct.purchaseOptions.filter((option) => option.isActive);
+  }, [selectedProduct]);
+  const defaultPackagedOption =
+    packagedOptions.find((option) => option.isDefault) ?? packagedOptions[0];
+  const [purchaseOptionId, setPurchaseOptionId] = useState("");
+
   const unitOptions = useMemo(() => {
     if (addMode === "custom") {
       return Object.entries(INPUT_UNIT_LABELS).map(([value, label]) => ({
@@ -69,11 +82,17 @@ function AddProductModal({
         label,
       }));
     }
-    if (!selectedProduct) {
+    if (!selectedProduct || selectedProduct.purchaseMode === "packaged") {
       return [];
     }
     return inputUnitsFor(selectedProduct.defaultUnit as BaseUnit);
   }, [addMode, selectedProduct]);
+
+  const effectivePurchaseOptionId =
+    purchaseOptionId &&
+    packagedOptions.some((option) => option.id === purchaseOptionId)
+      ? purchaseOptionId
+      : (defaultPackagedOption?.id ?? "");
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -85,10 +104,25 @@ function AddProductModal({
         return;
       }
       try {
-        Object.assign(
-          body,
-          buildAddToShoppingListBody(selectedProduct),
-        );
+        if (selectedProduct.purchaseMode === "packaged") {
+          const packages = Math.max(
+            1,
+            Math.round(Number(plannedQuantity.replace(",", ".")) || 1),
+          );
+          Object.assign(
+            body,
+            buildAddToShoppingListBody(selectedProduct, {
+              purchaseOptionId: effectivePurchaseOptionId || undefined,
+              packageCount: packages,
+            }),
+          );
+        } else {
+          Object.assign(body, buildAddToShoppingListBody(selectedProduct));
+          if (plannedQuantity.trim()) {
+            body.plannedQuantity = plannedQuantity.trim();
+            body.plannedUnit = plannedUnit;
+          }
+        }
       } catch (error) {
         setFormError(
           error instanceof Error
@@ -96,23 +130,6 @@ function AddProductModal({
             : "Nie udało się przygotować pozycji.",
         );
         return;
-      }
-      if (
-        selectedProduct.purchaseMode === "packaged" &&
-        plannedQuantity.trim()
-      ) {
-        const packages = Number(plannedQuantity.replace(",", "."));
-        if (!Number.isFinite(packages) || packages < 1) {
-          setFormError("Podaj liczbę opakowań (co najmniej 1).");
-          return;
-        }
-        body.packageCount = Math.round(packages);
-      } else if (
-        selectedProduct.purchaseMode !== "packaged" &&
-        plannedQuantity.trim()
-      ) {
-        body.plannedQuantity = plannedQuantity.trim();
-        body.plannedUnit = plannedUnit;
       }
     } else {
       if (!customName.trim()) {
@@ -200,12 +217,12 @@ function AddProductModal({
                   Produkt
                 </label>
                 <div className="flex gap-2">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-zinc-50 text-zinc-400">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl text-zinc-400">
                     {selectedProduct ? (
                       <ProductThumb
                         src={productImageUrls(selectedProduct).thumbnail}
                         alt={selectedProduct.name}
-                        className="!h-full !w-full rounded-none !bg-transparent object-contain p-1"
+                        className="!h-full !w-full rounded-xl object-cover"
                         size="sm"
                       />
                     ) : (
@@ -217,11 +234,27 @@ function AddProductModal({
                     className={cn(fieldClass, "appearance-none")}
                     value={productId}
                     onChange={(event) => {
-                      setProductId(event.target.value);
+                      const nextId = event.target.value;
+                      setProductId(nextId);
                       const product = products.find(
-                        (entry) => entry.id === event.target.value,
+                        (entry) => entry.id === nextId,
                       );
-                      if (product) {
+                      if (!product) {
+                        return;
+                      }
+                      if (product.purchaseMode === "packaged") {
+                        setPlannedQuantity("1");
+                        const option =
+                          product.purchaseOptions?.find(
+                            (entry) => entry.isActive && entry.isDefault,
+                          ) ??
+                          product.purchaseOptions?.find(
+                            (entry) => entry.isActive,
+                          );
+                        setPurchaseOptionId(option?.id ?? "");
+                      } else {
+                        setPlannedQuantity("");
+                        setPurchaseOptionId("");
                         setPlannedUnit(
                           inputUnitsFor(product.defaultUnit as BaseUnit)[0]
                             ?.value ?? "piece",
@@ -256,53 +289,149 @@ function AddProductModal({
               </div>
             )}
 
-            <div className="flex gap-4">
-              <div className="flex-1">
-                <label
-                  htmlFor="modal-qty"
-                  className="mb-1.5 block text-[13px] font-medium text-slate-700"
-                >
-                  Ilość
-                </label>
-                <input
-                  id="modal-qty"
-                  value={plannedQuantity}
-                  onChange={(event) => setPlannedQuantity(event.target.value)}
-                  placeholder="opcjonalnie"
-                  className={fieldClass}
-                />
+            {addMode === "product" && isPackaged ? (
+              <div className="space-y-4">
+                {packagedOptions.length > 1 ? (
+                  <div>
+                    <label
+                      htmlFor="modal-package-option"
+                      className="mb-1.5 block text-[13px] font-medium text-slate-700"
+                    >
+                      Opakowanie
+                    </label>
+                    <select
+                      id="modal-package-option"
+                      className={cn(fieldClass, "appearance-none")}
+                      value={effectivePurchaseOptionId}
+                      onChange={(event) =>
+                        setPurchaseOptionId(event.target.value)
+                      }
+                    >
+                      {packagedOptions.map((option) => (
+                        <option key={option.id} value={option.id}>
+                          {option.name}
+                          {option.contentQuantity
+                            ? ` (${option.contentQuantity.replace(/\.?0+$/, "")} ${UNIT_LABELS[option.contentUnit]})`
+                            : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : defaultPackagedOption ? (
+                  <p className="rounded-lg border border-emerald-100 bg-emerald-50/60 px-3 py-2 text-sm text-emerald-900">
+                    Zakup tylko w całych opakowaniach
+                    {defaultPackagedOption.name
+                      ? `: ${defaultPackagedOption.name}`
+                      : ""}
+                    {defaultPackagedOption.contentQuantity
+                      ? ` (${defaultPackagedOption.contentQuantity.replace(/\.?0+$/, "")} ${UNIT_LABELS[defaultPackagedOption.contentUnit]})`
+                      : ""}
+                  </p>
+                ) : (
+                  <p className="text-sm text-amber-700">
+                    Ten produkt nie ma aktywnej opcji opakowania — uzupełnij ją
+                    w edycji produktu.
+                  </p>
+                )}
+                <div>
+                  <label
+                    htmlFor="modal-packages"
+                    className="mb-1.5 block text-[13px] font-medium text-slate-700"
+                  >
+                    Liczba opakowań
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-lg font-semibold text-slate-700 hover:bg-slate-50"
+                      onClick={() => {
+                        const current = Math.max(
+                          1,
+                          Math.round(Number(plannedQuantity.replace(",", ".")) || 1),
+                        );
+                        setPlannedQuantity(String(Math.max(1, current - 1)));
+                      }}
+                      aria-label="Zmniejsz liczbę opakowań"
+                    >
+                      −
+                    </button>
+                    <input
+                      id="modal-packages"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={plannedQuantity.trim() ? plannedQuantity : "1"}
+                      onChange={(event) => {
+                        const digits = event.target.value.replace(/[^\d]/g, "");
+                        setPlannedQuantity(digits);
+                      }}
+                      className={cn(fieldClass, "text-center")}
+                    />
+                    <button
+                      type="button"
+                      className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-lg font-semibold text-slate-700 hover:bg-slate-50"
+                      onClick={() => {
+                        const current = Math.max(
+                          1,
+                          Math.round(Number(plannedQuantity.replace(",", ".")) || 1),
+                        );
+                        setPlannedQuantity(String(current + 1));
+                      }}
+                      aria-label="Zwiększ liczbę opakowań"
+                    >
+                      +
+                    </button>
+                  </div>
+                </div>
               </div>
-              <div className="flex-1">
-                <label
-                  htmlFor="modal-unit"
-                  className="mb-1.5 block text-[13px] font-medium text-slate-700"
-                >
-                  Jednostka
-                </label>
-                <select
-                  id="modal-unit"
-                  className={cn(fieldClass, "appearance-none")}
-                  value={plannedUnit}
-                  onChange={(event) =>
-                    setPlannedUnit(event.target.value as InputUnit)
-                  }
-                >
-                  {(unitOptions.length > 0
-                    ? unitOptions
-                    : Object.entries(INPUT_UNIT_LABELS).map(
-                        ([value, label]) => ({
-                          value: value as InputUnit,
-                          label,
-                        }),
-                      )
-                  ).map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+            ) : (
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <label
+                    htmlFor="modal-qty"
+                    className="mb-1.5 block text-[13px] font-medium text-slate-700"
+                  >
+                    Ilość
+                  </label>
+                  <input
+                    id="modal-qty"
+                    value={plannedQuantity}
+                    onChange={(event) => setPlannedQuantity(event.target.value)}
+                    placeholder="opcjonalnie"
+                    className={fieldClass}
+                  />
+                </div>
+                <div className="flex-1">
+                  <label
+                    htmlFor="modal-unit"
+                    className="mb-1.5 block text-[13px] font-medium text-slate-700"
+                  >
+                    Jednostka
+                  </label>
+                  <select
+                    id="modal-unit"
+                    className={cn(fieldClass, "appearance-none")}
+                    value={plannedUnit}
+                    onChange={(event) =>
+                      setPlannedUnit(event.target.value as InputUnit)
+                    }
+                  >
+                    {(unitOptions.length > 0
+                      ? unitOptions
+                      : Object.entries(INPUT_UNIT_LABELS).map(
+                          ([value, label]) => ({
+                            value: value as InputUnit,
+                            label,
+                          }),
+                        )
+                    ).map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-            </div>
+            )}
 
             <div>
               <label
@@ -385,12 +514,16 @@ function ShoppingRow({
   const unboundName = !item.productId
     ? (item.customName ?? item.product?.name ?? "").trim()
     : "";
-  const metaLine = [purchaseLine, category].filter(Boolean).join(" • ");
+  const metaLine = purchaseLine || null;
+  const estimate =
+    typeof item.estimatedPriceMinor === "number"
+      ? formatPriceMinor(item.estimatedPriceMinor)
+      : null;
 
   return (
     <div
       className={cn(
-        "group flex cursor-pointer items-center gap-4 rounded-2xl border p-4 transition-colors",
+        "group flex cursor-pointer items-center gap-3 rounded-2xl border p-3 transition-colors sm:gap-4 sm:p-4",
         isBought
           ? "border-zinc-200 bg-white hover:bg-zinc-100"
           : "border-zinc-200 hover:border-zinc-400",
@@ -432,15 +565,15 @@ function ShoppingRow({
 
       <div
         className={cn(
-          "flex shrink-0 items-center justify-center overflow-hidden bg-zinc-50",
-          isBought ? "h-12 w-12 rounded-lg" : "h-14 w-14 rounded-xl",
+          "shrink-0 overflow-hidden rounded-xl",
+          isBought ? "h-14 w-14" : "h-16 w-16 sm:h-[4.5rem] sm:w-[4.5rem]",
         )}
       >
         <ProductThumb
           src={thumb}
           alt={name}
-          className="!h-full !w-full rounded-none !bg-transparent object-contain p-1"
-          size="sm"
+          className="!h-full !w-full rounded-xl object-cover"
+          size="md"
         />
       </div>
 
@@ -455,7 +588,14 @@ function ShoppingRow({
           {name}
         </h4>
         {!isBought ? (
-          <p className="text-sm font-medium text-zinc-500">{metaLine || "—"}</p>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+            <p className="text-sm font-medium text-zinc-500">
+              {metaLine || "—"}
+            </p>
+            {category ? (
+              <ProductCategoryBadge category={category} variant="pill" />
+            ) : null}
+          </div>
         ) : null}
         {item.sourceRecipeName ? (
           <p className="mt-1 text-xs font-medium text-emerald-700">
@@ -475,6 +615,22 @@ function ShoppingRow({
           <p className="mt-0.5 text-xs text-zinc-400">{item.note}</p>
         ) : null}
       </div>
+
+      {estimate ? (
+        <div className="shrink-0 text-right">
+          <p className="text-[10px] font-bold tracking-wide text-zinc-400 uppercase">
+            Szacunek
+          </p>
+          <p
+            className={cn(
+              "text-sm font-bold tabular-nums text-zinc-900",
+              isBought && "text-zinc-500 line-through",
+            )}
+          >
+            {estimate}
+          </p>
+        </div>
+      ) : null}
 
       <div className="relative shrink-0" onClick={(event) => event.stopPropagation()}>
         <button
@@ -563,6 +719,7 @@ function SummaryPanel({
   totalCount,
   boughtCount,
   progress,
+  estimatedTotalMinor,
   className,
   onCheckout,
 }: {
@@ -570,6 +727,7 @@ function SummaryPanel({
   boughtCount: number;
   pendingCount: number;
   progress: number;
+  estimatedTotalMinor: number | null;
   className?: string;
   onCheckout: () => void;
 }) {
@@ -598,6 +756,16 @@ function SummaryPanel({
           <span className="font-medium text-zinc-500">W koszyku</span>
           <span className="text-lg font-bold text-emerald-700">{boughtCount}</span>
         </div>
+        {estimatedTotalMinor != null ? (
+          <div className="flex items-center justify-between border-b border-zinc-100 py-3">
+            <span className="font-medium text-zinc-500">
+              Szacowany koszt
+            </span>
+            <span className="text-lg font-bold tabular-nums text-zinc-900">
+              {formatPriceMinor(estimatedTotalMinor)}
+            </span>
+          </div>
+        ) : null}
       </div>
 
       <div className="mb-8">
@@ -698,6 +866,21 @@ export default function ShoppingListPage() {
     totalCount > 0
       ? Math.round((grouped.bought.length / totalCount) * 100)
       : 0;
+  const estimatedTotalMinor = useMemo(() => {
+    const items = listQuery.data ?? [];
+    let sum = 0;
+    let hasAny = false;
+    for (const item of items) {
+      if (item.status === "skipped") {
+        continue;
+      }
+      if (typeof item.estimatedPriceMinor === "number") {
+        sum += item.estimatedPriceMinor;
+        hasAny = true;
+      }
+    }
+    return hasAny ? sum : null;
+  }, [listQuery.data]);
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["shopping-list", kitchenId] });
@@ -1001,6 +1184,7 @@ export default function ShoppingListPage() {
                 boughtCount={grouped.bought.length}
                 pendingCount={grouped.pending.length}
                 progress={progress}
+                estimatedTotalMinor={estimatedTotalMinor}
                 onCheckout={() => setCheckoutOpen(true)}
               />
             </div>

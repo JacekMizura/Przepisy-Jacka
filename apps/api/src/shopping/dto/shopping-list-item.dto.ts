@@ -222,4 +222,12 @@ export class ShoppingListItemDto {
 
   @ApiPropertyOptional({ type: PurchaseOptionSummaryDto, nullable: true })
   purchaseOption!: PurchaseOptionSummaryDto | null;
+
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    description:
+      'Szacunek w groszach na podstawie ostatniej ceny zakupu produktu (skalowany do pozycji).',
+  })
+  estimatedPriceMinor!: number | null;
 }

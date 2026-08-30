@@ -2042,6 +2042,8 @@ export interface components {
             purchaseOptionId: string | null;
             packageCount: number | null;
             purchaseOption?: components["schemas"]["PurchaseOptionSummaryDto"] | null;
+            /** Szacunek w groszach na podstawie ostatniej ceny zakupu produktu. */
+            estimatedPriceMinor?: number | null;
         };
         CreateShoppingListItemDto: {
             productId?: string;

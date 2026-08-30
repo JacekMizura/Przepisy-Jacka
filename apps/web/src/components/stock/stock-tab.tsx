@@ -1,27 +1,50 @@
 "use client";
 
-import { ChevronDown, ShoppingBasket } from "lucide-react";
+import { Filter, Search, ShoppingBasket } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 import type { ProductActionItem } from "@/components/stock/product-actions-menu";
-import { StockListToolbar } from "@/components/stock/stock-filters";
-import { StockGroupThumb } from "@/components/stock/stock-group-thumb";
-import { StockProductRow, expiryTone } from "@/components/stock/stock-product-row";
+import {
+  InventoryGroupCard,
+  InventoryProductCard,
+} from "@/components/stock/inventory-card";
+import { StockViewTabs } from "@/components/stock/stock-view-tabs";
 import { newPurchaseHref } from "@/components/stock/stock-view";
 import { LOCATION_LABELS } from "@/lib/errors";
-import { formatDisplayQuantityWithUnit } from "@/lib/format-quantity";
-import { formatGroupStockSubtitle } from "@/lib/stock-group-presentation";
-import type {
-  StockGroupListItem,
-  StockListEntry,
-  StockProductListItem,
-} from "@/lib/stock-list-types";
-import type {
-  StockListUrlPatch,
-  StockListUrlState,
+import { PRODUCT_CATEGORY_OPTIONS } from "@/lib/product-media";
+import type { ExpiryStatusFilter, StockListEntry, StockProductListItem } from "@/lib/stock-list-types";
+import {
+  activeFilterChips,
+  clearAllFiltersPatch,
+  type LocationFilterValue,
+  type StockListUrlPatch,
+  type StockListUrlState,
+  type UnitFilterValue,
 } from "@/lib/stock-url-state";
 import { cn } from "@/lib/utils";
+
+const UNIT_OPTION_LABELS: Record<Exclude<UnitFilterValue, "">, string> = {
+  gram: "g",
+  piece: "szt",
+  milliliter: "ml",
+};
+
+const EXPIRY_OPTIONS: { value: ExpiryStatusFilter; label: string }[] = [
+  { value: "any", label: "Dowolny" },
+  { value: "expired", label: "Przeterminowane" },
+  { value: "expiring", label: "Kończące się" },
+  { value: "ok", label: "Ważne" },
+  { value: "none", label: "Bez terminu" },
+];
+
+const STOCK_SORT_OPTIONS: { value: string; label: string }[] = [
+  { value: "expiry", label: "Termin" },
+  { value: "newest", label: "Najnowsze" },
+  { value: "name", label: "Nazwa" },
+  { value: "qty_desc", label: "Ilość ↓" },
+  { value: "qty_asc", label: "Ilość ↑" },
+];
 
 type StockTabProps = {
   kitchenId: string;
@@ -38,7 +61,6 @@ type StockTabProps = {
     summary: StockProductListItem,
     options?: { batchId?: string; preferManual?: boolean },
   ) => void;
-  onDeleteBatch: (batch: { id: string; label: string }) => void;
   onPreviewImage: (src: string, alt: string) => void;
   buildMenuItems: (args: {
     productId: string;
@@ -59,173 +81,62 @@ export function StockTab({
   urlState,
   onUrlPatch,
   onConsume,
-  onDeleteBatch,
   onPreviewImage,
   buildMenuItems,
 }: StockTabProps) {
-  const [expandedStockIds, setExpandedStockIds] = useState<Set<string>>(
-    () => new Set(),
-  );
-  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(
-    () => new Set(),
-  );
-
-  function toggleStockExpanded(productId: string) {
-    setExpandedStockIds((current) => {
-      const next = new Set(current);
-      if (next.has(productId)) {
-        next.delete(productId);
-      } else {
-        next.add(productId);
-      }
-      return next;
-    });
-  }
-
-  function toggleGroupExpanded(groupId: string) {
-    setExpandedGroupIds((current) => {
-      const next = new Set(current);
-      if (next.has(groupId)) {
-        next.delete(groupId);
-      } else {
-        next.add(groupId);
-      }
-      return next;
-    });
-  }
-
   return (
-    <section className="space-y-3">
-      <StockListToolbar
-        mode="stock"
+    <section className="space-y-6">
+      <StockModernChrome
+        kitchenId={kitchenId}
         state={urlState}
         onPatch={onUrlPatch}
         resultTotal={total}
-        resultLabel={total === 1 ? "pozycja" : "pozycji"}
-        searchAriaLabel="Szukaj w zapasach"
       />
 
       {isPending ? (
-        <div className="border border-gray-100 bg-white px-4 py-8 text-center text-sm text-gray-500">
+        <div className="rounded-3xl border border-slate-100 bg-white px-4 py-10 text-center text-sm text-slate-500">
           Ładowanie zapasów…
         </div>
       ) : null}
       {isError ? (
         <div
-          className="border border-gray-100 bg-white px-4 py-8 text-center text-sm text-red-600"
+          className="rounded-3xl border border-slate-100 bg-white px-4 py-10 text-center text-sm text-red-600"
           role="alert"
         >
           {errorMessage ?? "Nie udało się pobrać zapasów."}
         </div>
       ) : null}
       {!isPending && !isError && items.length === 0 ? (
-        <div className="border border-gray-100 bg-white px-4 py-8 text-center">
-          <p className="text-sm font-medium text-gray-900">
+        <div className="rounded-3xl border border-slate-100 bg-white px-4 py-10 text-center">
+          <p className="text-sm font-medium text-slate-900">
             Brak produktów w zapasach
           </p>
-          <p className="mt-1 text-sm text-gray-500">
+          <p className="mt-1 text-sm text-slate-500">
             Dodaj zakup, aby zobaczyć ilości i daty ważności.
           </p>
           <Link
             href={newPurchaseHref(kitchenId)}
-            className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-medium text-white hover:bg-emerald-700"
+            className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 text-sm font-semibold text-white"
           >
             <ShoppingBasket size={16} />
-            Dodaj zakup
+            Dodaj nowy zakup
           </Link>
         </div>
       ) : null}
 
       {items.length > 0 ? (
         <>
-          {/* Desktop compact table */}
           <div
-            className="hidden border border-gray-200 bg-white md:block"
-            data-testid="stock-compact-list"
+            className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3"
+            data-testid="stock-cards-grid"
           >
-            <div className="grid grid-cols-[minmax(0,2.2fr)_minmax(4.5rem,0.7fr)_minmax(3.5rem,0.55fr)_minmax(5.5rem,0.85fr)_minmax(5rem,0.75fr)_auto] gap-2 border-b border-gray-200 bg-gray-50 px-2 py-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
-              <span>Produkt</span>
-              <span>Stan</span>
-              <span>Partie</span>
-              <span>Najbliższy termin</span>
-              <span>Miejsce</span>
-              <span className="text-right">Akcje</span>
-            </div>
-            <ul>
-              {items.map((entry) => {
-                if (entry.kind === "product") {
-                  const product = entry.product;
-                  const kindBadge =
-                    product.groupId && product.groupName
-                      ? product.groupName
-                      : null;
-                  return (
-                    <StockProductRow
-                      key={product.productId}
-                      kitchenId={kitchenId}
-                      summary={product}
-                      kindBadge={kindBadge}
-                      layout="table"
-                      expanded={expandedStockIds.has(product.productId)}
-                      onToggleExpanded={() =>
-                        toggleStockExpanded(product.productId)
-                      }
-                      onConsume={() => onConsume(product)}
-                      onPreviewImage={onPreviewImage}
-                      menuItems={buildMenuItems({
-                        productId: product.productId,
-                        productName: product.productName,
-                        summary: product,
-                      })}
-                      onWriteOffBatch={(batchId) =>
-                        onConsume(product, {
-                          batchId,
-                          preferManual: true,
-                        })
-                      }
-                      onDeleteBatch={onDeleteBatch}
-                    />
-                  );
-                }
-                return (
-                  <StockGroupTableBlock
-                    key={`group:${entry.groupId}`}
-                    kitchenId={kitchenId}
-                    group={entry}
-                    expanded={expandedGroupIds.has(entry.groupId)}
-                    onToggle={() => toggleGroupExpanded(entry.groupId)}
-                    expandedStockIds={expandedStockIds}
-                    onToggleStock={toggleStockExpanded}
-                    onConsume={onConsume}
-                    onDeleteBatch={onDeleteBatch}
-                    onPreviewImage={onPreviewImage}
-                    buildMenuItems={buildMenuItems}
-                  />
-                );
-              })}
-            </ul>
-          </div>
-
-          {/* Mobile compact rows */}
-          <ul className="border border-gray-200 bg-white md:hidden">
             {items.map((entry) => {
               if (entry.kind === "product") {
                 const product = entry.product;
-                const kindBadge =
-                  product.groupId && product.groupName
-                    ? product.groupName
-                    : null;
                 return (
-                  <StockProductRow
+                  <InventoryProductCard
                     key={product.productId}
-                    kitchenId={kitchenId}
-                    summary={product}
-                    kindBadge={kindBadge}
-                    layout="mobile"
-                    expanded={expandedStockIds.has(product.productId)}
-                    onToggleExpanded={() =>
-                      toggleStockExpanded(product.productId)
-                    }
+                    product={product}
                     onConsume={() => onConsume(product)}
                     onPreviewImage={onPreviewImage}
                     menuItems={buildMenuItems({
@@ -233,33 +144,20 @@ export function StockTab({
                       productName: product.productName,
                       summary: product,
                     })}
-                    onWriteOffBatch={(batchId) =>
-                      onConsume(product, {
-                        batchId,
-                        preferManual: true,
-                      })
-                    }
-                    onDeleteBatch={onDeleteBatch}
                   />
                 );
               }
               return (
-                <StockGroupMobileBlock
+                <InventoryGroupCard
                   key={`group:${entry.groupId}`}
-                  kitchenId={kitchenId}
                   group={entry}
-                  expanded={expandedGroupIds.has(entry.groupId)}
-                  onToggle={() => toggleGroupExpanded(entry.groupId)}
-                  expandedStockIds={expandedStockIds}
-                  onToggleStock={toggleStockExpanded}
-                  onConsume={onConsume}
-                  onDeleteBatch={onDeleteBatch}
+                  onConsumeVariant={(product) => onConsume(product)}
                   onPreviewImage={onPreviewImage}
                   buildMenuItems={buildMenuItems}
                 />
               );
             })}
-          </ul>
+          </div>
 
           {pageCount > 1 ? (
             <PaginationBar
@@ -274,218 +172,205 @@ export function StockTab({
   );
 }
 
-function StockGroupTableBlock({
+function StockModernChrome({
   kitchenId,
-  group,
-  expanded,
-  onToggle,
-  expandedStockIds,
-  onToggleStock,
-  onConsume,
-  onDeleteBatch,
-  onPreviewImage,
-  buildMenuItems,
+  state,
+  onPatch,
+  resultTotal,
 }: {
   kitchenId: string;
-  group: StockGroupListItem;
-  expanded: boolean;
-  onToggle: () => void;
-  expandedStockIds: Set<string>;
-  onToggleStock: (productId: string) => void;
-  onConsume: StockTabProps["onConsume"];
-  onDeleteBatch: StockTabProps["onDeleteBatch"];
-  onPreviewImage: StockTabProps["onPreviewImage"];
-  buildMenuItems: StockTabProps["buildMenuItems"];
+  state: StockListUrlState;
+  onPatch: (patch: StockListUrlPatch) => void;
+  resultTotal: number;
 }) {
-  const qty = formatDisplayQuantityWithUnit(
-    group.totalQuantity,
-    group.defaultUnit,
-  );
-  const tone = expiryTone(group.nearestExpiry, group.expiringBatchCount);
-  const expiryLabel = group.nearestExpiry
-    ? new Date(group.nearestExpiry).toLocaleDateString("pl-PL")
-    : "—";
-  const place = group.primaryLocation
-    ? LOCATION_LABELS[group.primaryLocation]
-    : "—";
-  const subtitle = formatGroupStockSubtitle({
-    variantCount: group.variantCount,
-    batchCount: group.batchCount,
-  });
+  const [searchDraft, setSearchDraft] = useState(state.search);
+  const [syncedSearch, setSyncedSearch] = useState(state.search);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const panelId = useId();
+
+  if (state.search !== syncedSearch) {
+    setSyncedSearch(state.search);
+    setSearchDraft(state.search);
+  }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (searchDraft.trim() !== state.search) {
+        onPatch({ search: searchDraft.trim() });
+      }
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [onPatch, searchDraft, state.search]);
+
+  const chips = activeFilterChips(state);
+  const filtersActive =
+    Boolean(state.category) ||
+    Boolean(state.place) ||
+    Boolean(state.unit) ||
+    state.expiryStatus !== "any" ||
+    state.archived !== "all";
 
   return (
-    <li>
-      <button
-        type="button"
-        className="grid min-h-14 w-full grid-cols-[minmax(0,2.2fr)_minmax(4.5rem,0.7fr)_minmax(3.5rem,0.55fr)_minmax(5.5rem,0.85fr)_minmax(5rem,0.75fr)_auto] items-center gap-2 border-b border-gray-100 px-2 py-1.5 text-left text-sm hover:bg-gray-50"
-        aria-expanded={expanded}
-        data-testid="stock-group-row"
-        onClick={onToggle}
-      >
-        <div className="flex min-w-0 items-center gap-2">
-          <StockGroupThumb size="sm" />
-          <div className="min-w-0">
-            <p className="truncate font-medium text-gray-900">
-              {group.groupName}
-            </p>
-            <p className="truncate text-[11px] text-gray-500">{subtitle}</p>
-          </div>
-        </div>
-        <p className="tabular-nums text-gray-800">{qty}</p>
-        <p className="tabular-nums text-gray-600">{group.batchCount}</p>
-        <p
-          className={cn(
-            "tabular-nums",
-            tone === "expired" && "font-medium text-red-700",
-            tone === "expiring" && "font-medium text-orange-700",
-            tone === "none" && "text-gray-600",
-          )}
-        >
-          {expiryLabel}
-        </p>
-        <p className="truncate text-gray-600">{place}</p>
-        <div className="flex items-center justify-end">
-          <ChevronDown
-            size={15}
-            className={cn(
-              "text-gray-400 transition-transform",
-              expanded && "rotate-180",
-            )}
-            aria-hidden
+    <div className="space-y-3">
+      <div className="flex flex-col gap-2 rounded-3xl border border-slate-200/60 bg-white p-2 shadow-sm lg:flex-row">
+        <div className="min-w-0 overflow-x-auto">
+          <StockViewTabs
+            kitchenId={kitchenId}
+            active="stock"
+            urlState={state}
+            variant="modern"
           />
         </div>
-      </button>
-      {expanded ? (
-        <ul>
-          {group.variants.map((product) => (
-            <StockProductRow
-              key={product.productId}
-              kitchenId={kitchenId}
-              summary={product}
-              nested
-              layout="table"
-              expanded={expandedStockIds.has(product.productId)}
-              onToggleExpanded={() => onToggleStock(product.productId)}
-              onConsume={() => onConsume(product)}
-              onPreviewImage={onPreviewImage}
-              menuItems={buildMenuItems({
-                productId: product.productId,
-                productName: product.productName,
-                summary: product,
-              })}
-              onWriteOffBatch={(batchId) =>
-                onConsume(product, { batchId, preferManual: true })
-              }
-              onDeleteBatch={onDeleteBatch}
-            />
-          ))}
-        </ul>
-      ) : null}
-    </li>
-  );
-}
 
-function StockGroupMobileBlock({
-  kitchenId,
-  group,
-  expanded,
-  onToggle,
-  expandedStockIds,
-  onToggleStock,
-  onConsume,
-  onDeleteBatch,
-  onPreviewImage,
-  buildMenuItems,
-}: {
-  kitchenId: string;
-  group: StockGroupListItem;
-  expanded: boolean;
-  onToggle: () => void;
-  expandedStockIds: Set<string>;
-  onToggleStock: (productId: string) => void;
-  onConsume: StockTabProps["onConsume"];
-  onDeleteBatch: StockTabProps["onDeleteBatch"];
-  onPreviewImage: StockTabProps["onPreviewImage"];
-  buildMenuItems: StockTabProps["buildMenuItems"];
-}) {
-  const qty = formatDisplayQuantityWithUnit(
-    group.totalQuantity,
-    group.defaultUnit,
-  );
-  const tone = expiryTone(group.nearestExpiry, group.expiringBatchCount);
-  const expiryLabel = group.nearestExpiry
-    ? new Date(group.nearestExpiry).toLocaleDateString("pl-PL")
-    : "—";
-  const subtitle = formatGroupStockSubtitle({
-    variantCount: group.variantCount,
-    batchCount: group.batchCount,
-  });
-
-  return (
-    <li>
-      <button
-        type="button"
-        className="flex min-h-[64px] w-full items-center gap-2 border-b border-gray-100 px-2 py-2 text-left"
-        aria-expanded={expanded}
-        data-testid="stock-group-row"
-        onClick={onToggle}
-      >
-        <StockGroupThumb size="sm" />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-gray-900">
-            {group.groupName}
-          </p>
-          <p className="text-[11px] text-gray-500">{subtitle}</p>
-          <p className="mt-0.5 text-xs text-gray-700">
-            <span className="font-medium">{qty}</span>
-            <span
-              className={cn(
-                "ml-1.5",
-                tone === "expired" && "font-medium text-red-700",
-                tone === "expiring" && "font-medium text-orange-700",
-                tone === "none" && "text-gray-500",
-              )}
-            >
-              {expiryLabel}
-            </span>
-          </p>
+        <div className="flex flex-1 items-center rounded-2xl bg-white px-4 transition-all focus-within:ring-2 focus-within:ring-emerald-500/20">
+          <Search size={18} className="shrink-0 text-slate-400" aria-hidden />
+          <input
+            type="search"
+            aria-label="Szukaj w zapasach"
+            placeholder="Szukaj produktu, kategorii..."
+            value={searchDraft}
+            onChange={(event) => setSearchDraft(event.target.value)}
+            className="w-full border-none bg-transparent px-3 py-3 font-medium text-slate-700 placeholder:font-normal placeholder:text-slate-400 focus:outline-none"
+          />
         </div>
-        <ChevronDown
-          size={16}
-          className={cn(
-            "shrink-0 text-gray-400 transition-transform",
-            expanded && "rotate-180",
-          )}
-          aria-hidden
-        />
-      </button>
-      {expanded ? (
-        <ul>
-          {group.variants.map((product) => (
-            <StockProductRow
-              key={product.productId}
-              kitchenId={kitchenId}
-              summary={product}
-              nested
-              layout="mobile"
-              expanded={expandedStockIds.has(product.productId)}
-              onToggleExpanded={() => onToggleStock(product.productId)}
-              onConsume={() => onConsume(product)}
-              onPreviewImage={onPreviewImage}
-              menuItems={buildMenuItems({
-                productId: product.productId,
-                productName: product.productName,
-                summary: product,
-              })}
-              onWriteOffBatch={(batchId) =>
-                onConsume(product, { batchId, preferManual: true })
+
+        <div className="flex items-center gap-2 border-slate-100 py-1 pl-2 lg:border-l">
+          <button
+            type="button"
+            className={cn(
+              "flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors",
+              filtersActive
+                ? "bg-emerald-50 text-emerald-800"
+                : "text-slate-600 hover:bg-slate-50",
+            )}
+            aria-expanded={filtersOpen}
+            aria-controls={panelId}
+            onClick={() => setFiltersOpen((open) => !open)}
+          >
+            <Filter size={16} aria-hidden />
+            Filtry
+          </button>
+          <div className="mx-1 hidden h-8 w-px bg-slate-200 sm:block" />
+          <span className="whitespace-nowrap px-3 text-sm font-medium text-slate-400">
+            {resultTotal} pozycji
+          </span>
+        </div>
+      </div>
+
+      {filtersOpen ? (
+        <div
+          id={panelId}
+          className="grid grid-cols-1 gap-3 rounded-3xl border border-slate-100 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-4"
+        >
+          <label className="flex min-w-0 flex-col gap-1 text-sm text-slate-600">
+            <span className="font-medium">Kategoria</span>
+            <select
+              className="field-input w-full min-w-0 py-2 text-sm"
+              value={state.category}
+              onChange={(event) => onPatch({ category: event.target.value })}
+            >
+              <option value="">Wszystkie</option>
+              <option value="Bez kategorii">Bez kategorii</option>
+              {PRODUCT_CATEGORY_OPTIONS.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-0 flex-col gap-1 text-sm text-slate-600">
+            <span className="font-medium">Miejsce</span>
+            <select
+              className="field-input w-full min-w-0 py-2 text-sm"
+              value={state.place}
+              onChange={(event) =>
+                onPatch({ place: event.target.value as LocationFilterValue })
               }
-              onDeleteBatch={onDeleteBatch}
-            />
-          ))}
-        </ul>
+            >
+              <option value="">Wszystkie</option>
+              {Object.entries(LOCATION_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-0 flex-col gap-1 text-sm text-slate-600">
+            <span className="font-medium">Jednostka</span>
+            <select
+              className="field-input w-full min-w-0 py-2 text-sm"
+              value={state.unit}
+              onChange={(event) =>
+                onPatch({ unit: event.target.value as UnitFilterValue })
+              }
+            >
+              <option value="">Wszystkie</option>
+              {(Object.keys(UNIT_OPTION_LABELS) as Array<
+                Exclude<UnitFilterValue, "">
+              >).map((unit) => (
+                <option key={unit} value={unit}>
+                  {UNIT_OPTION_LABELS[unit]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-0 flex-col gap-1 text-sm text-slate-600">
+            <span className="font-medium">Termin</span>
+            <select
+              className="field-input w-full min-w-0 py-2 text-sm"
+              value={state.expiryStatus}
+              onChange={(event) =>
+                onPatch({
+                  expiryStatus: event.target.value as ExpiryStatusFilter,
+                })
+              }
+            >
+              {EXPIRY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-0 flex-col gap-1 text-sm text-slate-600">
+            <span className="font-medium">Sortowanie</span>
+            <select
+              className="field-input w-full min-w-0 py-2 text-sm"
+              value={state.sort}
+              onChange={(event) => onPatch({ sort: event.target.value })}
+            >
+              {STOCK_SORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       ) : null}
-    </li>
+
+      {chips.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {chips.map((chip) => (
+            <button
+              key={chip.id}
+              type="button"
+              className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700"
+              onClick={() => onPatch(chip.clear)}
+            >
+              {chip.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            className="text-xs font-medium text-emerald-700 hover:underline"
+            onClick={() => onPatch(clearAllFiltersPatch(state))}
+          >
+            Wyczyść filtry
+          </button>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -499,10 +384,10 @@ function PaginationBar({
   onPage: (page: number) => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 text-sm text-gray-600">
+    <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
       <button
         type="button"
-        className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 disabled:opacity-40"
+        className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 font-medium disabled:opacity-40"
         disabled={page <= 1}
         onClick={() => onPage(page - 1)}
       >
@@ -513,7 +398,7 @@ function PaginationBar({
       </span>
       <button
         type="button"
-        className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 disabled:opacity-40"
+        className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 font-medium disabled:opacity-40"
         disabled={page >= pageCount}
         onClick={() => onPage(page + 1)}
       >

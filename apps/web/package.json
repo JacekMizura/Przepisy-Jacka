@@ -8,7 +8,7 @@
     "start": "next start --port 3000",
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --test src/lib/api-proxy.test.ts src/lib/format-quantity.test.ts src/lib/recipe-clipboard.test.ts src/lib/product-nutrition-payload.test.ts src/lib/package-quantity.test.ts src/lib/product-category-selector.test.ts src/lib/stock-store-package.test.ts src/lib/store-name-combobox.test.ts src/lib/stock-group-presentation.test.ts src/lib/stock-url-state.test.ts src/lib/purchase-mode.test.ts src/components/nutrition-usda-lookup.test.ts src/components/stock/stock-group-thumb.test.ts src/components/stock/product-actions-menu.test.ts src/components/stock/stock-compact-layout.test.ts src/components/product-entry/product-entry-form.purchase.test.ts"
+    "test": "node --experimental-strip-types --test src/lib/api-proxy.test.ts src/lib/format-quantity.test.ts src/lib/recipe-clipboard.test.ts src/lib/product-nutrition-payload.test.ts src/lib/package-quantity.test.ts src/lib/product-category-selector.test.ts src/lib/stock-store-package.test.ts src/lib/store-name-combobox.test.ts src/lib/stock-group-presentation.test.ts src/lib/stock-url-state.test.ts src/lib/purchase-mode.test.ts src/components/nutrition-usda-lookup.test.ts src/components/stock/stock-group-thumb.test.ts src/components/stock/product-actions-menu.test.ts src/components/stock/stock-compact-layout.test.ts src/components/stock/inventory-card-mapping.test.ts src/components/product-entry/product-entry-form.purchase.test.ts"
   },
   "dependencies": {
     "@moja-kuchnia/api-client": "workspace:*",

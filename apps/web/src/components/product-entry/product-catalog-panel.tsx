@@ -1,34 +1,43 @@
 "use client";
 
-import type { components } from "@moja-kuchnia/api-client";
-import { ChevronDown, Package } from "lucide-react";
-import Link from "next/link";
-import { useState } from "react";
+import { Filter, Search } from "lucide-react";
+import { useEffect, useId, useState } from "react";
 
 import {
-  ProductActionsMenu,
-  type ProductActionItem,
-} from "@/components/stock/product-actions-menu";
-import { StockListToolbar } from "@/components/stock/stock-filters";
-import { StockGroupThumb } from "@/components/stock/stock-group-thumb";
+  CatalogGroupCard,
+  CatalogProductCard,
+} from "@/components/stock/catalog-card";
+import type { ProductActionItem } from "@/components/stock/product-actions-menu";
+import { StockViewTabs } from "@/components/stock/stock-view-tabs";
+import { LOCATION_LABELS } from "@/lib/errors";
 import { formatDisplayQuantityWithUnit } from "@/lib/format-quantity";
-import { isDisplayableUrl, mediaDisplayUrl } from "@/lib/media-upload";
-import { pluralizeVariants, pluralizeBatches } from "@/lib/stock-group-presentation";
-import type {
-  CatalogGroupRow,
-  CatalogListEntry,
-} from "@/lib/stock-list-types";
-import type {
-  StockListUrlPatch,
-  StockListUrlState,
+import { PRODUCT_CATEGORY_OPTIONS } from "@/lib/product-media";
+import type { CatalogListEntry } from "@/lib/stock-list-types";
+import {
+  activeFilterChips,
+  clearAllFiltersPatch,
+  type LocationFilterValue,
+  type StockListUrlPatch,
+  type StockListUrlState,
+  type UnitFilterValue,
 } from "@/lib/stock-url-state";
 import { cn } from "@/lib/utils";
 
-type CatalogProduct = components["schemas"]["CatalogProductDto"];
+const UNIT_OPTION_LABELS: Record<Exclude<UnitFilterValue, "">, string> = {
+  gram: "g",
+  piece: "szt",
+  milliliter: "ml",
+};
+
+const CATALOG_SORT_OPTIONS: { value: string; label: string }[] = [
+  { value: "name", label: "Nazwa" },
+  { value: "newest", label: "Najnowsze" },
+  { value: "updated", label: "Aktualizacja" },
+  { value: "has_stock", label: "Ze stanem" },
+];
 
 type ProductCatalogPanelProps = {
   kitchenId: string;
-  /** Gdy true — bez wewnętrznego CTA „Dodaj do katalogu” (CTA jest w nagłówku zakładki). */
   embedded?: boolean;
   items: CatalogListEntry[];
   page: number;
@@ -66,54 +75,33 @@ export function ProductCatalogPanel({
   urlState,
   onUrlPatch,
   onPreview,
-  onArchiveProduct,
-  onUndoAddition,
-  onWriteOffAndArchive,
-  onAddToList,
-  addToListPending = false,
   buildMenuItems,
 }: ProductCatalogPanelProps) {
-  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(
-    () => new Set(),
-  );
-
-  function toggleGroup(groupId: string) {
-    setExpandedGroupIds((current) => {
-      const next = new Set(current);
-      if (next.has(groupId)) {
-        next.delete(groupId);
-      } else {
-        next.add(groupId);
-      }
-      return next;
-    });
-  }
-
   return (
-    <div className={cn("space-y-3", !embedded && "p-4")}>
-      <StockListToolbar
-        mode="catalog"
+    <div className={cn("space-y-6", !embedded && "p-4")}>
+      <CatalogModernChrome
+        kitchenId={kitchenId}
         state={urlState}
         onPatch={onUrlPatch}
         resultTotal={total}
-        resultLabel={total === 1 ? "pozycja" : "pozycji"}
-        searchAriaLabel="Szukaj w katalogu"
-        searchPlaceholder="Szukaj rodzaju, produktu, marki, EAN…"
       />
 
       {isPending ? (
-        <p className="px-2 py-6 text-center text-sm text-gray-500">
+        <div className="rounded-3xl border border-slate-100 bg-white px-4 py-10 text-center text-sm text-slate-500">
           Ładowanie katalogu…
-        </p>
+        </div>
       ) : null}
       {isError ? (
-        <p className="px-2 py-6 text-center text-sm text-red-600" role="alert">
+        <div
+          className="rounded-3xl border border-slate-100 bg-white px-4 py-10 text-center text-sm text-red-600"
+          role="alert"
+        >
           {errorMessage ?? "Nie udało się pobrać katalogu."}
-        </p>
+        </div>
       ) : null}
 
       {!isPending && !isError && items.length === 0 ? (
-        <p className="py-6 text-center text-sm text-gray-500">
+        <p className="py-10 text-center text-sm text-slate-500">
           {urlState.search
             ? "Brak wyników dla tego wyszukiwania."
             : "Katalog jest pusty — dodaj pierwszy produkt."}
@@ -122,54 +110,48 @@ export function ProductCatalogPanel({
 
       {items.length > 0 ? (
         <>
-          <ul
-            className="border border-gray-200 bg-white"
-            data-testid="catalog-compact-list"
+          <div
+            className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+            data-testid="catalog-cards-grid"
           >
             {items.map((entry) => {
               if (entry.kind === "product") {
-                const kindBadge = entry.groupName;
+                const product = entry.product;
+                const menuItems =
+                  buildMenuItems?.({
+                    id: product.id,
+                    name: product.name,
+                    groupId: product.groupId,
+                    totalQuantity: product.totalQuantity,
+                  }) ?? [];
                 return (
-                  <li key={entry.product.id}>
-                    <CatalogProductCompactRow
-                      kitchenId={kitchenId}
-                      product={entry.product}
-                      kindBadge={kindBadge}
-                      nested={false}
-                      onPreview={onPreview}
-                      onArchiveProduct={onArchiveProduct}
-                      onUndoAddition={onUndoAddition}
-                      onWriteOffAndArchive={onWriteOffAndArchive}
-                      onAddToList={onAddToList}
-                      addToListPending={addToListPending}
-                      buildMenuItems={buildMenuItems}
-                    />
-                  </li>
+                  <CatalogProductCard
+                    key={product.id}
+                    kitchenId={kitchenId}
+                    product={product}
+                    menuItems={menuItems}
+                    onPreview={onPreview}
+                  />
                 );
               }
               return (
-                <CatalogGroupBlock
+                <CatalogGroupCard
                   key={`group:${entry.groupId}`}
                   kitchenId={kitchenId}
-                  group={entry}
-                  expanded={expandedGroupIds.has(entry.groupId)}
-                  onToggle={() => toggleGroup(entry.groupId)}
-                  onPreview={onPreview}
-                  onArchiveProduct={onArchiveProduct}
-                  onUndoAddition={onUndoAddition}
-                  onWriteOffAndArchive={onWriteOffAndArchive}
-                  onAddToList={onAddToList}
-                  addToListPending={addToListPending}
-                  buildMenuItems={buildMenuItems}
+                  groupId={entry.groupId}
+                  groupName={entry.groupName}
+                  variantCount={entry.variantCount}
+                  category={entry.variants[0]?.category ?? null}
                 />
               );
             })}
-          </ul>
+          </div>
+
           {pageCount > 1 ? (
-            <div className="flex items-center justify-between gap-3 text-sm text-gray-600">
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-white px-4 py-3 text-sm text-slate-600 shadow-sm">
               <button
                 type="button"
-                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 disabled:opacity-40"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 font-medium disabled:opacity-40"
                 disabled={page <= 1}
                 onClick={() => onUrlPatch({ page: page - 1 })}
               >
@@ -180,7 +162,7 @@ export function ProductCatalogPanel({
               </span>
               <button
                 type="button"
-                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 disabled:opacity-40"
+                className="rounded-xl border border-slate-200 bg-white px-3 py-1.5 font-medium disabled:opacity-40"
                 disabled={page >= pageCount}
                 onClick={() => onUrlPatch({ page: page + 1 })}
               >
@@ -194,296 +176,201 @@ export function ProductCatalogPanel({
   );
 }
 
-function CatalogGroupBlock({
+function CatalogModernChrome({
   kitchenId,
-  group,
-  expanded,
-  onToggle,
-  onPreview,
-  onArchiveProduct,
-  onUndoAddition,
-  onWriteOffAndArchive,
-  onAddToList,
-  addToListPending,
-  buildMenuItems,
+  state,
+  onPatch,
+  resultTotal,
 }: {
   kitchenId: string;
-  group: CatalogGroupRow;
-  expanded: boolean;
-  onToggle: () => void;
-  onPreview?: (src: string, alt: string) => void;
-  onArchiveProduct?: (product: { id: string; name: string }) => void;
-  onUndoAddition?: (product: { id: string; name: string }) => void;
-  onWriteOffAndArchive?: (product: { id: string; name: string }) => void;
-  onAddToList?: (product: { id: string; name: string }) => void;
-  addToListPending?: boolean;
-  buildMenuItems?: ProductCatalogPanelProps["buildMenuItems"];
+  state: StockListUrlState;
+  onPatch: (patch: StockListUrlPatch) => void;
+  resultTotal: number;
 }) {
-  const qty = formatDisplayQuantityWithUnit(
-    group.totalQuantity,
-    group.defaultUnit,
-  );
-  const subtitle = `${pluralizeVariants(group.variantCount)} · ${pluralizeBatches(group.batchCount)}`;
+  const [searchDraft, setSearchDraft] = useState(state.search);
+  const [syncedSearch, setSyncedSearch] = useState(state.search);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const panelId = useId();
+
+  if (state.search !== syncedSearch) {
+    setSyncedSearch(state.search);
+    setSearchDraft(state.search);
+  }
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      if (searchDraft.trim() !== state.search) {
+        onPatch({ search: searchDraft.trim() });
+      }
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [onPatch, searchDraft, state.search]);
+
+  const chips = activeFilterChips(state);
+  const filtersActive =
+    Boolean(state.category) ||
+    Boolean(state.place) ||
+    Boolean(state.unit) ||
+    state.archived !== "active" ||
+    state.hasStock;
 
   return (
-    <li>
-      <button
-        type="button"
-        className="flex min-h-14 w-full items-center gap-2 border-b border-gray-100 px-2 py-1.5 text-left hover:bg-gray-50"
-        aria-expanded={expanded}
-        onClick={onToggle}
-      >
-        <StockGroupThumb size="sm" />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-gray-900">
-            {group.groupName}
-          </p>
-          <p className="text-[11px] text-gray-500">{subtitle}</p>
+    <div className="space-y-3">
+      <div className="flex flex-col gap-2 rounded-3xl border border-slate-200/60 bg-white p-2 shadow-sm lg:flex-row">
+        <div className="min-w-0 overflow-x-auto">
+          <StockViewTabs
+            kitchenId={kitchenId}
+            active="catalog"
+            urlState={state}
+            variant="modern"
+          />
         </div>
-        <p className="shrink-0 text-sm tabular-nums text-gray-800">{qty}</p>
-        <ChevronDown
-          size={15}
-          className={cn(
-            "shrink-0 text-gray-400 transition-transform",
-            expanded && "rotate-180",
-          )}
-          aria-hidden
-        />
-      </button>
-      {expanded ? (
-        <ul>
-          {group.variants.map((product) => (
-            <li key={product.id}>
-              <CatalogProductCompactRow
-                kitchenId={kitchenId}
-                product={product}
-                nested
-                onPreview={onPreview}
-                onArchiveProduct={onArchiveProduct}
-                onUndoAddition={onUndoAddition}
-                onWriteOffAndArchive={onWriteOffAndArchive}
-                onAddToList={onAddToList}
-                addToListPending={addToListPending}
-                buildMenuItems={buildMenuItems}
-              />
-            </li>
-          ))}
-          <li className="border-b border-gray-100 px-4 py-2 text-right">
-            <Link
-              href={`/kitchens/${kitchenId}/product-groups/${group.groupId}`}
-              className="text-xs font-medium text-emerald-700 hover:underline"
+
+        <div className="flex flex-1 items-center rounded-2xl bg-white px-4 transition-all focus-within:ring-2 focus-within:ring-emerald-500/20">
+          <Search size={18} className="shrink-0 text-slate-400" aria-hidden />
+          <input
+            type="search"
+            aria-label="Szukaj w katalogu"
+            placeholder="Szukaj produktu, kategorii..."
+            value={searchDraft}
+            onChange={(event) => setSearchDraft(event.target.value)}
+            className="w-full border-none bg-transparent px-3 py-3 font-medium text-slate-700 placeholder:font-normal placeholder:text-slate-400 focus:outline-none"
+          />
+        </div>
+
+        <div className="flex items-center gap-2 border-slate-100 py-1 pl-2 lg:border-l">
+          <button
+            type="button"
+            className={cn(
+              "flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-colors",
+              filtersActive
+                ? "bg-emerald-50 text-emerald-800"
+                : "text-slate-600 hover:bg-slate-50",
+            )}
+            aria-expanded={filtersOpen}
+            aria-controls={panelId}
+            onClick={() => setFiltersOpen((open) => !open)}
+          >
+            <Filter size={16} aria-hidden />
+            Filtry
+          </button>
+          <div className="mx-1 hidden h-8 w-px bg-slate-200 sm:block" />
+          <span className="whitespace-nowrap px-3 text-sm font-medium text-slate-400">
+            {resultTotal} pozycji
+          </span>
+        </div>
+      </div>
+
+      {filtersOpen ? (
+        <div
+          id={panelId}
+          className="grid grid-cols-1 gap-3 rounded-3xl border border-slate-100 bg-white p-4 shadow-sm sm:grid-cols-2 lg:grid-cols-4"
+        >
+          <label className="flex min-w-0 flex-col gap-1 text-sm text-slate-600">
+            <span className="font-medium">Kategoria</span>
+            <select
+              className="field-input w-full min-w-0 py-2 text-sm"
+              value={state.category}
+              onChange={(event) => onPatch({ category: event.target.value })}
             >
-              Zarządzaj rodzajem
-            </Link>
-          </li>
-        </ul>
-      ) : null}
-    </li>
-  );
-}
-
-function CatalogProductCompactRow({
-  kitchenId,
-  product,
-  kindBadge,
-  nested,
-  onPreview,
-  onArchiveProduct,
-  onUndoAddition,
-  onWriteOffAndArchive,
-  onAddToList,
-  addToListPending,
-  buildMenuItems,
-}: {
-  kitchenId: string;
-  product: CatalogProduct;
-  kindBadge?: string | null;
-  nested: boolean;
-  onPreview?: (src: string, alt: string) => void;
-  onArchiveProduct?: (product: { id: string; name: string }) => void;
-  onUndoAddition?: (product: { id: string; name: string }) => void;
-  onWriteOffAndArchive?: (product: { id: string; name: string }) => void;
-  onAddToList?: (product: { id: string; name: string }) => void;
-  addToListPending?: boolean;
-  buildMenuItems?: ProductCatalogPanelProps["buildMenuItems"];
-}) {
-  const thumb =
-    mediaDisplayUrl(product.image, "thumbnail") ??
-    (isDisplayableUrl(product.imageUrl) ? product.imageUrl : null);
-  const full =
-    mediaDisplayUrl(product.image) ??
-    (isDisplayableUrl(product.imageUrl) ? product.imageUrl : null);
-  const meta = [product.brand, product.variantLabel].filter(Boolean).join(" · ");
-  const inStock = Number(product.totalQuantity) > 0;
-  const qty = inStock
-    ? formatDisplayQuantityWithUnit(product.totalQuantity, product.defaultUnit)
-    : "Brak w zapasach";
-
-  const menuItems: ProductActionItem[] =
-    buildMenuItems?.({
-      id: product.id,
-      name: product.name,
-      groupId: product.groupId,
-      totalQuantity: product.totalQuantity,
-    }) ??
-    defaultCatalogMenuItems({
-      kitchenId,
-      product,
-      onArchiveProduct,
-      onUndoAddition,
-      onWriteOffAndArchive,
-      onAddToList,
-      addToListPending,
-    });
-
-  return (
-    <div
-      className={cn(
-        "flex min-h-14 items-center gap-2 border-b border-gray-100 px-2 py-1.5",
-        nested && "bg-gray-50/40 pl-8",
-      )}
-    >
-      <button
-        type="button"
-        className={cn(
-          "flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md border border-gray-200 bg-gray-50",
-          full && "hover:bg-gray-100",
-        )}
-        disabled={!full || !thumb}
-        onClick={() => {
-          if (full) {
-            onPreview?.(full, product.name);
-          }
-        }}
-        aria-label={full ? `Powiększ zdjęcie: ${product.name}` : undefined}
-      >
-        {thumb ? (
-          // eslint-disable-next-line @next/next/no-img-element -- podpisane URL-e
-          <img src={thumb} alt="" className="h-full w-full object-contain" />
-        ) : (
-          <Package size={14} className="text-gray-300" />
-        )}
-      </button>
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-1.5">
-          <p className="truncate text-sm font-medium text-gray-900">
-            {product.name}
-          </p>
-          {kindBadge ? (
-            <span className="text-[10px] font-medium uppercase tracking-wide text-gray-500">
-              {kindBadge}
-            </span>
-          ) : null}
-          {product.isArchived ? (
-            <span className="text-[10px] font-medium text-amber-700">
-              Archiwum
-            </span>
-          ) : null}
+              <option value="">Wszystkie</option>
+              <option value="Bez kategorii">Bez kategorii</option>
+              {PRODUCT_CATEGORY_OPTIONS.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-0 flex-col gap-1 text-sm text-slate-600">
+            <span className="font-medium">Miejsce</span>
+            <select
+              className="field-input w-full min-w-0 py-2 text-sm"
+              value={state.place}
+              onChange={(event) =>
+                onPatch({ place: event.target.value as LocationFilterValue })
+              }
+            >
+              <option value="">Wszystkie</option>
+              {Object.entries(LOCATION_LABELS).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-0 flex-col gap-1 text-sm text-slate-600">
+            <span className="font-medium">Jednostka</span>
+            <select
+              className="field-input w-full min-w-0 py-2 text-sm"
+              value={state.unit}
+              onChange={(event) =>
+                onPatch({ unit: event.target.value as UnitFilterValue })
+              }
+            >
+              <option value="">Wszystkie</option>
+              {(Object.keys(UNIT_OPTION_LABELS) as Array<
+                Exclude<UnitFilterValue, "">
+              >).map((unit) => (
+                <option key={unit} value={unit}>
+                  {UNIT_OPTION_LABELS[unit]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex min-w-0 flex-col gap-1 text-sm text-slate-600">
+            <span className="font-medium">Sortowanie</span>
+            <select
+              className="field-input w-full min-w-0 py-2 text-sm"
+              value={state.sort}
+              onChange={(event) => onPatch({ sort: event.target.value })}
+            >
+              {CATALOG_SORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-gray-300 text-emerald-600"
+              checked={state.hasStock}
+              onChange={(event) => onPatch({ hasStock: event.target.checked })}
+            />
+            Tylko ze stanem
+          </label>
         </div>
-        {meta ? (
-          <p className="truncate text-[11px] text-gray-500">{meta}</p>
-        ) : null}
-      </div>
-      <p
-        className={cn(
-          "hidden shrink-0 text-sm tabular-nums sm:block",
-          inStock ? "text-gray-800" : "text-gray-400",
-        )}
-      >
-        {qty}
-      </p>
-      <div className="shrink-0">
-        <ProductActionsMenu label={`Akcje: ${product.name}`} items={menuItems} />
-      </div>
+      ) : null}
+
+      {chips.length > 0 ? (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {chips.map((chip) => (
+            <button
+              key={chip.id}
+              type="button"
+              className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-700"
+              onClick={() => onPatch(chip.clear)}
+            >
+              {chip.label}
+            </button>
+          ))}
+          <button
+            type="button"
+            className="text-xs font-medium text-emerald-700 hover:underline"
+            onClick={() => onPatch(clearAllFiltersPatch(state))}
+          >
+            Wyczyść filtry
+          </button>
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function defaultCatalogMenuItems(args: {
-  kitchenId: string;
-  product: {
-    id: string;
-    name: string;
-    groupId?: string | null;
-    totalQuantity?: string;
-  };
-  onArchiveProduct?: (product: { id: string; name: string }) => void;
-  onUndoAddition?: (product: { id: string; name: string }) => void;
-  onWriteOffAndArchive?: (product: { id: string; name: string }) => void;
-  onAddToList?: (product: { id: string; name: string }) => void;
-  addToListPending?: boolean;
-}): ProductActionItem[] {
-  const { kitchenId, product } = args;
-  const items: ProductActionItem[] = [
-    {
-      id: "edit",
-      label: "Edytuj produkt",
-      href: `/kitchens/${kitchenId}/products/${product.id}/edit`,
-    },
-    {
-      id: "batch",
-      label: "Dodaj partię",
-      href: `/kitchens/${kitchenId}/products/${product.id}/add-batch`,
-    },
-  ];
-  if (args.onAddToList) {
-    items.push({
-      id: "list",
-      label: "Dodaj do listy zakupów",
-      onSelect: () =>
-        args.onAddToList!({ id: product.id, name: product.name }),
-      disabled: args.addToListPending,
-    });
-  }
-  if (product.groupId) {
-    items.push({
-      id: "kind",
-      label: "Przejdź do rodzaju",
-      href: `/kitchens/${kitchenId}/product-groups/${product.groupId}`,
-    });
-  } else {
-    items.push({
-      id: "assign",
-      label: "Przypisz do rodzaju",
-      href: `/kitchens/${kitchenId}/products/${product.id}/edit`,
-    });
-  }
-  if (args.onUndoAddition) {
-    items.push({
-      id: "undo",
-      label: "Cofnij dodanie",
-      onSelect: () =>
-        args.onUndoAddition!({ id: product.id, name: product.name }),
-      destructive: true,
-    });
-  } else if (args.onArchiveProduct) {
-    items.push({
-      id: "archive",
-      label: "Archiwizuj",
-      onSelect: () =>
-        args.onArchiveProduct!({ id: product.id, name: product.name }),
-      destructive: true,
-    });
-  }
-  if (
-    args.onWriteOffAndArchive &&
-    product.totalQuantity != null &&
-    Number(product.totalQuantity) > 0
-  ) {
-    items.push({
-      id: "writeoff-archive",
-      label: "Odpisz stan i archiwizuj",
-      onSelect: () =>
-        args.onWriteOffAndArchive!({ id: product.id, name: product.name }),
-      destructive: true,
-    });
-  }
-  return items;
-}
-
-/** Format zbiorczego stanu grupy (używane na stronie rodzaju). */
 export function formatGroupStock(
-  group: components["schemas"]["ProductGroupSummaryDto"],
+  group: import("@moja-kuchnia/api-client").components["schemas"]["ProductGroupSummaryDto"],
 ): string {
   if (group.stockByUnit.length === 0) {
     return "Brak w zapasach";

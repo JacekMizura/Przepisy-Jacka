@@ -10,21 +10,28 @@ type ToastProps = {
   onDismiss: () => void;
   variant?: "success" | "error" | "info";
   durationMs?: number;
+  actionLabel?: string;
+  onAction?: () => void;
 };
 
 export function Toast({
   message,
   onDismiss,
   variant = "success",
-  durationMs = 3500,
+  durationMs,
+  actionLabel,
+  onAction,
 }: ToastProps) {
+  const resolvedDuration =
+    durationMs ?? (actionLabel && onAction ? 8000 : 3500);
+
   useEffect(() => {
     if (!message) {
       return;
     }
-    const timer = window.setTimeout(onDismiss, durationMs);
+    const timer = window.setTimeout(onDismiss, resolvedDuration);
     return () => window.clearTimeout(timer);
-  }, [message, onDismiss, durationMs]);
+  }, [message, onDismiss, resolvedDuration]);
 
   if (!message) {
     return null;
@@ -44,7 +51,21 @@ export function Toast({
       {variant === "success" ? (
         <Check size={16} className="mt-0.5 shrink-0" />
       ) : null}
-      <p className="flex-1 leading-snug">{message}</p>
+      <div className="min-w-0 flex-1 space-y-2">
+        <p className="leading-snug">{message}</p>
+        {actionLabel && onAction ? (
+          <button
+            type="button"
+            className="text-xs font-semibold underline-offset-2 hover:underline"
+            onClick={() => {
+              onAction();
+              onDismiss();
+            }}
+          >
+            {actionLabel}
+          </button>
+        ) : null}
+      </div>
       <button
         type="button"
         aria-label="Zamknij"

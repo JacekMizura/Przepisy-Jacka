@@ -1,81 +1,63 @@
 "use client";
 
 import type { components } from "@moja-kuchnia/api-client";
-import {
-  ChefHat,
-  ChevronDown,
-  Package,
-  Plus,
-  ShoppingBasket,
-} from "lucide-react";
+import { Plus, ShoppingBasket } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { Fragment, useMemo, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { AppShell } from "@/components/app-shell";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ImageLightbox } from "@/components/image-lightbox";
 import { ProductCatalogPanel } from "@/components/product-entry/product-catalog-panel";
+import type { ProductActionItem } from "@/components/stock/product-actions-menu";
+import { HistoryTab } from "@/components/stock/history-tab";
+import {
+  fetchProductRemovalPreview,
+  removalDialogCopy,
+  undoProductAddition,
+  type ProductRemovalPreview,
+} from "@/components/stock/removal-preview";
+import type { LocationFilter } from "@/components/stock/stock-filters";
+import { StockTab } from "@/components/stock/stock-tab";
+import {
+  newCatalogProductHref,
+  newPurchaseHref,
+  parseStockView,
+} from "@/components/stock/stock-view";
+import { StockViewTabs } from "@/components/stock/stock-view-tabs";
 import { StockConsumeDialog } from "@/components/stock-consume-dialog";
+import { Toast } from "@/components/toast";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { createWebApiClient } from "@/lib/api";
-import { LOCATION_LABELS, UNIT_LABELS, readApiError } from "@/lib/errors";
-import { formatQuantityWithUnit } from "@/lib/format-quantity";
-import { isDisplayableUrl, mediaDisplayUrl } from "@/lib/media-upload";
-import { PRODUCT_CATEGORY_OPTIONS } from "@/lib/product-media";
+import { readApiError } from "@/lib/errors";
 import {
   inputUnitsFor,
-  zlotyFromMinor,
   type BaseUnit,
 } from "@/lib/quantity-input";
-import { cn } from "@/lib/utils";
 
-type Product = components["schemas"]["ProductDto"];
 type StockSummary = components["schemas"]["StockProductSummaryDto"];
-type LocationFilter = "" | keyof typeof LOCATION_LABELS;
-type UnitFilter = "" | BaseUnit;
 
-/** Zdjęcie z magazynu mediów ma pierwszeństwo nad starszym `imageUrl`. */
-function productImageUrls(product: Product | undefined): {
-  thumbnail: string | null;
-  full: string | null;
-} {
-  if (!product) {
-    return { thumbnail: null, full: null };
-  }
-  const legacy = isDisplayableUrl(product.imageUrl) ? product.imageUrl : null;
-  return {
-    thumbnail: mediaDisplayUrl(product.image, "thumbnail") ?? legacy,
-    full: mediaDisplayUrl(product.image) ?? legacy,
-  };
-}
+type ProductTarget = { id: string; name: string };
 
-const UNIT_OPTION_LABELS: Record<BaseUnit, string> = {
-  gram: "gramy (g)",
-  piece: "sztuki (szt)",
-  milliliter: "mililitry (ml)",
-};
-
-const UNCATEGORIZED = "Bez kategorii";
-
-const linkButtonSmClass =
-  "inline-flex h-9 items-center justify-center rounded-xl border border-gray-200 bg-white px-3 text-xs font-medium text-gray-800 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500";
-
-export default function StockPage() {
+function StockPageInner() {
   const params = useParams<{ id: string }>();
   const kitchenId = params.id;
+  const searchParams = useSearchParams();
+  const view = parseStockView(searchParams.get("view"));
   const queryClient = useQueryClient();
+
   const [locationFilter, setLocationFilter] = useState<LocationFilter>("");
-  const [categoryFilter, setCategoryFilter] = useState("");
-  const [unitFilter, setUnitFilter] = useState<UnitFilter>("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [productToArchive, setProductToArchive] = useState<{
+  const [productToArchive, setProductToArchive] = useState<ProductTarget | null>(
+    null,
+  );
+  const [productToUndo, setProductToUndo] = useState<ProductTarget | null>(null);
+  const [productWriteOffArchive, setProductWriteOffArchive] = useState<{
     id: string;
     name: string;
+    summary?: StockSummary;
   } | null>(null);
-  const [showArchivedCatalog, setShowArchivedCatalog] = useState(false);
   const [batchToDelete, setBatchToDelete] = useState<{
     id: string;
     label: string;
@@ -87,23 +69,28 @@ export default function StockPage() {
   const [consumeInitialBatchId, setConsumeInitialBatchId] = useState<
     string | undefined
   >();
-  const [historyOpen, setHistoryOpen] = useState(false);
-  const [catalogOpen, setCatalogOpen] = useState(false);
-  const [listFeedback, setListFeedback] = useState<string | null>(null);
-  const [listFeedbackError, setListFeedbackError] = useState(false);
-  const [duplicateProduct, setDuplicateProduct] = useState<{
-    id: string;
-    name: string;
-  } | null>(null);
-  const [expandedStockIds, setExpandedStockIds] = useState<Set<string>>(
-    () => new Set(),
+  const [consumeAfterWriteOffArchive, setConsumeAfterWriteOffArchive] =
+    useState(false);
+  const [showArchivedCatalog, setShowArchivedCatalog] = useState(false);
+  const [duplicateProduct, setDuplicateProduct] = useState<ProductTarget | null>(
+    null,
   );
+  const [toast, setToast] = useState<{
+    message: string;
+    variant?: "success" | "error" | "info";
+    actionLabel?: string;
+    onAction?: () => void;
+  } | null>(null);
   const [preview, setPreview] = useState<{ src: string; alt: string } | null>(
     null,
   );
+  const [removalCache, setRemovalCache] = useState<
+    Record<string, ProductRemovalPreview | null>
+  >({});
+  const removalFetchedRef = useRef<Set<string>>(new Set());
 
-  const newProductWithStockHref = `/kitchens/${kitchenId}/products/new?stock=1&from=stock`;
-  const newProductCatalogHref = `/kitchens/${kitchenId}/products/new?stock=0&from=catalog`;
+  const purchaseHref = newPurchaseHref(kitchenId);
+  const catalogHref = newCatalogProductHref(kitchenId);
 
   const productsQuery = useQuery({
     queryKey: ["products", kitchenId],
@@ -125,7 +112,7 @@ export default function StockPage() {
 
   const archivedProductsQuery = useQuery({
     queryKey: ["products", kitchenId, "archived"],
-    enabled: showArchivedCatalog,
+    enabled: view === "catalog" && showArchivedCatalog,
     queryFn: async () => {
       const client = createWebApiClient();
       const { data, error } = await client.GET(
@@ -147,15 +134,22 @@ export default function StockPage() {
   });
 
   const stockSummaryQuery = useQuery({
-    queryKey: ["stock-summary", kitchenId, locationFilter],
+    queryKey: [
+      "stock-summary",
+      kitchenId,
+      view === "stock" ? locationFilter : "",
+    ],
+    enabled: view === "stock" || view === "catalog",
     queryFn: async () => {
       const client = createWebApiClient();
+      const location =
+        view === "stock" && locationFilter ? locationFilter : undefined;
       const { data, error } = await client.GET(
         "/api/kitchens/{kitchenId}/stock-summary",
         {
           params: {
             path: { kitchenId },
-            query: locationFilter ? { location: locationFilter } : {},
+            query: location ? { location } : {},
           },
         },
       );
@@ -170,6 +164,7 @@ export default function StockPage() {
 
   const consumptionsQuery = useQuery({
     queryKey: ["stock-consumptions", kitchenId],
+    enabled: view === "history",
     queryFn: async () => {
       const client = createWebApiClient();
       const { data, error } = await client.GET(
@@ -183,8 +178,19 @@ export default function StockPage() {
       }
       return data ?? [];
     },
-    enabled: historyOpen,
   });
+
+  const invalidateStock = useCallback(async () => {
+    await queryClient.invalidateQueries({
+      queryKey: ["stock-summary", kitchenId],
+    });
+    await queryClient.invalidateQueries({ queryKey: ["stock", kitchenId] });
+    await queryClient.invalidateQueries({
+      queryKey: ["stock-consumptions", kitchenId],
+    });
+    await queryClient.invalidateQueries({ queryKey: ["catalog", kitchenId] });
+    await queryClient.invalidateQueries({ queryKey: ["products", kitchenId] });
+  }, [kitchenId, queryClient]);
 
   const reverseConsumption = useMutation({
     mutationFn: async (consumptionId: string) => {
@@ -201,76 +207,10 @@ export default function StockPage() {
       }
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: ["stock-summary", kitchenId],
-      });
-      await queryClient.invalidateQueries({ queryKey: ["stock", kitchenId] });
-      await queryClient.invalidateQueries({
-        queryKey: ["stock-consumptions", kitchenId],
-      });
+      await invalidateStock();
+      setToast({ message: "Cofnięto zużycie.", variant: "success" });
     },
   });
-
-  const categoryOptions = useMemo(() => {
-    const fromCatalog = new Set<string>(PRODUCT_CATEGORY_OPTIONS);
-    for (const product of productsQuery.data ?? []) {
-      if (product.category) {
-        fromCatalog.add(product.category);
-      }
-    }
-    return Array.from(fromCatalog).sort((a, b) => a.localeCompare(b, "pl"));
-  }, [productsQuery.data]);
-
-  const filteredSummary = useMemo(() => {
-    const needle = searchQuery.trim().toLowerCase();
-    return (stockSummaryQuery.data ?? []).filter((summary) => {
-      if (categoryFilter) {
-        const category = summary.category?.trim() || UNCATEGORIZED;
-        if (category !== categoryFilter) {
-          return false;
-        }
-      }
-      if (unitFilter && summary.defaultUnit !== unitFilter) {
-        return false;
-      }
-      if (needle) {
-        const haystack = [summary.productName, summary.category ?? ""]
-          .join(" ")
-          .toLowerCase();
-        if (!haystack.includes(needle)) {
-          return false;
-        }
-      }
-      return true;
-    });
-  }, [categoryFilter, searchQuery, stockSummaryQuery.data, unitFilter]);
-
-  const summaryByCategory = useMemo(() => {
-    const groups = new Map<string, StockSummary[]>();
-    for (const summary of filteredSummary) {
-      const key = summary.category?.trim() || UNCATEGORIZED;
-      const list = groups.get(key) ?? [];
-      list.push(summary);
-      groups.set(key, list);
-    }
-    return Array.from(groups.entries()).sort(([a], [b]) => {
-      if (a === UNCATEGORIZED) return 1;
-      if (b === UNCATEGORIZED) return -1;
-      return a.localeCompare(b, "pl");
-    });
-  }, [filteredSummary]);
-
-  const toggleStockExpanded = (productId: string) => {
-    setExpandedStockIds((current) => {
-      const next = new Set(current);
-      if (next.has(productId)) {
-        next.delete(productId);
-      } else {
-        next.add(productId);
-      }
-      return next;
-    });
-  };
 
   const deleteStock = useMutation({
     mutationFn: async (stockItemId: string) => {
@@ -284,27 +224,18 @@ export default function StockPage() {
       }
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["stock", kitchenId] });
-      await queryClient.invalidateQueries({
-        queryKey: ["stock-summary", kitchenId],
-      });
+      await invalidateStock();
       setBatchToDelete(null);
+      setToast({ message: "Usunięto partię.", variant: "success" });
     },
   });
 
   const archiveProduct = useMutation({
-    mutationFn: async () => {
-      if (!productToArchive) {
-        throw new Error("Brak produktu do archiwizacji.");
-      }
+    mutationFn: async (productId: string) => {
       const client = createWebApiClient();
       const { error, response } = await client.DELETE(
         "/api/kitchens/{kitchenId}/products/{productId}",
-        {
-          params: {
-            path: { kitchenId, productId: productToArchive.id },
-          },
-        },
+        { params: { path: { kitchenId, productId } } },
       );
       if (response.status === 409) {
         throw new Error(
@@ -321,17 +252,37 @@ export default function StockPage() {
       }
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["products", kitchenId] });
-      await queryClient.invalidateQueries({ queryKey: ["catalog", kitchenId] });
-      await queryClient.invalidateQueries({
-        queryKey: ["stock-summary", kitchenId],
-      });
+      await invalidateStock();
       setProductToArchive(null);
+      setToast({ message: "Produkt zarchiwizowany.", variant: "success" });
     },
     onError: (error: Error) => {
-      setListFeedbackError(true);
-      setListFeedback(error.message);
+      setToast({ message: error.message, variant: "error" });
       setProductToArchive(null);
+    },
+  });
+
+  const undoAddition = useMutation({
+    mutationFn: async (productId: string) => {
+      await undoProductAddition(kitchenId, productId);
+    },
+    onSuccess: async (_data, productId) => {
+      await invalidateStock();
+      setProductToUndo(null);
+      setToast({
+        message: "Cofnięto dodanie produktu.",
+        variant: "success",
+      });
+      removalFetchedRef.current.delete(productId);
+      setRemovalCache((current) => {
+        const next = { ...current };
+        delete next[productId];
+        return next;
+      });
+    },
+    onError: (error: Error) => {
+      setToast({ message: error.message, variant: "error" });
+      setProductToUndo(null);
     },
   });
 
@@ -349,12 +300,9 @@ export default function StockPage() {
       }
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ["products", kitchenId] });
-      await queryClient.invalidateQueries({ queryKey: ["catalog", kitchenId] });
-      await queryClient.invalidateQueries({
-        queryKey: ["stock-summary", kitchenId],
-      });
+      await invalidateStock();
       setShowArchivedCatalog(true);
+      setToast({ message: "Przywrócono produkt.", variant: "success" });
     },
   });
 
@@ -386,8 +334,10 @@ export default function StockPage() {
     },
     onSuccess: async () => {
       setDuplicateProduct(null);
-      setListFeedbackError(false);
-      setListFeedback("Produkt dodany do listy zakupów.");
+      setToast({
+        message: "Produkt dodany do listy zakupów.",
+        variant: "success",
+      });
       await queryClient.invalidateQueries({
         queryKey: ["shopping-list", kitchenId],
       });
@@ -402,603 +352,256 @@ export default function StockPage() {
         }
         return;
       }
-      setListFeedbackError(true);
-      setListFeedback(readApiError(error));
+      setToast({ message: readApiError(error), variant: "error" });
     },
   });
 
-  function requestAddToList(product: { id: string; name: string }) {
-    setListFeedback(null);
-    setListFeedbackError(false);
+  useEffect(() => {
+    if (view !== "stock" && view !== "catalog") {
+      return;
+    }
+    const products = productsQuery.data ?? [];
+    const missing = products
+      .map((product) => product.id)
+      .filter((id) => !removalFetchedRef.current.has(id))
+      .slice(0, 12);
+    if (missing.length === 0) {
+      return;
+    }
+    for (const id of missing) {
+      removalFetchedRef.current.add(id);
+    }
+    let cancelled = false;
+    void (async () => {
+      const updates: Record<string, ProductRemovalPreview | null> = {};
+      await Promise.all(
+        missing.map(async (productId) => {
+          updates[productId] = await fetchProductRemovalPreview(
+            kitchenId,
+            productId,
+          );
+        }),
+      );
+      if (!cancelled) {
+        setRemovalCache((current) => ({ ...current, ...updates }));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [kitchenId, productsQuery.data, view]);
+
+  function requestAddToList(product: ProductTarget) {
     addToShoppingList.mutate({ productId: product.id });
   }
 
+  function openConsume(
+    summary: StockSummary,
+    options?: { batchId?: string; preferManual?: boolean },
+  ) {
+    setConsumePreferManual(Boolean(options?.preferManual));
+    setConsumeInitialBatchId(options?.batchId);
+    setConsumeAfterWriteOffArchive(false);
+    setConsumeProduct(summary);
+  }
+
+  function buildMenuItems(args: {
+    productId: string;
+    productName: string;
+    summary?: StockSummary;
+    groupId?: string | null;
+    totalQuantity?: string;
+  }): ProductActionItem[] {
+    const previewInfo = removalCache[args.productId];
+    const qty =
+      args.summary != null
+        ? Number(args.summary.totalQuantity)
+        : Number(args.totalQuantity ?? 0);
+    const canUndo = previewInfo?.canUndo === true;
+    const showWriteOffArchive =
+      qty > 0 &&
+      (previewInfo == null || previewInfo.canWriteOffAndArchive === true);
+
+    const items: ProductActionItem[] = [
+      {
+        id: "edit",
+        label: "Edytuj produkt",
+        href: `/kitchens/${kitchenId}/products/${args.productId}/edit`,
+      },
+      {
+        id: "batch",
+        label: "Dodaj partię",
+        href: `/kitchens/${kitchenId}/products/${args.productId}/add-batch`,
+      },
+      {
+        id: "list",
+        label: "Dodaj do listy zakupów",
+        onSelect: () =>
+          requestAddToList({ id: args.productId, name: args.productName }),
+        disabled: addToShoppingList.isPending,
+      },
+    ];
+
+    if (args.groupId) {
+      items.push({
+        id: "kind",
+        label: "Przejdź do rodzaju",
+        href: `/kitchens/${kitchenId}/product-groups/${args.groupId}`,
+      });
+    } else if (view === "catalog") {
+      items.push({
+        id: "assign",
+        label: "Przypisz do rodzaju",
+        href: `/kitchens/${kitchenId}/products/${args.productId}/edit`,
+      });
+    }
+
+    if (canUndo) {
+      items.push({
+        id: "undo",
+        label: "Cofnij dodanie",
+        onSelect: () =>
+          setProductToUndo({ id: args.productId, name: args.productName }),
+        destructive: true,
+      });
+    } else {
+      items.push({
+        id: "archive",
+        label: "Archiwizuj",
+        onSelect: () =>
+          setProductToArchive({ id: args.productId, name: args.productName }),
+        destructive: true,
+      });
+    }
+
+    if (showWriteOffArchive && !canUndo) {
+      items.push({
+        id: "writeoff-archive",
+        label: "Odpisz stan i archiwizuj",
+        onSelect: () => {
+          if (args.summary) {
+            setProductWriteOffArchive({
+              id: args.productId,
+              name: args.productName,
+              summary: args.summary,
+            });
+          } else {
+            const summary = (stockSummaryQuery.data ?? []).find(
+              (entry) => entry.productId === args.productId,
+            );
+            if (summary) {
+              setProductWriteOffArchive({
+                id: args.productId,
+                name: args.productName,
+                summary,
+              });
+            } else {
+              setToast({
+                message:
+                  "Brak danych zapasu do odpisu. Otwórz produkt i odpisz ręcznie.",
+                variant: "info",
+              });
+            }
+          }
+        },
+        destructive: true,
+      });
+    }
+
+    return items;
+  }
+
+  const headerCta =
+    view === "stock" ? (
+      <Link
+        href={purchaseHref}
+        className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm shadow-emerald-200 transition-colors hover:bg-emerald-700"
+      >
+        <ShoppingBasket size={16} />
+        Dodaj zakup
+      </Link>
+    ) : view === "catalog" ? (
+      <Link
+        href={catalogHref}
+        className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white shadow-sm shadow-emerald-200 transition-colors hover:bg-emerald-700"
+      >
+        <Plus size={16} />
+        Dodaj produkt do katalogu
+      </Link>
+    ) : null;
+
   return (
     <AppShell kitchenId={kitchenId}>
-      <div className="mx-auto max-w-5xl space-y-8">
-        <header className="relative overflow-hidden rounded-3xl border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-amber-50/60 px-6 py-8 sm:px-8">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -top-16 -right-10 h-44 w-44 rounded-full bg-emerald-200/40 blur-3xl"
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute -bottom-20 left-10 h-40 w-40 rounded-full bg-amber-200/30 blur-3xl"
-          />
-          <div className="relative flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
-            <div className="max-w-xl">
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 text-xs font-semibold tracking-wide text-emerald-700 uppercase shadow-sm ring-1 ring-emerald-100">
-                <ChefHat size={14} />
-                Spiżarnia kuchni
-              </div>
-              <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl">
-                Co masz w domu?
+      <div className="mx-auto max-w-5xl space-y-4">
+        <header className="space-y-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold tracking-tight text-gray-900">
+                Moje zapasy
               </h1>
-            </div>
-            <div className="flex flex-col gap-2 sm:items-end">
-              <Link
-                href={newProductWithStockHref}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-amber-500 px-5 py-3 text-sm font-semibold text-white shadow-sm shadow-amber-200 transition-all hover:bg-amber-600"
-              >
-                <ShoppingBasket size={18} />
-                Dodaj zakupiony produkt
-              </Link>
-              <Link
-                href={newProductCatalogHref}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-medium text-emerald-800 ring-1 ring-emerald-200 transition-all hover:bg-emerald-50"
-              >
-                <Plus size={18} />
-                Dodaj produkt
-              </Link>
-            </div>
-          </div>
-        </header>
-
-        {listFeedback ? (
-          <div
-            className={cn(
-              "rounded-2xl border px-4 py-3 text-sm",
-              listFeedbackError
-                ? "border-red-200 bg-red-50 text-red-800"
-                : "border-emerald-100 bg-emerald-50 text-emerald-900",
-            )}
-            role={listFeedbackError ? "alert" : "status"}
-          >
-            {listFeedback}
-          </div>
-        ) : null}
-
-        <section className="space-y-4">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-2xl font-bold tracking-tight text-gray-900">
-              Twoja spiżarnia
-            </h2>
-            <p className="text-sm text-gray-500">
-              Przeglądaj to, co już masz — według kategorii, jednostki i miejsca.
-            </p>
-          </div>
-          <div className="flex flex-col gap-3 rounded-2xl border border-gray-100 bg-white/80 p-4 shadow-sm lg:flex-row lg:flex-wrap lg:items-center">
-            <Input
-              aria-label="Szukaj w zapasach"
-              placeholder="Szukaj: nazwa, EAN, kategoria…"
-              value={searchQuery}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              className="lg:max-w-xs"
-            />
-            <label className="flex items-center gap-2 text-sm text-gray-500">
-              <span className="font-medium whitespace-nowrap">Kategoria:</span>
-              <select
-                className="field-input py-2"
-                value={categoryFilter}
-                onChange={(event) => setCategoryFilter(event.target.value)}
-              >
-                <option value="">Wszystkie</option>
-                <option value={UNCATEGORIZED}>{UNCATEGORIZED}</option>
-                {categoryOptions.map((category) => (
-                  <option key={category} value={category}>
-                    {category}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-2 text-sm text-gray-500">
-              <span className="font-medium whitespace-nowrap">Jednostka:</span>
-              <select
-                className="field-input py-2"
-                value={unitFilter}
-                onChange={(event) =>
-                  setUnitFilter(event.target.value as UnitFilter)
-                }
-              >
-                <option value="">Wszystkie</option>
-                {(Object.keys(UNIT_OPTION_LABELS) as BaseUnit[]).map((unit) => (
-                  <option key={unit} value={unit}>
-                    {UNIT_OPTION_LABELS[unit]}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex items-center gap-2 text-sm text-gray-500">
-              <span className="font-medium whitespace-nowrap">Miejsce:</span>
-              <select
-                className="field-input py-2"
-                value={locationFilter}
-                onChange={(event) =>
-                  setLocationFilter(event.target.value as LocationFilter)
-                }
-                aria-label="Filtr miejsca"
-              >
-                <option value="">Wszystkie miejsca</option>
-                {Object.entries(LOCATION_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <div className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
-            {stockSummaryQuery.isPending || productsQuery.isPending ? (
-              <div className="p-12 text-center text-sm text-gray-500">
-                Ładowanie spiżarni…
-              </div>
-            ) : null}
-            {stockSummaryQuery.isError ? (
-              <div className="p-12 text-center text-sm text-red-600" role="alert">
-                {readApiError(stockSummaryQuery.error)}
-              </div>
-            ) : null}
-            {!stockSummaryQuery.isPending &&
-            !stockSummaryQuery.isError &&
-            filteredSummary.length === 0 ? (
-              <div className="px-6 py-14 text-center">
-                <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
-                  <ChefHat size={32} />
-                </div>
-                <p className="text-lg font-semibold text-gray-900">
-                  Spiżarnia czeka na pierwsze produkty
-                </p>
-                <p className="mx-auto mt-2 max-w-md text-sm text-gray-500">
-                  Dodaj zakupiony produkt z partią albo sam wpis do katalogu —
-                  zobaczysz tu ilości, miejsca i daty ważności.
-                </p>
-                <div className="mt-6 flex flex-wrap justify-center gap-3">
-                  <Link
-                    href={newProductWithStockHref}
-                    className="inline-flex h-11 items-center justify-center rounded-xl bg-amber-500 px-6 text-sm font-medium text-white shadow-sm shadow-amber-200 transition-colors hover:bg-amber-600"
-                  >
-                    Dodaj zakupiony produkt
-                  </Link>
-                  <Link
-                    href={newProductCatalogHref}
-                    className="inline-flex h-11 items-center justify-center rounded-xl border border-emerald-200 bg-white px-6 text-sm font-medium text-emerald-800 transition-colors hover:bg-emerald-50"
-                  >
-                    Dodaj produkt
-                  </Link>
-                </div>
-              </div>
-            ) : null}
-            {filteredSummary.length > 0 ? (
-              <ul className="divide-y divide-gray-50">
-                {summaryByCategory.map(([category, summaries]) => (
-                  <Fragment key={category}>
-                    <li className="bg-emerald-50/40 px-4 py-2 text-xs font-semibold tracking-wide text-emerald-800 uppercase">
-                      {category}
-                    </li>
-                    {summaries.map((summary) => {
-                      const product = productsQuery.data?.find(
-                        (entry) => entry.id === summary.productId,
-                      );
-                      const productImages = productImageUrls(product);
-                      const thumbnail = productImages.thumbnail;
-                      const fullSize = productImages.full;
-                      const expanded = expandedStockIds.has(summary.productId);
-                      const expiryHint =
-                        summary.expiringBatchCount > 0 && summary.nearestExpiry
-                          ? `${summary.expiringBatchCount} ${
-                              summary.expiringBatchCount === 1
-                                ? "partia"
-                                : "partie"
-                            } kończą ważność ${new Date(
-                              summary.nearestExpiry,
-                            ).toLocaleDateString("pl-PL")}`
-                          : null;
-                      return (
-                        <li key={summary.productId} className="px-4 py-3">
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="flex min-w-0 flex-1 items-start gap-3">
-                              {thumbnail && fullSize ? (
-                                <button
-                                  type="button"
-                                  className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-emerald-50 bg-emerald-50/40 transition-shadow hover:shadow-md"
-                                  onClick={() =>
-                                    setPreview({
-                                      src: fullSize,
-                                      alt: summary.productName,
-                                    })
-                                  }
-                                  aria-label={`Powiększ zdjęcie: ${summary.productName}`}
-                                >
-                                  {/* eslint-disable-next-line @next/next/no-img-element -- podpisane URL-e magazynu zdjęć */}
-                                  <img
-                                    src={thumbnail}
-                                    alt=""
-                                    className="h-full w-full object-cover"
-                                  />
-                                </button>
-                              ) : (
-                                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-emerald-50 bg-emerald-50/40">
-                                  <Package
-                                    size={18}
-                                    className="text-emerald-300"
-                                  />
-                                </div>
-                              )}
-                              <div className="min-w-0 flex-1">
-                                <p className="font-medium text-gray-900">
-                                  {summary.productName}
-                                  {summary.isArchived ? (
-                                    <span className="ml-2 text-xs font-medium text-amber-700">
-                                      Zarchiwizowany
-                                    </span>
-                                  ) : null}
-                                </p>
-                                <p className="text-sm text-gray-600">
-                                  {formatQuantityWithUnit(
-                                    summary.totalQuantity,
-                                    summary.defaultUnit,
-                                  )}{" "}
-                                  · {summary.batchCount}{" "}
-                                  {summary.batchCount === 1
-                                    ? "partia"
-                                    : "partie"}
-                                </p>
-                                {expiryHint ? (
-                                  <p className="mt-0.5 text-xs text-amber-700">
-                                    {expiryHint}
-                                  </p>
-                                ) : null}
-                              </div>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
-                              <Link
-                                href={`/kitchens/${kitchenId}/products/${summary.productId}/edit`}
-                                className={linkButtonSmClass}
-                              >
-                                Edytuj
-                              </Link>
-                              <Link
-                                href={`/kitchens/${kitchenId}/products/${summary.productId}/add-batch`}
-                                className={linkButtonSmClass}
-                              >
-                                Dodaj kolejną partię
-                              </Link>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="outline"
-                                onClick={() =>
-                                  toggleStockExpanded(summary.productId)
-                                }
-                                aria-expanded={expanded}
-                              >
-                                <ChevronDown
-                                  size={16}
-                                  className={cn(
-                                    "mr-1 transition-transform",
-                                    expanded && "rotate-180",
-                                  )}
-                                />
-                                {expanded ? "Zwiń" : "Partie"}
-                              </Button>
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="amber"
-                                onClick={() => {
-                                  setConsumePreferManual(false);
-                                  setConsumeInitialBatchId(undefined);
-                                  setConsumeProduct(summary);
-                                }}
-                              >
-                                Zużyj
-                              </Button>
-                            </div>
-                          </div>
-                          {expanded ? (
-                            <ul className="mt-3 space-y-2 border-t border-gray-50 pt-3">
-                              {summary.batches.map((batch) => (
-                                <li
-                                  key={batch.id}
-                                  className={cn(
-                                    "rounded-xl border p-3 text-sm",
-                                    batch.isExpired
-                                      ? "border-red-100 bg-red-50/40"
-                                      : "border-gray-100 bg-gray-50/60",
-                                  )}
-                                >
-                                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                                    <div className="space-y-1">
-                                      <p className="font-medium text-gray-900">
-                                        {formatQuantityWithUnit(
-                                          batch.quantity,
-                                          summary.defaultUnit,
-                                        )}{" "}
-                                        /{" "}
-                                        {formatQuantityWithUnit(
-                                          batch.initialQuantity,
-                                          summary.defaultUnit,
-                                        )}
-                                        {batch.isExpired ? (
-                                          <span className="ml-2 rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-800">
-                                            Przeterminowane
-                                          </span>
-                                        ) : null}
-                                      </p>
-                                      <p className="text-xs text-gray-500">
-                                        {batch.storeName
-                                          ? batch.storeName
-                                          : "Ręczne dodanie"}
-                                        {batch.purchasedAt
-                                          ? ` · ${new Date(
-                                              batch.purchasedAt,
-                                            ).toLocaleDateString("pl-PL")}`
-                                          : ""}
-                                        {batch.expiresAt
-                                          ? ` · ważne do ${new Date(
-                                              batch.expiresAt,
-                                            ).toLocaleDateString("pl-PL")}`
-                                          : ""}
-                                      </p>
-                                      <p className="text-xs text-gray-500">
-                                        {LOCATION_LABELS[batch.location]}
-                                        {batch.unitPriceMinor != null
-                                          ? ` · ${zlotyFromMinor(
-                                              batch.unitPriceMinor,
-                                            )} ${batch.currency}/${UNIT_LABELS[summary.defaultUnit]}`
-                                          : batch.purchasePriceMinor != null
-                                            ? ` · ${zlotyFromMinor(
-                                                batch.purchasePriceMinor,
-                                              )} ${batch.currency} za partię`
-                                            : " · cena nieznana"}
-                                      </p>
-                                      {batch.purchaseId ? (
-                                        <Link
-                                          href={`/kitchens/${kitchenId}/purchases/${batch.purchaseId}`}
-                                          className="text-xs font-medium text-emerald-700 hover:underline"
-                                        >
-                                          Zobacz zakup / paragon
-                                        </Link>
-                                      ) : null}
-                                    </div>
-                                    <div className="flex flex-wrap gap-2">
-                                      {!batch.canDelete ? (
-                                        <Button
-                                          type="button"
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={() => {
-                                            setConsumePreferManual(true);
-                                            setConsumeInitialBatchId(batch.id);
-                                            setConsumeProduct(summary);
-                                          }}
-                                        >
-                                          Odpisz
-                                        </Button>
-                                      ) : (
-                                        <Button
-                                          type="button"
-                                          size="sm"
-                                          variant="destructive"
-                                          onClick={() =>
-                                            setBatchToDelete({
-                                              id: batch.id,
-                                              label: `${summary.productName} (${formatQuantityWithUnit(
-                                                batch.quantity,
-                                                summary.defaultUnit,
-                                              )})`,
-                                            })
-                                          }
-                                        >
-                                          Usuń partię
-                                        </Button>
-                                      )}
-                                      {batch.isExpired && batch.canDelete ? (
-                                        <Button
-                                          type="button"
-                                          size="sm"
-                                          variant="outline"
-                                          onClick={() => {
-                                            setConsumePreferManual(true);
-                                            setConsumeInitialBatchId(batch.id);
-                                            setConsumeProduct(summary);
-                                          }}
-                                        >
-                                          Odpisz
-                                        </Button>
-                                      ) : null}
-                                    </div>
-                                    {batch.deleteBlockReason ? (
-                                      <p className="mt-2 text-xs text-gray-500">
-                                        {batch.deleteBlockReason}
-                                      </p>
-                                    ) : null}
-                                  </div>
-                                </li>
-                              ))}
-                            </ul>
-                          ) : null}
-                        </li>
-                      );
-                    })}
-                  </Fragment>
-                ))}
-              </ul>
-            ) : null}
-          </div>
-        </section>
-
-        <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
-          <button
-            type="button"
-            onClick={() => setHistoryOpen((open) => !open)}
-            className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left hover:bg-gray-50/80"
-            aria-expanded={historyOpen}
-          >
-            <div>
-              <h2 className="text-lg font-bold text-gray-900">
-                Historia zużyć
-              </h2>
-              <p className="mt-0.5 text-sm text-gray-500">
-                Podgląd zatwierdzonych odpisań i cofnięć — bez kasowania historii.
+              <p className="mt-1 text-sm text-gray-500">
+                Stan w domu, katalog produktów i historia zużyć.
               </p>
             </div>
-            <ChevronDown
-              size={20}
-              className={cn(
-                "shrink-0 text-gray-400 transition-transform",
-                historyOpen && "rotate-180",
-              )}
-            />
-          </button>
-          {historyOpen ? (
-            <div className="border-t border-gray-100">
-              {consumptionsQuery.isPending ? (
-                <p className="p-6 text-sm text-gray-500">Ładowanie historii…</p>
-              ) : null}
-              {consumptionsQuery.isError ? (
-                <p className="p-6 text-sm text-red-600" role="alert">
-                  {readApiError(consumptionsQuery.error)}
-                </p>
-              ) : null}
-              {!consumptionsQuery.isPending &&
-              (consumptionsQuery.data?.length ?? 0) === 0 ? (
-                <p className="p-6 text-sm text-gray-500">
-                  Brak zapisanych zużyć. Użyj „Zużyj” lub „Odpisz”, aby skorygować
-                  stan partii.
-                </p>
-              ) : null}
-              {(consumptionsQuery.data ?? []).length > 0 ? (
-                <ul className="divide-y divide-gray-50">
-                  {(consumptionsQuery.data ?? []).map((entry) => (
-                    <li key={entry.id} className="px-4 py-3 text-sm">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="space-y-1">
-                          <p className="font-medium text-gray-900">
-                            {entry.productName ?? entry.productId}
-                            {entry.kind === "write_off" ? (
-                              <span className="ml-2 text-xs font-semibold text-rose-800">
-                                Odpis
-                              </span>
-                            ) : (
-                              <span className="ml-2 text-xs font-semibold text-gray-600">
-                                Zużycie
-                              </span>
-                            )}
-                            {entry.isReversal ? (
-                              <span className="ml-2 text-xs font-semibold text-amber-800">
-                                Cofnięcie
-                              </span>
-                            ) : null}
-                            {entry.isReversed ? (
-                              <span className="ml-2 text-xs font-semibold text-gray-500">
-                                Cofnięte
-                              </span>
-                            ) : null}
-                          </p>
-                          {entry.reason ? (
-                            <p className="text-gray-700">
-                              Powód: {entry.reason}
-                            </p>
-                          ) : null}
-                          <p className="text-gray-600">
-                            {formatQuantityWithUnit(
-                              entry.totalQuantity,
-                              productsQuery.data?.find(
-                                (p) => p.id === entry.productId,
-                              )?.defaultUnit,
-                            )}
-                            {" · "}
-                            {entry.costComplete && entry.totalCostMinor != null
-                              ? `${zlotyFromMinor(entry.totalCostMinor)} zł`
-                              : "koszt niekompletny"}
-                            {" · "}
-                            {new Date(entry.createdAt).toLocaleString("pl-PL")}
-                          </p>
-                          <ul className="text-xs text-gray-500">
-                            {entry.lines.map((line) => (
-                              <li key={`${entry.id}-${line.stockItemId}`}>
-                                {formatQuantityWithUnit(
-                                  line.quantity,
-                                  productsQuery.data?.find(
-                                    (p) => p.id === entry.productId,
-                                  )?.defaultUnit,
-                                )}
-                                {line.storeName ? ` · ${line.storeName}` : ""}
-                                {line.costMinor != null
-                                  ? ` · ${zlotyFromMinor(line.costMinor)} zł`
-                                  : ""}
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-                        {!entry.isReversal && !entry.isReversed ? (
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={reverseConsumption.isPending}
-                            onClick={() =>
-                              reverseConsumption.mutate(entry.id)
-                            }
-                          >
-                            Cofnij
-                          </Button>
-                        ) : null}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
-              {reverseConsumption.isError ? (
-                <p className="border-t border-gray-50 px-4 py-3 text-sm text-red-600">
-                  {readApiError(reverseConsumption.error)}
-                </p>
-              ) : null}
-            </div>
-          ) : null}
-        </section>
+            {headerCta}
+          </div>
+          <StockViewTabs kitchenId={kitchenId} active={view} />
+        </header>
 
-        <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
-          <button
-            type="button"
-            onClick={() => setCatalogOpen((open) => !open)}
-            className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left hover:bg-gray-50/80"
-            aria-expanded={catalogOpen}
-          >
-            <div>
-              <h2 className="text-lg font-bold text-gray-900">
-                Katalog produktów
-              </h2>
-            </div>
-            <ChevronDown
-              size={20}
-              className={cn(
-                "shrink-0 text-gray-400 transition-transform",
-                catalogOpen && "rotate-180",
-              )}
-            />
-          </button>
-          {catalogOpen ? (
-            <>
+        {view === "stock" ? (
+          <StockTab
+            kitchenId={kitchenId}
+            summaries={stockSummaryQuery.data ?? []}
+            products={productsQuery.data ?? []}
+            isPending={
+              stockSummaryQuery.isPending || productsQuery.isPending
+            }
+            isError={stockSummaryQuery.isError || productsQuery.isError}
+            errorMessage={readApiError(
+              stockSummaryQuery.error ?? productsQuery.error,
+            )}
+            locationFilter={locationFilter}
+            onLocationFilterChange={setLocationFilter}
+            onConsume={openConsume}
+            onDeleteBatch={setBatchToDelete}
+            onPreviewImage={(src, alt) => setPreview({ src, alt })}
+            buildMenuItems={({ productId, productName, summary }) =>
+              buildMenuItems({
+                productId,
+                productName,
+                summary,
+                groupId: productsQuery.data?.find((p) => p.id === productId)
+                  ?.groupId,
+              })
+            }
+          />
+        ) : null}
+
+        {view === "catalog" ? (
+          <section className="space-y-3">
+            <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
               <ProductCatalogPanel
                 kitchenId={kitchenId}
-                newProductCatalogHref={newProductCatalogHref}
+                embedded
                 onPreview={(src, alt) => setPreview({ src, alt })}
                 onArchiveProduct={setProductToArchive}
+                onUndoAddition={setProductToUndo}
+                onWriteOffAndArchive={(product) => {
+                  const summary = (stockSummaryQuery.data ?? []).find(
+                    (entry) => entry.productId === product.id,
+                  );
+                  setProductWriteOffArchive({ ...product, summary });
+                }}
                 onAddToList={requestAddToList}
                 addToListPending={addToShoppingList.isPending}
+                buildMenuItems={(product) =>
+                  buildMenuItems({
+                    productId: product.id,
+                    productName: product.name,
+                    groupId: product.groupId,
+                    totalQuantity: product.totalQuantity,
+                  })
+                }
               />
               <div className="border-t border-gray-50 px-4 py-3">
                 <button
@@ -1041,9 +644,26 @@ export default function StockPage() {
                   zakupy, zużycia i przepisy zostają.
                 </p>
               </div>
-            </>
-          ) : null}
-        </section>
+            </div>
+          </section>
+        ) : null}
+
+        {view === "history" ? (
+          <HistoryTab
+            entries={consumptionsQuery.data ?? []}
+            products={productsQuery.data ?? []}
+            isPending={consumptionsQuery.isPending}
+            isError={consumptionsQuery.isError}
+            errorMessage={readApiError(consumptionsQuery.error)}
+            reversePending={reverseConsumption.isPending}
+            reverseError={
+              reverseConsumption.isError
+                ? readApiError(reverseConsumption.error)
+                : null
+            }
+            onReverse={(id) => reverseConsumption.mutate(id)}
+          />
+        ) : null}
       </div>
 
       {preview ? (
@@ -1060,9 +680,48 @@ export default function StockPage() {
           title={`Zarchiwizować „${productToArchive.name}”?`}
           description="Produkt zniknie z aktywnego katalogu i selektorów. Historia zakupów, partie, zużycia, zdjęcia i powiązania z przepisami zostaną zachowane. Jeśli ma zapas, nadal zobaczysz go na liście zapasów jako zarchiwizowany."
           confirmLabel="Archiwizuj"
+          pendingLabel="Archiwizowanie…"
+          confirmVariant="amber"
           pending={archiveProduct.isPending}
           onCancel={() => setProductToArchive(null)}
-          onConfirm={() => archiveProduct.mutate()}
+          onConfirm={() => archiveProduct.mutate(productToArchive.id)}
+        />
+      ) : null}
+
+      {productToUndo ? (
+        <ConfirmDialog
+          title={`Cofnąć dodanie „${productToUndo.name}”?`}
+          description={
+            removalDialogCopy(removalCache[productToUndo.id] ?? null)
+              .description
+          }
+          confirmLabel="Cofnij dodanie"
+          pendingLabel="Usuwanie…"
+          confirmVariant="destructive"
+          pending={undoAddition.isPending}
+          onCancel={() => setProductToUndo(null)}
+          onConfirm={() => undoAddition.mutate(productToUndo.id)}
+        />
+      ) : null}
+
+      {productWriteOffArchive?.summary ? (
+        <ConfirmDialog
+          title={`Odpisać stan i zarchiwizować „${productWriteOffArchive.name}”?`}
+          description="Najpierw odpiszesz cały pozostały zapas (z podaniem powodu), a potem produkt trafi do archiwum. Historia odpisu zostanie zachowana."
+          confirmLabel="Przejdź do odpisu"
+          pendingLabel="Otwieranie…"
+          confirmVariant="amber"
+          pending={false}
+          onCancel={() => setProductWriteOffArchive(null)}
+          onConfirm={() => {
+            const summary = productWriteOffArchive.summary;
+            if (!summary) return;
+            setConsumePreferManual(true);
+            setConsumeInitialBatchId(undefined);
+            setConsumeAfterWriteOffArchive(true);
+            setConsumeProduct(summary);
+            setProductWriteOffArchive(null);
+          }}
         />
       ) : null}
 
@@ -1071,6 +730,8 @@ export default function StockPage() {
           title={`„${duplicateProduct.name}” jest już na liście`}
           description="Ten produkt ma już nierozliczoną pozycję na liście zakupów. Możesz zwiększyć planowaną ilość zamiast dodawać duplikat."
           confirmLabel="Zwiększ ilość"
+          pendingLabel="Dodawanie…"
+          confirmVariant="default"
           pending={addToShoppingList.isPending}
           onCancel={() => setDuplicateProduct(null)}
           onConfirm={() =>
@@ -1087,6 +748,7 @@ export default function StockPage() {
           title="Usunąć partię?"
           description={`Fizycznie usuniesz „${batchToDelete.label}”. To dozwolone tylko dla ręcznie dodanej partii bez zakupu i bez historii zużycia.`}
           confirmLabel="Usuń partię"
+          pendingLabel="Usuwanie…"
           pending={deleteStock.isPending}
           onCancel={() => setBatchToDelete(null)}
           onConfirm={() => deleteStock.mutate(batchToDelete.id)}
@@ -1108,20 +770,46 @@ export default function StockPage() {
             setConsumeProduct(null);
             setConsumePreferManual(false);
             setConsumeInitialBatchId(undefined);
+            setConsumeAfterWriteOffArchive(false);
           }}
           onSuccess={async () => {
-            await queryClient.invalidateQueries({
-              queryKey: ["stock-summary", kitchenId],
-            });
-            await queryClient.invalidateQueries({
-              queryKey: ["stock", kitchenId],
-            });
-            await queryClient.invalidateQueries({
-              queryKey: ["stock-consumptions", kitchenId],
-            });
+            const shouldArchive =
+              consumeAfterWriteOffArchive && consumeProduct;
+            await invalidateStock();
+            if (shouldArchive) {
+              try {
+                await archiveProduct.mutateAsync(shouldArchive.productId);
+              } catch {
+                // błąd już w toast z onError archiwizacji
+              }
+            }
+            setConsumeAfterWriteOffArchive(false);
           }}
         />
       ) : null}
+
+      <Toast
+        message={toast?.message ?? null}
+        variant={toast?.variant}
+        actionLabel={toast?.actionLabel}
+        onAction={toast?.onAction}
+        onDismiss={() => setToast(null)}
+        durationMs={toast?.actionLabel ? 6000 : 3500}
+      />
     </AppShell>
+  );
+}
+
+export default function StockPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="p-8 text-center text-sm text-gray-500">
+          Ładowanie zapasów…
+        </div>
+      }
+    >
+      <StockPageInner />
+    </Suspense>
   );
 }

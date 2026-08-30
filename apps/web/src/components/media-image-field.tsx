@@ -16,12 +16,13 @@ import {
 } from "@/lib/media-upload";
 import { cn } from "@/lib/utils";
 
-type FrameSize = "sm" | "md" | "wide";
+type FrameSize = "sm" | "md" | "wide" | "lg";
 
 const FRAME_CLASSES: Record<FrameSize, string> = {
   sm: "h-20 w-20",
   md: "h-28 w-28",
   wide: "h-32 w-full max-w-xs sm:h-36",
+  lg: "aspect-square h-auto w-full max-w-sm min-h-44",
 };
 
 type MediaImageFieldProps = {
@@ -246,16 +247,65 @@ function ImageFieldShell({
   error,
 }: ImageFieldShellProps) {
   const inputId = `${useId()}-file`;
+  const [dragOver, setDragOver] = useState(false);
+  const stacked = size === "lg" || size === "wide";
+
+  function acceptDroppedFile(fileList: FileList | null) {
+    const file = fileList?.[0];
+    if (!file) {
+      onPickError("Nie wybrano pliku.");
+      return;
+    }
+    void onPick(file);
+  }
 
   return (
     <div className="space-y-2">
       <Label htmlFor={inputId}>{label}</Label>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+      <div
+        className={cn(
+          "flex gap-3",
+          stacked ? "flex-col" : "flex-col sm:flex-row sm:items-start",
+        )}
+      >
         <div
           className={cn(
-            "flex shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-dashed border-gray-200 bg-gray-50",
+            "flex shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-dashed bg-gray-50 transition-colors",
             FRAME_CLASSES[size],
+            dragOver
+              ? "border-emerald-400 bg-emerald-50/60"
+              : "border-gray-200",
+            !disabled && "cursor-pointer",
           )}
+          onDragEnter={(event) => {
+            event.preventDefault();
+            if (!disabled) {
+              setDragOver(true);
+            }
+          }}
+          onDragOver={(event) => {
+            event.preventDefault();
+            if (!disabled) {
+              setDragOver(true);
+            }
+          }}
+          onDragLeave={(event) => {
+            event.preventDefault();
+            setDragOver(false);
+          }}
+          onDrop={(event) => {
+            event.preventDefault();
+            setDragOver(false);
+            if (disabled) {
+              return;
+            }
+            acceptDroppedFile(event.dataTransfer.files);
+          }}
+          onClick={() => {
+            if (!disabled) {
+              document.getElementById(inputId)?.click();
+            }
+          }}
         >
           {previewSrc ? (
             // eslint-disable-next-line @next/next/no-img-element -- podpisane URL-e magazynu zdjęć
@@ -265,7 +315,14 @@ function ImageFieldShell({
               className="h-full w-full object-contain"
             />
           ) : (
-            <ImagePlus size={24} className="text-gray-300" />
+            <div className="flex flex-col items-center gap-2 px-4 text-center">
+              <ImagePlus size={28} className="text-gray-300" />
+              {stacked ? (
+                <p className="text-xs text-gray-400">
+                  Przeciągnij zdjęcie albo kliknij, aby wybrać
+                </p>
+              ) : null}
+            </div>
           )}
         </div>
         <div className="min-w-0 flex-1 space-y-2">
@@ -278,6 +335,7 @@ function ImageFieldShell({
                   ? "cursor-not-allowed opacity-60"
                   : "cursor-pointer hover:bg-gray-50",
               )}
+              onClick={(event) => event.stopPropagation()}
             >
               {busyLabel ?? pickLabel}
             </label>
@@ -302,7 +360,10 @@ function ImageFieldShell({
                 type="button"
                 className="text-xs font-medium text-gray-500 hover:text-red-600 disabled:opacity-60"
                 disabled={disabled}
-                onClick={() => void onRemove()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void onRemove();
+                }}
               >
                 Usuń zdjęcie
               </button>

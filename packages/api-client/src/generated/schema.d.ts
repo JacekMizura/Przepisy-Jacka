@@ -474,7 +474,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Archiwizacja produktu (historia zostaje). ?permanent=true tylko dla nigdy nieużytego. */
+        /** Archiwizacja produktu (historia zostaje). ?permanent=true tylko dla nigdy nieużytego bez zapasu/nutrition — UX cofnięcia: POST …/undo-addition. */
         delete: operations["StockController_deleteProduct"];
         options?: never;
         head?: never;
@@ -510,6 +510,40 @@ export interface paths {
         put?: never;
         /** Konfiguracja sposobu zakupu produktu (opakowania / dokładna ilość) */
         post: operations["StockController_configureProductPurchase"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/products/{productId}/removal-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Podgląd bezpiecznego usunięcia: undo (omyłkowe dodanie), archiwizacja albo blokada */
+        get: operations["StockController_getProductRemovalPreview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/kitchens/{kitchenId}/products/{productId}/undo-addition": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cofnięcie omyłkowego dodania produktu (zapas ręczny + nutrition). Preferowane względem ?permanent=true. */
+        post: operations["StockController_undoProductAddition"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1586,6 +1620,10 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
+        ProductRemovalHintDto: {
+            /** @description true gdy zaraz po przyjęciu produkt kwalifikuje się do POST …/undo-addition. */
+            canUndo: boolean;
+        };
         ProductIntakeResultDto: {
             product: components["schemas"]["ProductDto"];
             stockItem: components["schemas"]["StockItemDto"] | null;
@@ -1593,6 +1631,8 @@ export interface components {
             replayed: boolean;
             /** @description true gdy produkt był przywrócony z archiwum w tym żądaniu. */
             restoredFromArchive: boolean;
+            /** @description Podpowiedź UX: czy wolno cofnąć omyłkowe dodanie (POST …/undo-addition) bez dodatkowego GET. */
+            removalHint: components["schemas"]["ProductRemovalHintDto"];
         };
         UpdateProductDto: {
             /**
@@ -1646,6 +1686,39 @@ export interface components {
              */
             mode: "unconfigured" | "packaged" | "exact";
             option?: components["schemas"]["ConfigureProductPurchaseOptionDto"];
+        };
+        ProductRemovalPreviewDto: {
+            /**
+             * @description undo = bezpieczne cofnięcie omyłkowego dodania; archive = tylko archiwizacja; blocked = brak bezpiecznej akcji.
+             * @enum {string}
+             */
+            mode: "undo" | "archive" | "blocked";
+            /** @description Polskie wyjaśnienie, gdy mode ≠ undo. */
+            reason?: string | null;
+            /** @description true gdy wolno wywołać POST …/undo-addition. */
+            canUndo: boolean;
+            /** @description true gdy wolno zarchiwizować przez DELETE (bez pending shopping, nie w archiwum). */
+            canArchive: boolean;
+            /** @description true na ścieżce archiwizacji, gdy pozostały zapas > 0 (najpierw odpis, potem archiwum). */
+            canWriteOffAndArchive: boolean;
+            /** @description Ludzkie etykiety tego, co undo usunie. */
+            willRemove: string[];
+            /** @description Ludzkie etykiety tego, co zostanie przy archiwizacji. */
+            willKeep: string[];
+            /**
+             * @description Suma pozostałych ilości partii; null gdy 0.
+             * @example 450.000
+             */
+            remainingStockQuantity?: string | null;
+            /**
+             * @description Jednostka produktu przy remainingStockQuantity > 0.
+             * @enum {string|null}
+             */
+            remainingStockUnit?: "piece" | "gram" | "milliliter" | null;
+        };
+        ProductUndoAdditionResultDto: {
+            /** @example true */
+            undone: boolean;
         };
         CreatePurchaseOptionDto: {
             /** @example Karton 1 l */
@@ -3428,6 +3501,50 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProductDto"];
+                };
+            };
+        };
+    };
+    StockController_getProductRemovalPreview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductRemovalPreviewDto"];
+                };
+            };
+        };
+    };
+    StockController_undoProductAddition: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                kitchenId: string;
+                productId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductUndoAdditionResultDto"];
                 };
             };
         };

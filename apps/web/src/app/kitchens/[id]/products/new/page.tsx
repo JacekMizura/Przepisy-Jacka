@@ -4,7 +4,20 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
 import { AppShell } from "@/components/app-shell";
-import { ProductEntryForm } from "@/components/product-entry/product-entry-form";
+import {
+  ProductEntryForm,
+  type ProductCreateIntent,
+} from "@/components/product-entry/product-entry-form";
+
+function resolveCreateIntent(
+  mode: string | null,
+  stockParam: string | null,
+): ProductCreateIntent {
+  if (mode === "catalog" || stockParam === "0") {
+    return "catalog";
+  }
+  return "purchase";
+}
 
 function NewProductPageInner() {
   const params = useParams<{ id: string }>();
@@ -12,8 +25,9 @@ function NewProductPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const mode = searchParams.get("mode");
   const stockParam = searchParams.get("stock");
-  const defaultPutInStock = stockParam !== "0";
+  const createIntent = resolveCreateIntent(mode, stockParam);
   const initialName = searchParams.get("name") ?? "";
   const initialGroupId = searchParams.get("groupId");
   const from = searchParams.get("from");
@@ -23,11 +37,15 @@ function NewProductPageInner() {
       <ProductEntryForm
         kitchenId={kitchenId}
         mode="create"
-        defaultPutInStock={defaultPutInStock}
+        createIntent={createIntent}
         initialName={initialName}
         initialGroupId={initialGroupId}
         onSuccess={({ putInStock, product }) => {
-          if (putInStock || from === "stock") {
+          if (from === "catalog" || createIntent === "catalog") {
+            router.push(`/kitchens/${kitchenId}/stock?view=catalog`);
+            return;
+          }
+          if (putInStock || from === "stock" || createIntent === "purchase") {
             router.push(`/kitchens/${kitchenId}/stock`);
             return;
           }
@@ -37,9 +55,7 @@ function NewProductPageInner() {
             );
             return;
           }
-          router.push(
-            `/kitchens/${kitchenId}/products/${product.id}/edit`,
-          );
+          router.push(`/kitchens/${kitchenId}/products/${product.id}/edit`);
         }}
       />
     </AppShell>

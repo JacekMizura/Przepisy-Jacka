@@ -1574,7 +1574,7 @@
             }
           }
         },
-        "summary": "Archiwizacja produktu (historia zostaje). ?permanent=true tylko dla nigdy nieużytego.",
+        "summary": "Archiwizacja produktu (historia zostaje). ?permanent=true tylko dla nigdy nieużytego bez zapasu/nutrition — UX cofnięcia: POST …/undo-addition.",
         "tags": [
           "stock"
         ]
@@ -1673,6 +1673,84 @@
           }
         },
         "summary": "Konfiguracja sposobu zakupu produktu (opakowania / dokładna ilość)",
+        "tags": [
+          "stock"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/products/{productId}/removal-preview": {
+      "get": {
+        "operationId": "StockController_getProductRemovalPreview",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductRemovalPreviewDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Podgląd bezpiecznego usunięcia: undo (omyłkowe dodanie), archiwizacja albo blokada",
+        "tags": [
+          "stock"
+        ]
+      }
+    },
+    "/api/kitchens/{kitchenId}/products/{productId}/undo-addition": {
+      "post": {
+        "operationId": "StockController_undoProductAddition",
+        "parameters": [
+          {
+            "name": "kitchenId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "productId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductUndoAdditionResultDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Cofnięcie omyłkowego dodania produktu (zapas ręczny + nutrition). Preferowane względem ?permanent=true.",
         "tags": [
           "stock"
         ]
@@ -5377,6 +5455,18 @@
           "updatedAt"
         ]
       },
+      "ProductRemovalHintDto": {
+        "type": "object",
+        "properties": {
+          "canUndo": {
+            "type": "boolean",
+            "description": "true gdy zaraz po przyjęciu produkt kwalifikuje się do POST …/undo-addition."
+          }
+        },
+        "required": [
+          "canUndo"
+        ]
+      },
       "ProductIntakeResultDto": {
         "type": "object",
         "properties": {
@@ -5399,13 +5489,22 @@
           "restoredFromArchive": {
             "type": "boolean",
             "description": "true gdy produkt był przywrócony z archiwum w tym żądaniu."
+          },
+          "removalHint": {
+            "description": "Podpowiedź UX: czy wolno cofnąć omyłkowe dodanie (POST …/undo-addition) bez dodatkowego GET.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ProductRemovalHintDto"
+              }
+            ]
           }
         },
         "required": [
           "product",
           "stockItem",
           "replayed",
-          "restoredFromArchive"
+          "restoredFromArchive",
+          "removalHint"
         ]
       },
       "UpdateProductDto": {
@@ -5538,6 +5637,87 @@
         },
         "required": [
           "mode"
+        ]
+      },
+      "ProductRemovalPreviewDto": {
+        "type": "object",
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "undo",
+              "archive",
+              "blocked"
+            ],
+            "description": "undo = bezpieczne cofnięcie omyłkowego dodania; archive = tylko archiwizacja; blocked = brak bezpiecznej akcji."
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true,
+            "description": "Polskie wyjaśnienie, gdy mode ≠ undo."
+          },
+          "canUndo": {
+            "type": "boolean",
+            "description": "true gdy wolno wywołać POST …/undo-addition."
+          },
+          "canArchive": {
+            "type": "boolean",
+            "description": "true gdy wolno zarchiwizować przez DELETE (bez pending shopping, nie w archiwum)."
+          },
+          "canWriteOffAndArchive": {
+            "type": "boolean",
+            "description": "true na ścieżce archiwizacji, gdy pozostały zapas > 0 (najpierw odpis, potem archiwum)."
+          },
+          "willRemove": {
+            "description": "Ludzkie etykiety tego, co undo usunie.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "willKeep": {
+            "description": "Ludzkie etykiety tego, co zostanie przy archiwizacji.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "remainingStockQuantity": {
+            "type": "string",
+            "nullable": true,
+            "example": "450.000",
+            "description": "Suma pozostałych ilości partii; null gdy 0."
+          },
+          "remainingStockUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ],
+            "nullable": true,
+            "description": "Jednostka produktu przy remainingStockQuantity > 0."
+          }
+        },
+        "required": [
+          "mode",
+          "canUndo",
+          "canArchive",
+          "canWriteOffAndArchive",
+          "willRemove",
+          "willKeep"
+        ]
+      },
+      "ProductUndoAdditionResultDto": {
+        "type": "object",
+        "properties": {
+          "undone": {
+            "type": "boolean",
+            "example": true
+          }
+        },
+        "required": [
+          "undone"
         ]
       },
       "CreatePurchaseOptionDto": {

@@ -57,7 +57,6 @@ export default function AddBatchPage() {
           mode="add-batch"
           productId={productId}
           initialProduct={product}
-          defaultPutInStock
           onSuccess={() => {
             router.push(`/kitchens/${kitchenId}/stock`);
           }}

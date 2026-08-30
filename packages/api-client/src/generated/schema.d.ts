@@ -1611,6 +1611,12 @@ export interface components {
             /** @example 599 */
             purchasePriceMinor?: Record<string, never> | null;
             storeName: string | null;
+            /** @description Snapshot liczby opakowań przy zakupie; null = luzem / stare. */
+            packageCount?: number | null;
+            /** @example 125.000 */
+            packageQuantitySnapshot?: string | null;
+            /** @enum {string|null} */
+            packageUnitSnapshot?: "piece" | "gram" | "kilogram" | "milliliter" | "liter" | null;
             /** @example PLN */
             currency: string;
             ean: string | null;
@@ -1797,6 +1803,11 @@ export interface components {
             currency: string;
             unitPriceMinor?: number | null;
             storeName?: string | null;
+            packageCount?: number | null;
+            /** @example 125.000 */
+            packageQuantitySnapshot?: string | null;
+            /** @enum {string|null} */
+            packageUnitSnapshot?: "piece" | "gram" | "kilogram" | "milliliter" | "liter" | null;
             /** Format: uuid */
             purchaseId?: string | null;
             /** Format: uuid */

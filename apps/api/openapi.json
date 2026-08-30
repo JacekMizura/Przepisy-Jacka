@@ -5418,6 +5418,27 @@
             "type": "string",
             "nullable": true
           },
+          "packageCount": {
+            "type": "number",
+            "nullable": true,
+            "description": "Snapshot liczby opakowań przy zakupie; null = luzem / stare."
+          },
+          "packageQuantitySnapshot": {
+            "type": "string",
+            "nullable": true,
+            "example": "125.000"
+          },
+          "packageUnitSnapshot": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "kilogram",
+              "milliliter",
+              "liter"
+            ],
+            "nullable": true
+          },
           "currency": {
             "type": "string",
             "example": "PLN"
@@ -5920,6 +5941,26 @@
           },
           "storeName": {
             "type": "string",
+            "nullable": true
+          },
+          "packageCount": {
+            "type": "number",
+            "nullable": true
+          },
+          "packageQuantitySnapshot": {
+            "type": "string",
+            "nullable": true,
+            "example": "125.000"
+          },
+          "packageUnitSnapshot": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "kilogram",
+              "milliliter",
+              "liter"
+            ],
             "nullable": true
           },
           "purchaseId": {

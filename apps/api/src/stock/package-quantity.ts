@@ -6,6 +6,7 @@ import {
 } from '../generated/prisma/client';
 
 import { formatQuantity, parseQuantityString } from '../common/quantity';
+import { parsePositivePackageCount } from './package-price';
 
 /**
  * Przelicza liczbę opakowań × zawartość opakowania na ilość zapasu
@@ -13,6 +14,7 @@ import { formatQuantity, parseQuantityString } from '../common/quantity';
  *
  * Bezpieczne konwersje: piece↔piece, g↔kg, ml↔l.
  * Odrzuca masę↔objętość oraz piece↔masa/objętość.
+ * packageCount musi być dodatnią liczbą całkowitą.
  */
 export function packageCountToStockQuantity(params: {
   packageCount: string;
@@ -20,10 +22,9 @@ export function packageCountToStockQuantity(params: {
   packageUnit: PackageContentUnit;
   defaultUnit: ProductUnit;
 }): { quantity: Prisma.Decimal; formatted: string } {
-  const count = parseQuantityString(params.packageCount, 'packageCount');
-  if (count.lte(0)) {
-    throw new BadRequestException('packageCount musi być większe od zera.');
-  }
+  const count = new Prisma.Decimal(
+    parsePositivePackageCount(params.packageCount),
+  );
 
   const packageQuantity =
     typeof params.packageQuantity === 'string'

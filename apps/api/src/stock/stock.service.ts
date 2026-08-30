@@ -8,6 +8,7 @@ import {
   MediaPurpose,
   MediaUploadStatus,
   NutritionDataSource,
+  PackageContentUnit,
   ProductPurchaseMode,
   ProductUnit,
   ShoppingListItemStatus,
@@ -73,7 +74,8 @@ import {
   type StockBatchRow,
 } from './stock-consume';
 import { resolveStockConsumptionKindAndReason } from './stock-consumption-kind';
-import { packageCountToStockQuantity } from './package-quantity';
+import { packageCountToStockQuantity, convertPackageContentToProductUnit } from './package-quantity';
+import { parsePositivePackageCount } from './package-price';
 import { buildProductMatchMessage } from './product-match-message';
 import { ProductGroupService } from './product-group.service';
 import {
@@ -306,6 +308,10 @@ export class StockService {
 
     if (dto.purchaseMode !== undefined) {
       if (dto.purchaseMode === ProductPurchaseMode.packaged) {
+        await ensureDefaultPurchaseOptionFromProductPackage(
+          this.prisma,
+          product,
+        );
         await assertPackagedProductHasValidActiveOptions(
           this.prisma,
           product.id,
@@ -636,6 +642,17 @@ export class StockService {
           });
 
           if (
+            product.packageQuantity !== null &&
+            product.packageUnit !== null
+          ) {
+            await ensureDefaultPurchaseOptionFromProductPackage(tx, product);
+            product = await tx.product.update({
+              where: { id: product.id },
+              data: { purchaseMode: ProductPurchaseMode.packaged },
+            });
+          }
+
+          if (
             newProduct.imageMediaId !== undefined &&
             newProduct.imageMediaId !== null &&
             newProduct.imageMediaId !== ''
@@ -707,6 +724,7 @@ export class StockService {
               purchasedAt,
               expiresAt,
               currency: 'PLN',
+              ...resolvePackageSnapshot(product, dto.stock),
             },
           });
         }
@@ -2062,6 +2080,72 @@ function resolveIntakeStockQuantity(
   return parseQuantityString(stock.quantity!, 'quantity');
 }
 
+function resolvePackageSnapshot(
+  product: Product,
+  stock: { packageCount?: string },
+): {
+  packageCount: number | null;
+  packageQuantitySnapshot: Prisma.Decimal | null;
+  packageUnitSnapshot: PackageContentUnit | null;
+} {
+  const hasPackageCount =
+    stock.packageCount !== undefined &&
+    stock.packageCount !== null &&
+    stock.packageCount.trim() !== '';
+  if (!hasPackageCount) {
+    return {
+      packageCount: null,
+      packageQuantitySnapshot: null,
+      packageUnitSnapshot: null,
+    };
+  }
+  if (product.packageQuantity === null || product.packageUnit === null) {
+    throw new BadRequestException(
+      'packageCount wymaga ustawionych packageQuantity i packageUnit na produkcie.',
+    );
+  }
+  return {
+    packageCount: parsePositivePackageCount(stock.packageCount!),
+    packageQuantitySnapshot: product.packageQuantity,
+    packageUnitSnapshot: product.packageUnit,
+  };
+}
+
+/**
+ * Gdy produkt ma packageQuantity/packageUnit, a brak aktywnych opcji —
+ * utwórz jedną domyślną (SKU = jedno opakowanie). Nie usuwa istniejących.
+ */
+async function ensureDefaultPurchaseOptionFromProductPackage(
+  client: Prisma.TransactionClient | PrismaService,
+  product: Product,
+): Promise<void> {
+  const active = await client.productPurchaseOption.count({
+    where: { productId: product.id, isActive: true },
+  });
+  if (active > 0) {
+    return;
+  }
+  if (product.packageQuantity === null || product.packageUnit === null) {
+    throw new BadRequestException(
+      'Tryb opakowań wymaga ilości w opakowaniu produktu albo istniejącej opcji zakupu.',
+    );
+  }
+  await client.productPurchaseOption.create({
+    data: {
+      productId: product.id,
+      name: 'Opakowanie',
+      contentQuantity: convertPackageContentToProductUnit(
+        product.packageQuantity,
+        product.packageUnit,
+        product.defaultUnit,
+      ),
+      contentUnit: product.defaultUnit,
+      isDefault: true,
+      isActive: true,
+    },
+  });
+}
+
 function parseOptionalNutritionValue(
   value: string | null | undefined,
   fieldName: string,
@@ -2123,6 +2207,11 @@ function toStockBatchDetailDto(
       item.purchaseLineItem?.purchase.storeName ?? item.storeName ?? null,
     purchaseId: item.purchaseLineItem?.purchase.id ?? null,
     receiptMediaId: item.purchaseLineItem?.purchase.receiptMediaId ?? null,
+    packageCount: item.packageCount ?? null,
+    packageQuantitySnapshot: item.packageQuantitySnapshot
+      ? formatQuantity(item.packageQuantitySnapshot)
+      : null,
+    packageUnitSnapshot: item.packageUnitSnapshot ?? null,
     isExpired: item.expiresAt !== null && item.expiresAt <= now,
     canDelete: deleteBlockReason === null,
     deleteBlockReason,
@@ -2167,6 +2256,11 @@ function toStockItemDto(item: StockItem): StockItemDto {
     purchasedAt: item.purchasedAt?.toISOString() ?? null,
     purchasePriceMinor: item.purchasePriceMinor,
     storeName: item.storeName ?? null,
+    packageCount: item.packageCount ?? null,
+    packageQuantitySnapshot: item.packageQuantitySnapshot
+      ? formatQuantity(item.packageQuantitySnapshot)
+      : null,
+    packageUnitSnapshot: item.packageUnitSnapshot ?? null,
     currency: item.currency,
     ean: item.ean,
     imageUrl: item.imageUrl,

@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
-import { ProductUnit, StorageLocation } from '../../generated/prisma/client';
+import { ProductUnit, StorageLocation, PackageContentUnit } from '../../generated/prisma/client';
 
 export class StockBatchDetailDto {
   @ApiProperty()
@@ -32,6 +32,15 @@ export class StockBatchDetailDto {
 
   @ApiPropertyOptional({ type: String, nullable: true })
   storeName!: string | null;
+
+  @ApiPropertyOptional({ type: Number, nullable: true })
+  packageCount!: number | null;
+
+  @ApiPropertyOptional({ type: String, nullable: true, example: '125.000' })
+  packageQuantitySnapshot!: string | null;
+
+  @ApiPropertyOptional({ enum: PackageContentUnit, nullable: true })
+  packageUnitSnapshot!: PackageContentUnit | null;
 
   @ApiPropertyOptional({ type: String, format: 'uuid', nullable: true })
   purchaseId!: string | null;

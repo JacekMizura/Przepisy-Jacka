@@ -97,4 +97,25 @@ describe('packageCountToStockQuantity', () => {
       }),
     ).toThrow(BadRequestException);
   });
+
+  it('rejects fractional packageCount', () => {
+    expect(() =>
+      packageCountToStockQuantity({
+        packageCount: '1.5',
+        packageQuantity: '125.000',
+        packageUnit: PackageContentUnit.gram,
+        defaultUnit: ProductUnit.gram,
+      }),
+    ).toThrow(BadRequestException);
+  });
+
+  it('2 × 125 g = 250 g', () => {
+    const result = packageCountToStockQuantity({
+      packageCount: '2',
+      packageQuantity: '125.000',
+      packageUnit: PackageContentUnit.gram,
+      defaultUnit: ProductUnit.gram,
+    });
+    expect(result.formatted).toBe('250.000');
+  });
 });

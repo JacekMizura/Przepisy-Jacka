@@ -404,6 +404,10 @@ model StockItem {
   currency           String          @default("PLN") @db.VarChar(3)
   /// Sklep / źródło ręczne (bez sztucznego Purchase).
   storeName          String?         @db.VarChar(120)
+  /// Snapshot zakupu w opakowaniach (null = zakup na dokładną ilość / stare partie).
+  packageCount              Int?
+  packageQuantitySnapshot   Decimal?            @db.Decimal(12, 3)
+  packageUnitSnapshot       PackageContentUnit?
   ean                String?         @db.VarChar(14)
   imageUrl           String?
   createdAt          DateTime        @default(now())

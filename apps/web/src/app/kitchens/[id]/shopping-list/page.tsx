@@ -4,12 +4,14 @@ import type { components } from "@moja-kuchnia/api-client";
 import {
   Box,
   Check,
+  CheckCircle2,
   ChevronDown,
   MoreVertical,
   Plus,
   ShoppingCart,
   SkipForward,
   Trash2,
+  Wallet,
 } from "lucide-react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
@@ -349,85 +351,89 @@ function ShoppingRow({
   const canChangePurchaseMode =
     Boolean(item.productId) && Boolean(onChangePurchaseMode);
   const thumb = productImageUrls(item.product).thumbnail;
+  const category = item.product?.category?.trim() || null;
   const unboundName = !item.productId
     ? (item.customName ?? item.product?.name ?? "").trim()
     : "";
+  const metaLine = [purchaseLine, category].filter(Boolean).join(" • ");
 
   return (
     <div
       className={cn(
-        "flex items-center gap-4 px-5 py-4 transition-colors",
-        isBought ? "bg-white" : "hover:bg-slate-50/50",
-        isSkipped && "bg-slate-50/80",
+        "group flex cursor-pointer items-center gap-4 rounded-2xl border p-4 transition-colors",
+        isBought
+          ? "border-zinc-200 bg-white hover:bg-zinc-100"
+          : "border-zinc-200 hover:border-zinc-400",
+        isSkipped && "border-zinc-200 bg-zinc-50",
       )}
+      onClick={() => {
+        if (pending) {
+          return;
+        }
+        if (item.status === "pending" || (isBought && showUnbuy)) {
+          onToggleBought();
+        }
+      }}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          if (pending) {
+            return;
+          }
+          if (item.status === "pending" || (isBought && showUnbuy)) {
+            onToggleBought();
+          }
+        }
+      }}
+      role="button"
+      tabIndex={0}
     >
       {item.status === "pending" ? (
-        <button
-          type="button"
-          aria-label={`Oznacz ${name} jako kupione`}
-          className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] border-[1.5px] border-slate-300 bg-white transition-colors hover:border-[#009060] focus:outline-none"
-          onClick={onToggleBought}
-          disabled={pending}
-        />
+        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 border-zinc-300 transition-colors group-hover:border-zinc-500" />
       ) : isBought ? (
-        <button
-          type="button"
-          aria-label={
-            showUnbuy ? `Cofnij kupione: ${name}` : `${name} kupione`
-          }
-          className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] bg-[#009060] text-white transition-colors focus:outline-none"
-          onClick={showUnbuy ? onToggleBought : undefined}
-          disabled={!showUnbuy || pending}
-        >
-          <Check size={14} strokeWidth={3} />
-        </button>
+        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 border-zinc-900 bg-zinc-900">
+          <Check size={14} className="text-white" strokeWidth={3} />
+        </div>
       ) : (
-        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] bg-slate-200 text-slate-500">
+        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-zinc-200 text-zinc-500">
           <SkipForward size={12} />
-        </span>
+        </div>
       )}
 
       <div
         className={cn(
-          "flex h-10 w-10 shrink-0 items-center justify-center rounded border p-1",
-          isBought || isSkipped
-            ? "border-slate-100 bg-slate-50 opacity-60 grayscale"
-            : "border-[#f0e6dc] bg-[#fdf8f4]",
+          "shrink-0 overflow-hidden rounded-xl shadow-sm",
+          isBought ? "h-12 w-12 rounded-lg" : "h-14 w-14",
         )}
       >
         <ProductThumb
           src={thumb}
           alt={name}
+          className="!h-full !w-full rounded-none object-cover"
           size="sm"
-          className="!h-full !w-full rounded-none bg-transparent object-contain"
         />
       </div>
 
-      <div className={cn("min-w-0 flex-1", (isBought || isSkipped) && "opacity-60")}>
+      <div className="min-w-0 flex-1">
         <h4
           className={cn(
-            "text-[13px] leading-tight font-bold text-slate-900",
-            isBought && "text-slate-700 line-through",
-            isSkipped && "text-slate-500",
+            "truncate font-bold text-zinc-900",
+            isBought ? "text-base line-through" : "text-lg",
+            isSkipped && "text-zinc-500",
           )}
         >
           {name}
         </h4>
-        <p
-          className={cn(
-            "mt-0.5 text-[12px] text-slate-500",
-            isBought && "text-slate-400 line-through",
-          )}
-        >
-          {purchaseLine}
-        </p>
+        {!isBought ? (
+          <p className="text-sm font-medium text-zinc-500">{metaLine || "—"}</p>
+        ) : null}
         {item.sourceRecipeName ? (
-          <p className="mt-1 text-[11px] text-[#009060]">
+          <p className="mt-1 text-xs font-medium text-emerald-700">
             Z przepisu: {item.sourceRecipeName}
           </p>
         ) : null}
         {requiredHint ? (
-          <p className="mt-1 text-[11px] text-slate-500">
+          <p className="mt-1 text-xs text-zinc-500">
             brakuje {requiredHint} do przepisu
           </p>
         ) : null}
@@ -436,15 +442,15 @@ function ShoppingRow({
           item.sourceRecipeName &&
           item.note.trim() === `Przepis: ${item.sourceRecipeName}`
         ) ? (
-          <p className="mt-0.5 text-[11px] text-slate-400">{item.note}</p>
+          <p className="mt-0.5 text-xs text-zinc-400">{item.note}</p>
         ) : null}
       </div>
 
-      <div className="relative shrink-0">
+      <div className="relative shrink-0" onClick={(event) => event.stopPropagation()}>
         <button
           type="button"
           aria-label="Menu pozycji"
-          className="text-slate-400 transition-colors hover:text-slate-600"
+          className="rounded-lg p-2 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-700"
           onClick={() => setMenuOpen((open) => !open)}
         >
           <MoreVertical size={18} />
@@ -456,11 +462,11 @@ function ShoppingRow({
               role="presentation"
               onClick={() => setMenuOpen(false)}
             />
-            <div className="absolute right-0 z-20 mt-1 w-52 overflow-hidden rounded-xl border border-slate-100 bg-white py-1 shadow-lg">
+            <div className="absolute right-0 z-20 mt-1 w-52 overflow-hidden rounded-xl border border-zinc-100 bg-white py-1 shadow-lg">
               {!item.productId && unboundName ? (
                 <Link
                   href={`/kitchens/${kitchenId}/products/new?stock=1&name=${encodeURIComponent(unboundName)}&from=shopping`}
-                  className="block w-full px-4 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50"
+                  className="block w-full px-4 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-50"
                   onClick={() => setMenuOpen(false)}
                 >
                   Utwórz produkt i odłóż
@@ -469,7 +475,7 @@ function ShoppingRow({
               {canChangePurchaseMode && item.status === "pending" ? (
                 <button
                   type="button"
-                  className="block w-full px-4 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50"
+                  className="block w-full px-4 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-50"
                   onClick={() => {
                     setMenuOpen(false);
                     onChangePurchaseMode?.();
@@ -481,7 +487,7 @@ function ShoppingRow({
               {item.status === "pending" ? (
                 <button
                   type="button"
-                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50"
+                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-50"
                   onClick={() => {
                     setMenuOpen(false);
                     onSkip();
@@ -494,7 +500,7 @@ function ShoppingRow({
               {item.status === "skipped" ? (
                 <button
                   type="button"
-                  className="block w-full px-4 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50"
+                  className="block w-full px-4 py-2 text-left text-sm text-zinc-700 transition-colors hover:bg-zinc-50"
                   onClick={() => {
                     setMenuOpen(false);
                     onToggleBought();
@@ -503,7 +509,7 @@ function ShoppingRow({
                   Przywróć
                 </button>
               ) : null}
-              <div className="my-1 h-px bg-slate-100" />
+              <div className="my-1 h-px bg-zinc-100" />
               <button
                 type="button"
                 className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-red-600 transition-colors hover:bg-red-50"
@@ -526,7 +532,6 @@ function ShoppingRow({
 function SummaryPanel({
   totalCount,
   boughtCount,
-  pendingCount,
   progress,
   className,
   onCheckout,
@@ -538,63 +543,72 @@ function SummaryPanel({
   className?: string;
   onCheckout: () => void;
 }) {
+  const canCheckout = boughtCount > 0;
+
   return (
     <aside
       className={cn(
-        "w-full shrink-0 rounded-xl border border-slate-200 bg-white p-6 lg:w-[320px]",
+        "w-full rounded-[32px] bg-zinc-950 p-8 text-white shadow-2xl lg:col-span-4",
         className,
       )}
     >
-      <h3 className="mb-6 text-[11px] font-bold tracking-wider text-slate-500 uppercase">
-        Podsumowanie
-      </h3>
+      <div className="mb-8 flex items-center gap-3 text-zinc-400">
+        <Wallet size={24} aria-hidden />
+        <span className="text-xs font-bold tracking-widest uppercase">
+          Moduł Finansowy
+        </span>
+      </div>
 
-      <div className="mb-8 space-y-3.5 text-[13px]">
-        <div className="flex items-center justify-between">
-          <span className="text-slate-500">Pozycje</span>
-          <span className="font-bold text-slate-900">{totalCount}</span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-slate-500">Kupione</span>
-          <span className="font-bold text-[#009060]">{boughtCount}</span>
-        </div>
-        <div className="flex items-center justify-between">
-          <span className="text-slate-500">Do kupienia</span>
-          <span className="font-bold text-slate-900">{pendingCount}</span>
-        </div>
+      <div className="mb-8">
+        <p className="mb-2 text-sm font-semibold text-zinc-400">
+          SZACOWANY CAŁKOWITY KOSZT
+        </p>
+        <p className="text-5xl font-black tracking-tighter sm:text-6xl">
+          — <span className="text-2xl font-bold text-zinc-500">zł</span>
+        </p>
+      </div>
 
-        <div className="pt-2">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-slate-500">Postęp</span>
-            <span className="font-bold text-slate-900">{progress}%</span>
-          </div>
-          <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-            <div
-              className="h-full bg-[#009060] transition-all duration-500 ease-out"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
+      <div className="mb-8 space-y-4">
+        <div className="flex items-center justify-between border-b border-zinc-800 py-4">
+          <span className="font-medium text-zinc-400">Liczba pozycji</span>
+          <span className="text-lg font-bold">{totalCount}</span>
+        </div>
+        <div className="flex items-center justify-between border-b border-zinc-800 py-4">
+          <span className="font-medium text-zinc-400">Aktualnie w koszyku</span>
+          <span className="text-lg font-bold text-emerald-400">
+            {boughtCount}
+          </span>
         </div>
       </div>
 
-      {boughtCount > 0 ? (
-        <div>
-          <p className="mb-4 text-[13px] leading-relaxed text-slate-500">
-            Masz kupione pozycje — rozlicz je, żeby dodać zapasy do kuchni.
-          </p>
-          <button
-            type="button"
-            onClick={onCheckout}
-            className="hidden w-full rounded-lg bg-[#009060] py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#007b52] lg:block"
-          >
-            Rozlicz zakupy ({boughtCount})
-          </button>
+      <div className="mb-10">
+        <div className="mb-3 flex items-end justify-between">
+          <span className="text-xs font-black tracking-widest text-zinc-400 uppercase">
+            Postęp zakupów
+          </span>
+          <span className="font-bold">{progress}%</span>
         </div>
-      ) : (
-        <p className="text-[13px] leading-relaxed text-slate-500">
-          Oznacz produkty jako kupione podczas zakupów.
-        </p>
-      )}
+        <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-800">
+          <div
+            className="h-full rounded-full bg-emerald-400 transition-all duration-500"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
+
+      <button
+        type="button"
+        disabled={!canCheckout}
+        onClick={onCheckout}
+        className={cn(
+          "hidden w-full rounded-2xl py-5 text-lg font-black transition-all lg:block",
+          canCheckout
+            ? "bg-emerald-500 text-zinc-950 shadow-[0_0_40px_rgba(16,185,129,0.3)] hover:bg-emerald-400"
+            : "cursor-not-allowed bg-zinc-800 text-zinc-500",
+        )}
+      >
+        {canCheckout ? `ZAKOŃCZ I ROZLICZ (${boughtCount})` : "CZEKAM NA ZAKUPY..."}
+      </button>
     </aside>
   );
 }
@@ -786,44 +800,35 @@ export default function ShoppingListPage() {
     <AppShell kitchenId={kitchenId}>
       <div
         className={cn(
-          "-mx-4 -my-4 min-h-[calc(100vh-2rem)] bg-[#f4f7f6] px-6 py-10 sm:-mx-8 sm:-my-8 sm:px-8 lg:-mx-10 lg:-my-10 lg:px-10",
+          "-mx-4 -my-4 min-h-[calc(100vh-2rem)] bg-[#F4F4F5] px-6 py-8 sm:-mx-8 sm:-my-8 sm:px-8 lg:-mx-10 lg:-my-10 lg:px-12 lg:py-12",
           hasBought &&
-            "pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] lg:pb-10",
+            "pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] lg:pb-12",
         )}
       >
-        <div className="mx-auto flex h-full max-w-7xl flex-col">
-          <div className="mb-6 flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+        <div className="mx-auto flex h-full max-w-[1400px] flex-col">
+          <header className="mb-10 flex flex-col items-start justify-between gap-6 md:flex-row md:items-end">
             <div>
-              <h1 className="text-[26px] font-bold tracking-tight text-slate-900">
-                Lista zakupów
+              <h1 className="mb-4 text-4xl font-black tracking-tighter text-zinc-900 sm:text-5xl">
+                Lista Zakupów
               </h1>
-              <p className="mt-1 text-[13px] text-slate-500">
+              <p className="text-lg font-medium text-zinc-500">
                 {totalCount === 0
                   ? "Wspólna lista dla domowników"
-                  : `${grouped.bought.length} kupione z ${totalCount}`}
+                  : "Koszty są szacowane na podstawie ostatniej ceny produktu."}
               </p>
             </div>
             <button
               type="button"
               onClick={() => setAddOpen(true)}
-              className="flex items-center justify-center gap-1.5 rounded-lg bg-[#009060] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#007b52]"
+              className="flex items-center justify-center gap-2 rounded-xl bg-zinc-900 px-6 py-3.5 font-bold text-white shadow-sm transition-colors hover:bg-zinc-800"
             >
-              <Plus size={16} />
-              Dodaj produkt
+              <Plus size={18} />
+              Nowa pozycja
             </button>
-          </div>
-
-          {totalCount > 0 ? (
-            <div className="mb-8 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
-              <div
-                className="h-full bg-[#009060] transition-all duration-500 ease-out"
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-          ) : null}
+          </header>
 
           {listQuery.isPending ? (
-            <p className="text-center text-sm text-slate-500">Ładowanie listy…</p>
+            <p className="text-center text-sm text-zinc-500">Ładowanie listy…</p>
           ) : null}
 
           {listQuery.isError ? (
@@ -834,17 +839,17 @@ export default function ShoppingListPage() {
 
           {!listQuery.isPending && !listQuery.isError && totalCount === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center pb-20 text-center">
-              <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#f0f9f6]">
-                <ShoppingCart size={24} className="text-[#009060]" />
+              <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-zinc-200/70">
+                <ShoppingCart size={24} className="text-zinc-500" />
               </div>
-              <h3 className="mb-2 text-base font-bold text-slate-900">
+              <h3 className="mb-2 text-base font-bold text-zinc-900">
                 Lista jest pusta
               </h3>
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-zinc-500">
                 Dodaj produkty ręcznie albo z ekranu{" "}
                 <Link
                   href={`/kitchens/${kitchenId}/recipes`}
-                  className="cursor-pointer font-medium text-[#009060]"
+                  className="cursor-pointer font-medium text-emerald-700"
                 >
                   przepisów
                 </Link>
@@ -854,54 +859,59 @@ export default function ShoppingListPage() {
           ) : null}
 
           {!listQuery.isPending && !listQuery.isError && totalCount > 0 ? (
-            <div className="flex flex-col items-start gap-8 lg:flex-row">
-              <div className="w-full flex-1 space-y-6">
-                {grouped.pending.length > 0 ? (
-                  <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-                    <div className="border-b border-slate-200 bg-slate-50 px-5 py-3.5">
-                      <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">
-                        Do kupienia ({grouped.pending.length})
-                      </span>
-                    </div>
-                    <div className="divide-y divide-slate-100">
-                      {grouped.pending.map((item) => (
-                        <ShoppingRow
-                          key={item.id}
-                          item={item}
-                          kitchenId={kitchenId}
-                          pending={updateStatus.isPending}
-                          onToggleBought={() =>
-                            updateStatus.mutate({
-                              itemId: item.id,
-                              status: "bought",
-                            })
-                          }
-                          onSkip={() =>
-                            updateStatus.mutate({
-                              itemId: item.id,
-                              status: "skipped",
-                            })
-                          }
-                          onDelete={() => setItemToDelete(item)}
-                          onChangePurchaseMode={
-                            item.productId
-                              ? () => setItemToChangePurchase(item)
-                              : undefined
-                          }
+            <div className="grid flex-1 grid-cols-1 items-start gap-8 lg:grid-cols-12">
+              <div className="space-y-6 lg:col-span-8">
+                <section className="rounded-[24px] border border-zinc-200 bg-white p-6 shadow-sm">
+                  <h3 className="mb-6 border-b border-zinc-100 pb-4 text-sm font-black tracking-widest text-zinc-900 uppercase">
+                    Do kupienia ({grouped.pending.length})
+                  </h3>
+                  <div className="space-y-3">
+                    {grouped.pending.map((item) => (
+                      <ShoppingRow
+                        key={item.id}
+                        item={item}
+                        kitchenId={kitchenId}
+                        pending={updateStatus.isPending}
+                        onToggleBought={() =>
+                          updateStatus.mutate({
+                            itemId: item.id,
+                            status: "bought",
+                          })
+                        }
+                        onSkip={() =>
+                          updateStatus.mutate({
+                            itemId: item.id,
+                            status: "skipped",
+                          })
+                        }
+                        onDelete={() => setItemToDelete(item)}
+                        onChangePurchaseMode={
+                          item.productId
+                            ? () => setItemToChangePurchase(item)
+                            : undefined
+                        }
+                      />
+                    ))}
+                    {grouped.pending.length === 0 ? (
+                      <div className="py-12 text-center">
+                        <CheckCircle2
+                          size={48}
+                          className="mx-auto mb-4 text-zinc-200"
                         />
-                      ))}
-                    </div>
-                  </section>
-                ) : null}
+                        <p className="text-lg font-bold text-zinc-400">
+                          Wszystko kupione z tej sekcji!
+                        </p>
+                      </div>
+                    ) : null}
+                  </div>
+                </section>
 
                 {grouped.bought.length > 0 ? (
-                  <section className="overflow-hidden rounded-xl border border-slate-200 bg-white opacity-75 transition-opacity hover:opacity-100">
-                    <div className="border-b border-slate-200 bg-slate-50 px-5 py-3.5">
-                      <span className="text-[11px] font-bold tracking-wider text-[#009060] uppercase">
-                        Kupione ({grouped.bought.length})
-                      </span>
-                    </div>
-                    <div className="divide-y divide-slate-100">
+                  <section className="rounded-[24px] border border-zinc-200 bg-zinc-50 p-6">
+                    <h3 className="mb-6 border-b border-zinc-200 pb-4 text-sm font-black tracking-widest text-zinc-500 uppercase">
+                      W koszyku ({grouped.bought.length})
+                    </h3>
+                    <div className="space-y-3 opacity-60 grayscale">
                       {grouped.bought.map((item) => (
                         <ShoppingRow
                           key={item.id}
@@ -924,25 +934,25 @@ export default function ShoppingListPage() {
                 ) : null}
 
                 {grouped.skipped.length > 0 ? (
-                  <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                  <section className="rounded-[24px] border border-zinc-200 bg-white p-6 shadow-sm">
                     <button
                       type="button"
-                      className="flex w-full items-center gap-2 border-b border-slate-200 bg-slate-50 px-5 py-3.5 text-left"
+                      className="mb-4 flex w-full items-center gap-2 border-b border-zinc-100 pb-4 text-left"
                       onClick={() => setSkippedOpen((open) => !open)}
                     >
                       <ChevronDown
                         size={14}
                         className={cn(
-                          "text-slate-400 transition-transform",
+                          "text-zinc-400 transition-transform",
                           !skippedOpen && "-rotate-90",
                         )}
                       />
-                      <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">
+                      <span className="text-sm font-black tracking-widest text-zinc-500 uppercase">
                         Pominięte ({grouped.skipped.length})
                       </span>
                     </button>
                     {skippedOpen ? (
-                      <div className="divide-y divide-slate-100">
+                      <div className="space-y-3">
                         {grouped.skipped.map((item) => (
                           <ShoppingRow
                             key={item.id}
@@ -965,7 +975,7 @@ export default function ShoppingListPage() {
               </div>
 
               <SummaryPanel
-                className="sticky top-10"
+                className="sticky top-8"
                 totalCount={totalCount}
                 boughtCount={grouped.bought.length}
                 pendingCount={grouped.pending.length}
@@ -978,13 +988,13 @@ export default function ShoppingListPage() {
       </div>
 
       {hasBought ? (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] backdrop-blur lg:hidden">
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-zinc-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] backdrop-blur lg:hidden">
           <button
             type="button"
-            className="w-full rounded-lg bg-[#009060] py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#007b52]"
+            className="w-full rounded-2xl bg-emerald-500 py-3.5 text-sm font-black text-zinc-950 transition-colors hover:bg-emerald-400"
             onClick={() => setCheckoutOpen(true)}
           >
-            Rozlicz zakupy ({grouped.bought.length})
+            ZAKOŃCZ I ROZLICZ ({grouped.bought.length})
           </button>
         </div>
       ) : null}

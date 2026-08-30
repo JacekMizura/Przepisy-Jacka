@@ -2,33 +2,32 @@
 
 import {
   BookOpen,
-  ChefHat,
-  ChevronDown,
+  Box,
+  Clock,
+  Library,
+  LogOut,
+  MapPin,
   Menu,
-  Package,
-  Receipt,
   ShoppingCart,
   Users,
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import {
+  type FormEvent,
+  type ReactNode,
+  Suspense,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { authClient } from "@/lib/auth-client";
 import { createWebApiClient } from "@/lib/api";
 import { readApiError } from "@/lib/errors";
 import { cn } from "@/lib/utils";
-
-function initialsFrom(email: string, name?: string | null): string {
-  const source = (name?.trim() || email).trim();
-  const parts = source.split(/[\s@.]+/).filter(Boolean);
-  if (parts.length >= 2) {
-    return `${parts[0]?.[0] ?? ""}${parts[1]?.[0] ?? ""}`.toUpperCase();
-  }
-  return source.slice(0, 2).toUpperCase() || "MK";
-}
 
 export function AppShell({
   children,
@@ -37,8 +36,29 @@ export function AppShell({
   children: ReactNode;
   kitchenId?: string;
 }) {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-[#F4F4F5] text-sm text-zinc-500">
+          Ładowanie…
+        </div>
+      }
+    >
+      <AppShellInner kitchenId={kitchenId}>{children}</AppShellInner>
+    </Suspense>
+  );
+}
+
+function AppShellInner({
+  children,
+  kitchenId,
+}: {
+  children: ReactNode;
+  kitchenId?: string;
+}) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const session = authClient.useSession();
   const [signingOut, setSigningOut] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -62,6 +82,13 @@ export function AppShell({
       return "kuchnie";
     }
     if (pathname.includes("/stock")) {
+      const view = searchParams.get("view");
+      if (view === "catalog") {
+        return "katalog";
+      }
+      if (view === "history") {
+        return "historia-zapasow";
+      }
       return "zapasy";
     }
     if (pathname.includes("/shopping-list")) {
@@ -77,7 +104,7 @@ export function AppShell({
       return "czlonkowie";
     }
     return "kuchnie";
-  }, [kitchenId, pathname]);
+  }, [kitchenId, pathname, searchParams]);
 
   async function handleSignOut(event: FormEvent) {
     event.preventDefault();
@@ -111,7 +138,7 @@ export function AppShell({
 
   if (session.isPending) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F9FAFB] text-sm text-gray-500">
+      <div className="flex min-h-screen items-center justify-center bg-[#F4F4F5] text-sm text-zinc-500">
         Ładowanie sesji…
       </div>
     );
@@ -119,19 +146,30 @@ export function AppShell({
 
   if (!session.data?.user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F9FAFB] text-sm text-gray-500">
+      <div className="flex min-h-screen items-center justify-center bg-[#F4F4F5] text-sm text-zinc-500">
         Wymagane logowanie…
       </div>
     );
   }
 
-  const user = session.data.user;
+  const stockBase = activeKitchenId
+    ? `/kitchens/${activeKitchenId}/stock`
+    : "/kitchens";
   const navItems = [
     {
       id: "zapasy",
       label: "Moje zapasy",
-      icon: Package,
-      href: activeKitchenId ? `/kitchens/${activeKitchenId}/stock` : "/kitchens",
+      icon: Box,
+      href: stockBase,
+      disabled: !activeKitchenId,
+    },
+    {
+      id: "katalog",
+      label: "Baza produktów",
+      icon: Library,
+      href: activeKitchenId
+        ? `/kitchens/${activeKitchenId}/stock?view=catalog`
+        : "/kitchens",
       disabled: !activeKitchenId,
     },
     {
@@ -145,8 +183,8 @@ export function AppShell({
     },
     {
       id: "historia-zakupow",
-      label: "Historia zakupów",
-      icon: Receipt,
+      label: "Historia operacji",
+      icon: Clock,
       href: activeKitchenId
         ? `/kitchens/${activeKitchenId}/purchases`
         : "/kitchens",
@@ -171,86 +209,76 @@ export function AppShell({
   ] as const;
 
   const showMobileDrawer = sidebarOpen;
+  const kitchenName =
+    kitchensQuery.data?.find((kitchen) => kitchen.id === activeKitchenId)
+      ?.name ?? "Wybierz kuchnię";
+
+  function navigateForKitchen(nextId: string) {
+    closeSidebar();
+    if (!nextId) {
+      router.push("/kitchens");
+      return;
+    }
+    if (activeView === "czlonkowie") {
+      router.push(`/kitchens/${nextId}`);
+    } else if (activeView === "przepisy") {
+      router.push(`/kitchens/${nextId}/recipes`);
+    } else if (activeView === "lista-zakupow") {
+      router.push(`/kitchens/${nextId}/shopping-list`);
+    } else if (activeView === "historia-zakupow") {
+      router.push(`/kitchens/${nextId}/purchases`);
+    } else if (activeView === "katalog") {
+      router.push(`/kitchens/${nextId}/stock?view=catalog`);
+    } else if (activeView === "historia-zapasow") {
+      router.push(`/kitchens/${nextId}/stock?view=history`);
+    } else {
+      router.push(`/kitchens/${nextId}/stock`);
+    }
+  }
 
   return (
-    <div className="flex min-h-screen overflow-x-hidden bg-[#F9FAFB] font-sans selection:bg-emerald-100 selection:text-emerald-900">
-      {/* Desktop sidebar — always in layout from md */}
+    <div className="flex min-h-screen overflow-x-hidden bg-[#F4F4F5] font-sans antialiased selection:bg-zinc-900 selection:text-white">
       <aside
-        className="app-shell-chrome fixed inset-y-0 left-0 z-30 hidden w-72 flex-col border-r border-gray-100 bg-white md:flex"
+        className="app-shell-chrome fixed inset-y-0 left-0 z-30 hidden w-72 flex-col border-r border-zinc-800 bg-zinc-950 text-white md:flex"
         aria-label="Nawigacja"
       >
         <SidebarContent
-          user={user}
           kitchens={kitchensQuery.data ?? []}
           activeKitchenId={activeKitchenId}
+          kitchenName={kitchenName}
           activeView={activeView}
           navItems={navItems}
           signingOut={signingOut}
           onSignOut={handleSignOut}
           onNavigate={closeSidebar}
-          onKitchenChange={(nextId) => {
-            closeSidebar();
-            if (!nextId) {
-              router.push("/kitchens");
-              return;
-            }
-            if (activeView === "czlonkowie") {
-              router.push(`/kitchens/${nextId}`);
-            } else if (activeView === "przepisy") {
-              router.push(`/kitchens/${nextId}/recipes`);
-            } else if (activeView === "lista-zakupow") {
-              router.push(`/kitchens/${nextId}/shopping-list`);
-            } else if (activeView === "historia-zakupow") {
-              router.push(`/kitchens/${nextId}/purchases`);
-            } else {
-              router.push(`/kitchens/${nextId}/stock`);
-            }
-          }}
+          onKitchenChange={navigateForKitchen}
           showClose={false}
           onClose={closeSidebar}
         />
       </aside>
 
-      {/* Mobile drawer — mounted only when open so nothing leaks into the page */}
       {showMobileDrawer ? (
         <>
           <button
             type="button"
             aria-label="Zamknij menu"
-            className="app-shell-chrome fixed inset-0 z-40 bg-gray-900/30 backdrop-blur-[2px] md:hidden"
+            className="app-shell-chrome fixed inset-0 z-40 bg-black/50 backdrop-blur-[2px] md:hidden"
             onClick={closeSidebar}
           />
           <aside
-            className="app-shell-chrome fixed inset-y-0 left-0 z-50 flex w-[min(18rem,100vw)] max-w-full flex-col border-r border-gray-100 bg-white shadow-xl md:hidden"
+            className="app-shell-chrome fixed inset-y-0 left-0 z-50 flex w-[min(18rem,100vw)] max-w-full flex-col border-r border-zinc-800 bg-zinc-950 text-white shadow-xl md:hidden"
             aria-label="Menu mobilne"
           >
             <SidebarContent
-              user={user}
               kitchens={kitchensQuery.data ?? []}
               activeKitchenId={activeKitchenId}
+              kitchenName={kitchenName}
               activeView={activeView}
               navItems={navItems}
               signingOut={signingOut}
               onSignOut={handleSignOut}
               onNavigate={closeSidebar}
-              onKitchenChange={(nextId) => {
-                closeSidebar();
-                if (!nextId) {
-                  router.push("/kitchens");
-                  return;
-                }
-                if (activeView === "czlonkowie") {
-                  router.push(`/kitchens/${nextId}`);
-                } else if (activeView === "przepisy") {
-                  router.push(`/kitchens/${nextId}/recipes`);
-                } else if (activeView === "lista-zakupow") {
-                  router.push(`/kitchens/${nextId}/shopping-list`);
-                } else if (activeView === "historia-zakupow") {
-                  router.push(`/kitchens/${nextId}/purchases`);
-                } else {
-                  router.push(`/kitchens/${nextId}/stock`);
-                }
-              }}
+              onKitchenChange={navigateForKitchen}
               showClose
               onClose={closeSidebar}
             />
@@ -261,22 +289,26 @@ export function AppShell({
       <main className="app-shell-main min-w-0 flex-1 overflow-x-hidden md:ml-72">
         <div className="app-shell-main-inner w-full px-4 py-4 md:px-8 md:py-8 lg:px-10 lg:py-10">
           <header className="app-shell-chrome mb-6 flex w-full items-center justify-between md:hidden">
-            <div className="flex min-w-0 items-center gap-2 text-emerald-700">
-              <ChefHat size={24} strokeWidth={2.5} className="shrink-0" />
-              <span className="truncate text-xl font-bold tracking-tight">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-zinc-950 text-sm font-black text-white">
+                M
+              </div>
+              <span className="truncate text-lg font-black tracking-tight text-zinc-900">
                 Moja Kuchnia
               </span>
             </div>
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
-              className="-mr-1 rounded-lg p-2 text-gray-600 hover:bg-gray-100"
+              className="-mr-1 rounded-lg p-2 text-zinc-600 hover:bg-zinc-200/60"
               aria-label="Otwórz menu"
             >
               <Menu size={24} />
             </button>
           </header>
-          <div className="app-shell-content w-full max-w-[1400px]">{children}</div>
+          <div className="app-shell-content w-full max-w-[1600px]">
+            {children}
+          </div>
         </div>
       </main>
     </div>
@@ -286,9 +318,9 @@ export function AppShell({
 type KitchenOption = { id: string; name: string };
 
 function SidebarContent({
-  user,
   kitchens,
   activeKitchenId,
+  kitchenName,
   activeView,
   navItems,
   signingOut,
@@ -298,14 +330,14 @@ function SidebarContent({
   showClose,
   onClose,
 }: {
-  user: { email: string; name?: string | null };
   kitchens: KitchenOption[];
   activeKitchenId: string;
+  kitchenName: string;
   activeView: string;
   navItems: ReadonlyArray<{
     id: string;
     label: string;
-    icon: typeof Package;
+    icon: typeof Box;
     href: string;
     disabled: boolean;
   }>;
@@ -320,71 +352,38 @@ function SidebarContent({
 
   return (
     <>
-      <div className="flex-1 overflow-y-auto">
-        <div className="border-b border-gray-100 p-5 sm:p-6">
-          <div className="mb-6 flex items-center justify-between gap-3 text-emerald-700">
-            <Link
-              href="/kitchens"
-              onClick={onNavigate}
-              className="flex min-w-0 items-center gap-3"
-            >
-              <div className="shrink-0 rounded-xl bg-emerald-50 p-2">
-                <ChefHat size={28} strokeWidth={2.5} />
-              </div>
-              <span className="truncate text-2xl font-bold tracking-tight">
+      <div className="flex-1 overflow-y-auto p-8">
+        <div className="mb-12 flex items-center justify-between gap-3">
+          <Link
+            href="/kitchens"
+            onClick={onNavigate}
+            className="flex min-w-0 items-center gap-3"
+          >
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-xl font-black text-zinc-950">
+              M
+            </div>
+            <div className="min-w-0">
+              <h1 className="truncate text-xl leading-none font-black tracking-tight">
                 Moja Kuchnia
-              </span>
-            </Link>
-            {showClose ? (
-              <button
-                type="button"
-                className="rounded-lg p-2 text-gray-500 hover:bg-gray-100"
-                onClick={onClose}
-                aria-label="Zamknij menu"
-              >
-                <X size={20} />
-              </button>
-            ) : null}
-          </div>
-
-          <div className="space-y-1">
-            <div className="mb-1 flex items-center justify-between px-1">
-              <label className="text-xs font-semibold tracking-wider text-gray-400 uppercase">
-                Aktywna Kuchnia
-              </label>
-              <Link
-                href="/kitchens"
-                onClick={onNavigate}
-                className="text-xs font-medium text-emerald-600 transition-colors hover:text-emerald-700"
-              >
-                Zarządzaj
-              </Link>
+              </h1>
+              <p className="mt-1 text-xs font-semibold text-zinc-500">
+                SYSTEM ZARZĄDZANIA
+              </p>
             </div>
-            <div className="relative">
-              <select
-                aria-label="Aktywna kuchnia"
-                value={activeKitchenId}
-                onChange={(event) => onKitchenChange(event.target.value)}
-                className="block w-full cursor-pointer appearance-none rounded-lg border border-gray-200 bg-gray-50 p-3 pr-8 text-sm text-gray-800 shadow-sm transition-colors focus:border-emerald-500 focus:ring-emerald-500"
-              >
-                <option value="">Wybierz kuchnię</option>
-                {kitchens.map((kitchen) => (
-                  <option key={kitchen.id} value={kitchen.id}>
-                    {kitchen.name}
-                  </option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
-                <ChevronDown size={16} />
-              </div>
-            </div>
-          </div>
+          </Link>
+          {showClose ? (
+            <button
+              type="button"
+              className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-900 hover:text-white"
+              onClick={onClose}
+              aria-label="Zamknij menu"
+            >
+              <X size={20} />
+            </button>
+          ) : null}
         </div>
 
-        <nav className="space-y-1 p-4">
-          <div className="mt-2 mb-2 px-3 text-xs font-semibold tracking-wider text-gray-400 uppercase">
-            Narzędzia
-          </div>
+        <nav className="space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon;
             const active = activeView === item.id;
@@ -400,41 +399,72 @@ function SidebarContent({
                   }
                 }}
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 transition-all duration-200",
+                  "flex w-full items-center gap-4 rounded-xl px-4 py-3.5 text-sm font-semibold transition-all duration-200",
                   active
-                    ? "bg-emerald-50 font-medium text-emerald-700 shadow-sm"
-                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
+                    ? "bg-white text-zinc-950 shadow-sm"
+                    : "text-zinc-400 hover:bg-zinc-900 hover:text-white",
                   item.disabled && "opacity-60",
                 )}
               >
-                <Icon
-                  size={20}
-                  className={active ? "text-emerald-600" : "text-gray-400"}
-                />
-                <span>{item.label}</span>
+                <Icon size={20} strokeWidth={active ? 2.5 : 2} />
+                {item.label}
               </Link>
             );
           })}
         </nav>
       </div>
 
-      <div className="border-t border-gray-100 bg-gray-50 p-4">
-        <form onSubmit={onSignOut} className="flex items-center gap-3 px-2">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-700">
-            {initialsFrom(user.email, user.name)}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-gray-900">
-              {user.email}
-            </p>
-            <button
-              type="submit"
-              disabled={signingOut}
-              className="truncate text-left text-xs text-gray-500 hover:text-emerald-700"
+      <div className="space-y-4 p-8">
+        <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
+          <p className="mb-1 text-xs font-semibold text-zinc-400">
+            AKTYWNA LOKALIZACJA
+          </p>
+          <label className="sr-only" htmlFor="kitchen-switcher">
+            Aktywna kuchnia
+          </label>
+          <div className="relative">
+            <MapPin
+              size={14}
+              className="pointer-events-none absolute top-1/2 left-0 -translate-y-1/2 text-emerald-400"
+              aria-hidden
+            />
+            <select
+              id="kitchen-switcher"
+              aria-label="Aktywna kuchnia"
+              value={activeKitchenId}
+              onChange={(event) => onKitchenChange(event.target.value)}
+              className="w-full cursor-pointer appearance-none bg-transparent py-0.5 pl-5 text-sm font-bold text-white focus:outline-none"
             >
-              {signingOut ? "Wylogowywanie…" : "Wyloguj się"}
-            </button>
+              <option value="" className="text-zinc-900">
+                Wybierz kuchnię
+              </option>
+              {kitchens.map((kitchen) => (
+                <option
+                  key={kitchen.id}
+                  value={kitchen.id}
+                  className="text-zinc-900"
+                >
+                  {kitchen.name}
+                </option>
+              ))}
+            </select>
           </div>
+          {!activeKitchenId ? (
+            <p className="mt-1 pl-5 text-sm font-bold text-white">
+              {kitchenName}
+            </p>
+          ) : null}
+        </div>
+
+        <form onSubmit={onSignOut}>
+          <button
+            type="submit"
+            disabled={signingOut}
+            className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-zinc-400 transition-colors hover:bg-zinc-900 hover:text-white disabled:opacity-60"
+          >
+            <LogOut size={18} />
+            {signingOut ? "Wylogowywanie…" : "Wyloguj"}
+          </button>
         </form>
       </div>
     </>

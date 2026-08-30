@@ -19,6 +19,7 @@ import {
   type ProductRemovalPreview,
 } from "@/components/stock/removal-preview";
 import { StockTab } from "@/components/stock/stock-tab";
+import { expiryTone } from "@/components/stock/stock-product-row";
 import {
   newCatalogProductHref,
   newPurchaseHref,
@@ -45,6 +46,7 @@ import {
   parseStockListUrlState,
   type StockListUrlPatch,
 } from "@/lib/stock-url-state";
+import { cn } from "@/lib/utils";
 
 type ProductTarget = { id: string; name: string };
 
@@ -573,37 +575,100 @@ function StockPageInner() {
     return items;
   }
 
+  const attentionCount = (() => {
+    const items = stockSummaryQuery.data?.items ?? [];
+    let count = 0;
+    for (const entry of items) {
+      if (entry.kind === "product") {
+        const tone = expiryTone(
+          entry.product.nearestExpiry ?? null,
+          entry.product.expiringBatchCount,
+        );
+        if (tone !== "none") {
+          count += 1;
+        }
+      } else {
+        const tone = expiryTone(
+          entry.nearestExpiry,
+          entry.expiringBatchCount,
+        );
+        if (tone !== "none") {
+          count += 1;
+        }
+      }
+    }
+    return count;
+  })();
+
   const headerCta =
     view === "stock" ? (
       <Link
         href={purchaseHref}
-        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-3 font-semibold text-white shadow-xl shadow-slate-900/20 transition-all hover:bg-slate-800 md:w-auto"
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-900 px-6 py-3.5 font-bold text-white shadow-sm transition-colors hover:bg-zinc-800 md:w-auto"
       >
-        <Plus size={20} className="text-emerald-400" />
-        Dodaj nowy zakup
+        <Plus size={18} />
+        Szybki wpis
       </Link>
     ) : view === "catalog" ? (
       <Link
         href={catalogHref}
-        className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition-colors hover:bg-slate-800"
+        className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3.5 font-bold text-white shadow-sm transition-colors hover:bg-emerald-700"
       >
-        <Plus size={16} className="text-emerald-400" />
-        Dodaj produkt do katalogu
+        <Plus size={18} />
+        Nowy produkt
       </Link>
     ) : null;
 
+  const pageTitle =
+    view === "catalog"
+      ? "Baza Wzorców"
+      : view === "history"
+        ? "Historia zapasów"
+        : "Stan Zapasów";
+
   return (
     <AppShell kitchenId={kitchenId}>
-      <div className="-mx-4 -my-4 min-h-[calc(100vh-2rem)] bg-[#f4f7f6] px-6 py-6 sm:-mx-8 sm:-my-8 sm:px-8 sm:py-8 lg:-mx-10 lg:-my-10 lg:px-10 lg:py-8">
-        <div className="mx-auto w-full max-w-7xl space-y-6">
-        <header className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
+      <div className="-mx-4 -my-4 min-h-[calc(100vh-2rem)] bg-[#F4F4F5] px-6 py-8 sm:-mx-8 sm:-my-8 sm:px-8 lg:-mx-10 lg:-my-10 lg:px-12 lg:py-12">
+        <div className="mx-auto w-full max-w-[1600px] space-y-8">
+        <header
+          className={cn(
+            "flex flex-col gap-6 md:flex-row md:items-end md:justify-between",
+            view === "catalog" && "border-b border-zinc-200 pb-8",
+          )}
+        >
           <div>
-            <h1 className="text-3xl font-black tracking-tight text-slate-900 lg:text-4xl">
-              Moje zapasy
+            <h1 className="mb-4 text-4xl font-black tracking-tighter text-zinc-900 sm:text-5xl">
+              {pageTitle}
             </h1>
-            <p className="mt-1 font-medium text-slate-500">
-              Zarządzaj swoimi produktami w domu
-            </p>
+            {view === "stock" ? (
+              <div className="flex flex-wrap items-center gap-4">
+                <span
+                  className={cn(
+                    "rounded-md border px-3 py-1 text-sm font-bold",
+                    attentionCount === 0
+                      ? "border-emerald-200 bg-emerald-100 text-emerald-800"
+                      : "border-amber-200 bg-amber-100 text-amber-900",
+                  )}
+                >
+                  {attentionCount === 0
+                    ? "Wszystko w normie"
+                    : "Wymaga uwagi"}
+                </span>
+                <span className="text-sm font-medium text-zinc-500">
+                  {attentionCount === 0
+                    ? "Brak pozycji wymagających uwagi."
+                    : `${attentionCount} ${attentionCount === 1 ? "pozycja wymaga" : "pozycje wymagają"} uwagi.`}
+                </span>
+              </div>
+            ) : view === "catalog" ? (
+              <p className="text-lg font-medium text-zinc-500">
+                Zarządzaj słownikiem produktów, ułatwia to automatyzację.
+              </p>
+            ) : (
+              <p className="text-lg font-medium text-zinc-500">
+                Rejestr zużyć i ruchów magazynowych.
+              </p>
+            )}
           </div>
           <div className="flex w-full shrink-0 items-center justify-end md:w-auto">
             {headerCta}

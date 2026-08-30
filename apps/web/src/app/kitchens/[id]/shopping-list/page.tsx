@@ -2,6 +2,7 @@
 
 import type { components } from "@moja-kuchnia/api-client";
 import {
+  Box,
   Check,
   ChevronDown,
   MoreVertical,
@@ -23,9 +24,6 @@ import {
 import { ChangePurchaseModeDialog } from "@/components/change-purchase-mode-dialog";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { ProductThumb } from "@/components/product-thumb";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { createWebApiClient } from "@/lib/api";
 import { readApiError, UNIT_LABELS } from "@/lib/errors";
 import { productImageUrls } from "@/lib/product-image";
@@ -101,154 +99,218 @@ function AddProductModal({
     onSubmit(body);
   }
 
+  const fieldClass =
+    "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-[14px] text-slate-700 placeholder:text-slate-400 focus:border-[#009060] focus:outline-none focus:ring-1 focus:ring-[#009060]";
+
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4 sm:items-center"
-      role="presentation"
-      onClick={() => {
-        if (!pending) {
-          onClose();
-        }
-      }}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div
+        className="absolute inset-0 bg-black/30 backdrop-blur-[2px]"
+        role="presentation"
+        onClick={() => {
+          if (!pending) {
+            onClose();
+          }
+        }}
+      />
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-shopping-title"
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-gray-100 bg-white p-6 shadow-lg"
+        className="relative z-10 w-full max-w-[460px] rounded-2xl bg-white p-7 shadow-xl"
         onClick={(event) => event.stopPropagation()}
       >
-        <h2 id="add-shopping-title" className="text-lg font-semibold text-gray-900">
+        <h2
+          id="add-shopping-title"
+          className="text-xl font-bold text-slate-900"
+        >
           Dodaj produkt
         </h2>
-        <p className="mt-1 text-sm text-gray-500">
+        <p className="mt-1 mb-6 text-sm text-slate-500">
           Dodaj produkt z katalogu lub własną pozycję tekstową.
         </p>
 
-        <form onSubmit={handleSubmit} className="mt-5 space-y-4">
-          <div className="flex flex-wrap gap-2">
-            <Button
+        <form onSubmit={handleSubmit}>
+          <div className="mb-6 flex gap-2">
+            <button
               type="button"
-              size="sm"
-              variant={addMode === "product" ? "default" : "outline"}
               onClick={() => setAddMode("product")}
+              className={cn(
+                "rounded-lg border px-4 py-1.5 text-[13px] font-semibold transition-all",
+                addMode === "product"
+                  ? "border-[#009060] bg-[#009060] text-white"
+                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
+              )}
             >
               Z katalogu
-            </Button>
-            <Button
+            </button>
+            <button
               type="button"
-              size="sm"
-              variant={addMode === "custom" ? "default" : "outline"}
               onClick={() => setAddMode("custom")}
+              className={cn(
+                "rounded-lg border px-4 py-1.5 text-[13px] font-semibold transition-all",
+                addMode === "custom"
+                  ? "border-[#009060] bg-[#009060] text-white"
+                  : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
+              )}
             >
               Własna pozycja
-            </Button>
+            </button>
           </div>
 
-          {addMode === "product" ? (
-            <div className="space-y-2">
-              <Label htmlFor="modal-product">Produkt</Label>
-              <div className="flex items-center gap-3">
-                <ProductThumb
-                  src={productImageUrls(selectedProduct).thumbnail}
-                  alt={selectedProduct?.name ?? "Produkt"}
-                />
-                <select
-                  id="modal-product"
-                  className="block min-w-0 flex-1 rounded-lg border border-gray-200 bg-white p-3 text-sm"
-                  value={productId}
-                  onChange={(event) => {
-                    setProductId(event.target.value);
-                    const product = products.find(
-                      (entry) => entry.id === event.target.value,
-                    );
-                    if (product) {
-                      setPlannedUnit(
-                        inputUnitsFor(product.defaultUnit as BaseUnit)[0]
-                          ?.value ?? "piece",
-                      );
-                    }
-                  }}
+          <div className="space-y-4">
+            {addMode === "product" ? (
+              <div>
+                <label
+                  htmlFor="modal-product"
+                  className="mb-1.5 block text-[13px] font-medium text-slate-700"
                 >
-                  <option value="">Wybierz produkt…</option>
-                  {products.map((product) => (
-                    <option key={product.id} value={product.id}>
-                      {product.name} ({UNIT_LABELS[product.defaultUnit]})
+                  Produkt
+                </label>
+                <div className="flex gap-2">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-[#f8fafc] text-slate-400">
+                    {selectedProduct ? (
+                      <ProductThumb
+                        src={productImageUrls(selectedProduct).thumbnail}
+                        alt={selectedProduct.name}
+                        className="!h-full !w-full rounded-none bg-transparent object-contain"
+                        size="sm"
+                      />
+                    ) : (
+                      <Box size={18} strokeWidth={1.5} />
+                    )}
+                  </div>
+                  <select
+                    id="modal-product"
+                    className={cn(fieldClass, "appearance-none")}
+                    value={productId}
+                    onChange={(event) => {
+                      setProductId(event.target.value);
+                      const product = products.find(
+                        (entry) => entry.id === event.target.value,
+                      );
+                      if (product) {
+                        setPlannedUnit(
+                          inputUnitsFor(product.defaultUnit as BaseUnit)[0]
+                            ?.value ?? "piece",
+                        );
+                      }
+                    }}
+                  >
+                    <option value="">Wybierz produkt...</option>
+                    {products.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.name} ({UNIT_LABELS[product.defaultUnit]})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <label
+                  htmlFor="modal-custom"
+                  className="mb-1.5 block text-[13px] font-medium text-slate-700"
+                >
+                  Nazwa
+                </label>
+                <input
+                  id="modal-custom"
+                  value={customName}
+                  onChange={(event) => setCustomName(event.target.value)}
+                  placeholder="np. Papryka czerwona"
+                  className={fieldClass}
+                />
+              </div>
+            )}
+
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <label
+                  htmlFor="modal-qty"
+                  className="mb-1.5 block text-[13px] font-medium text-slate-700"
+                >
+                  Ilość
+                </label>
+                <input
+                  id="modal-qty"
+                  value={plannedQuantity}
+                  onChange={(event) => setPlannedQuantity(event.target.value)}
+                  placeholder="opcjonalnie"
+                  className={fieldClass}
+                />
+              </div>
+              <div className="flex-1">
+                <label
+                  htmlFor="modal-unit"
+                  className="mb-1.5 block text-[13px] font-medium text-slate-700"
+                >
+                  Jednostka
+                </label>
+                <select
+                  id="modal-unit"
+                  className={cn(fieldClass, "appearance-none")}
+                  value={plannedUnit}
+                  onChange={(event) =>
+                    setPlannedUnit(event.target.value as InputUnit)
+                  }
+                >
+                  {(unitOptions.length > 0
+                    ? unitOptions
+                    : Object.entries(INPUT_UNIT_LABELS).map(
+                        ([value, label]) => ({
+                          value: value as InputUnit,
+                          label,
+                        }),
+                      )
+                  ).map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
                     </option>
                   ))}
                 </select>
               </div>
             </div>
-          ) : (
-            <div className="space-y-2">
-              <Label htmlFor="modal-custom">Nazwa</Label>
-              <Input
-                id="modal-custom"
-                value={customName}
-                onChange={(event) => setCustomName(event.target.value)}
-                placeholder="np. Papryka czerwona"
-              />
-            </div>
-          )}
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="modal-qty">Ilość</Label>
-              <Input
-                id="modal-qty"
-                value={plannedQuantity}
-                onChange={(event) => setPlannedQuantity(event.target.value)}
-                placeholder="opcjonalnie"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="modal-unit">Jednostka</Label>
-              <select
-                id="modal-unit"
-                className="block w-full rounded-lg border border-gray-200 bg-white p-3 text-sm"
-                value={plannedUnit}
-                onChange={(event) =>
-                  setPlannedUnit(event.target.value as InputUnit)
-                }
+            <div>
+              <label
+                htmlFor="modal-note"
+                className="mb-1.5 block text-[13px] font-medium text-slate-700"
               >
-                {(unitOptions.length > 0
-                  ? unitOptions
-                  : Object.entries(INPUT_UNIT_LABELS).map(([value, label]) => ({
-                      value: value as InputUnit,
-                      label,
-                    }))
-                ).map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
+                Notatka
+              </label>
+              <input
+                id="modal-note"
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                placeholder="opcjonalnie"
+                className={fieldClass}
+              />
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="modal-note">Notatka</Label>
-            <Input
-              id="modal-note"
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              placeholder="opcjonalnie"
-            />
           </div>
 
           {formError ? (
-            <p className="text-sm text-red-600" role="alert">
+            <p className="mt-4 text-sm text-red-600" role="alert">
               {formError}
             </p>
           ) : null}
 
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <Button type="button" variant="outline" onClick={onClose} disabled={pending}>
+          <div className="mt-8 flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={pending}
+              className="rounded-lg border border-slate-200 bg-white px-5 py-2 text-[14px] font-medium text-slate-600 transition-colors hover:bg-slate-50 disabled:opacity-60"
+            >
               Anuluj
-            </Button>
-            <Button type="submit" disabled={pending}>
+            </button>
+            <button
+              type="submit"
+              disabled={pending}
+              className="rounded-lg bg-[#009060] px-5 py-2 text-[14px] font-medium text-white shadow-sm shadow-[#009060]/20 transition-colors hover:bg-[#007b52] disabled:opacity-60"
+            >
               {pending ? "Dodawanie…" : "Dodaj do listy"}
-            </Button>
+            </button>
           </div>
         </form>
       </div>
@@ -292,18 +354,18 @@ function ShoppingRow({
     : "";
 
   return (
-    <li
+    <div
       className={cn(
-        "flex items-center gap-3 border-b border-gray-100 px-3 py-3.5 last:border-0 sm:px-4",
-        isBought && "bg-emerald-50/40",
-        isSkipped && "bg-gray-50/80",
+        "flex items-center gap-4 px-5 py-4 transition-colors",
+        isBought ? "bg-white" : "hover:bg-slate-50/50",
+        isSkipped && "bg-slate-50/80",
       )}
     >
       {item.status === "pending" ? (
         <button
           type="button"
           aria-label={`Oznacz ${name} jako kupione`}
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 border-gray-300 bg-white hover:border-emerald-500"
+          className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] border-[1.5px] border-slate-300 bg-white transition-colors hover:border-[#009060] focus:outline-none"
           onClick={onToggleBought}
           disabled={pending}
         />
@@ -313,45 +375,59 @@ function ShoppingRow({
           aria-label={
             showUnbuy ? `Cofnij kupione: ${name}` : `${name} kupione`
           }
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-emerald-500 text-white"
+          className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] bg-[#009060] text-white transition-colors focus:outline-none"
           onClick={showUnbuy ? onToggleBought : undefined}
           disabled={!showUnbuy || pending}
         >
           <Check size={14} strokeWidth={3} />
         </button>
       ) : (
-        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-gray-200 text-gray-500">
+        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-[4px] bg-slate-200 text-slate-500">
           <SkipForward size={12} />
         </span>
       )}
 
-      <ProductThumb src={thumb} alt={name} />
+      <div
+        className={cn(
+          "flex h-10 w-10 shrink-0 items-center justify-center rounded border p-1",
+          isBought || isSkipped
+            ? "border-slate-100 bg-slate-50 opacity-60 grayscale"
+            : "border-[#f0e6dc] bg-[#fdf8f4]",
+        )}
+      >
+        <ProductThumb
+          src={thumb}
+          alt={name}
+          size="sm"
+          className="!h-full !w-full rounded-none bg-transparent object-contain"
+        />
+      </div>
 
-      <div className="min-w-0 flex-1">
-        <p
+      <div className={cn("min-w-0 flex-1", (isBought || isSkipped) && "opacity-60")}>
+        <h4
           className={cn(
-            "text-[15px] font-semibold text-gray-900",
-            isBought && "text-gray-500 line-through",
-            isSkipped && "text-gray-500",
+            "text-[13px] leading-tight font-bold text-slate-900",
+            isBought && "text-slate-700 line-through",
+            isSkipped && "text-slate-500",
           )}
         >
           {name}
-        </p>
+        </h4>
         <p
           className={cn(
-            "mt-0.5 text-sm text-gray-700",
-            isBought && "text-gray-400 line-through",
+            "mt-0.5 text-[12px] text-slate-500",
+            isBought && "text-slate-400 line-through",
           )}
         >
           {purchaseLine}
         </p>
         {item.sourceRecipeName ? (
-          <p className="mt-1 text-xs text-emerald-700">
+          <p className="mt-1 text-[11px] text-[#009060]">
             Z przepisu: {item.sourceRecipeName}
           </p>
         ) : null}
         {requiredHint ? (
-          <p className="mt-1 text-xs text-gray-500">
+          <p className="mt-1 text-[11px] text-slate-500">
             brakuje {requiredHint} do przepisu
           </p>
         ) : null}
@@ -360,82 +436,90 @@ function ShoppingRow({
           item.sourceRecipeName &&
           item.note.trim() === `Przepis: ${item.sourceRecipeName}`
         ) ? (
-          <p className="mt-0.5 text-xs text-gray-400">{item.note}</p>
+          <p className="mt-0.5 text-[11px] text-slate-400">{item.note}</p>
         ) : null}
       </div>
 
-      <div className="relative shrink-0 self-start sm:self-center">
+      <div className="relative shrink-0">
         <button
           type="button"
           aria-label="Menu pozycji"
-          className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+          className="text-slate-400 transition-colors hover:text-slate-600"
           onClick={() => setMenuOpen((open) => !open)}
         >
           <MoreVertical size={18} />
         </button>
         {menuOpen ? (
-          <div className="absolute right-0 z-10 mt-1 w-52 rounded-lg border border-gray-100 bg-white py-1 shadow-lg">
-            {!item.productId && unboundName ? (
-              <Link
-                href={`/kitchens/${kitchenId}/products/new?stock=1&name=${encodeURIComponent(unboundName)}&from=shopping`}
-                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-gray-50"
-                onClick={() => setMenuOpen(false)}
-              >
-                Utwórz produkt i odłóż
-              </Link>
-            ) : null}
-            {canChangePurchaseMode && item.status === "pending" ? (
+          <>
+            <div
+              className="fixed inset-0 z-10"
+              role="presentation"
+              onClick={() => setMenuOpen(false)}
+            />
+            <div className="absolute right-0 z-20 mt-1 w-52 overflow-hidden rounded-xl border border-slate-100 bg-white py-1 shadow-lg">
+              {!item.productId && unboundName ? (
+                <Link
+                  href={`/kitchens/${kitchenId}/products/new?stock=1&name=${encodeURIComponent(unboundName)}&from=shopping`}
+                  className="block w-full px-4 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50"
+                  onClick={() => setMenuOpen(false)}
+                >
+                  Utwórz produkt i odłóż
+                </Link>
+              ) : null}
+              {canChangePurchaseMode && item.status === "pending" ? (
+                <button
+                  type="button"
+                  className="block w-full px-4 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onChangePurchaseMode?.();
+                  }}
+                >
+                  Zmień sposób zakupu
+                </button>
+              ) : null}
+              {item.status === "pending" ? (
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onSkip();
+                  }}
+                >
+                  <SkipForward size={14} />
+                  Pomiń
+                </button>
+              ) : null}
+              {item.status === "skipped" ? (
+                <button
+                  type="button"
+                  className="block w-full px-4 py-2 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onToggleBought();
+                  }}
+                >
+                  Przywróć
+                </button>
+              ) : null}
+              <div className="my-1 h-px bg-slate-100" />
               <button
                 type="button"
-                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-gray-50"
+                className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-red-600 transition-colors hover:bg-red-50"
                 onClick={() => {
                   setMenuOpen(false);
-                  onChangePurchaseMode?.();
+                  onDelete();
                 }}
               >
-                Zmień sposób zakupu
+                <Trash2 size={14} />
+                Usuń
               </button>
-            ) : null}
-            {item.status === "pending" ? (
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-gray-50"
-                onClick={() => {
-                  setMenuOpen(false);
-                  onSkip();
-                }}
-              >
-                <SkipForward size={14} />
-                Pomiń
-              </button>
-            ) : null}
-            {item.status === "skipped" ? (
-              <button
-                type="button"
-                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-gray-50"
-                onClick={() => {
-                  setMenuOpen(false);
-                  onToggleBought();
-                }}
-              >
-                Przywróć
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-red-700 hover:bg-red-50"
-              onClick={() => {
-                setMenuOpen(false);
-                onDelete();
-              }}
-            >
-              <Trash2 size={14} />
-              Usuń
-            </button>
-          </div>
+            </div>
+          </>
         ) : null}
       </div>
-    </li>
+    </div>
   );
 }
 
@@ -457,49 +541,60 @@ function SummaryPanel({
   return (
     <aside
       className={cn(
-        "rounded-2xl border border-gray-200/80 bg-white p-5",
+        "w-full shrink-0 rounded-xl border border-slate-200 bg-white p-6 lg:w-[320px]",
         className,
       )}
     >
-      <h2 className="text-sm font-semibold tracking-wide text-gray-500 uppercase">
+      <h3 className="mb-6 text-[11px] font-bold tracking-wider text-slate-500 uppercase">
         Podsumowanie
-      </h2>
-      <dl className="mt-4 space-y-3 text-sm">
-        <div className="flex items-center justify-between gap-3">
-          <dt className="text-gray-500">Pozycje</dt>
-          <dd className="font-semibold text-gray-900">{totalCount}</dd>
+      </h3>
+
+      <div className="mb-8 space-y-3.5 text-[13px]">
+        <div className="flex items-center justify-between">
+          <span className="text-slate-500">Pozycje</span>
+          <span className="font-bold text-slate-900">{totalCount}</span>
         </div>
-        <div className="flex items-center justify-between gap-3">
-          <dt className="text-gray-500">Kupione</dt>
-          <dd className="font-semibold text-emerald-700">{boughtCount}</dd>
+        <div className="flex items-center justify-between">
+          <span className="text-slate-500">Kupione</span>
+          <span className="font-bold text-[#009060]">{boughtCount}</span>
         </div>
-        <div className="flex items-center justify-between gap-3">
-          <dt className="text-gray-500">Do kupienia</dt>
-          <dd className="font-semibold text-gray-900">{pendingCount}</dd>
+        <div className="flex items-center justify-between">
+          <span className="text-slate-500">Do kupienia</span>
+          <span className="font-bold text-slate-900">{pendingCount}</span>
         </div>
-        <div className="flex items-center justify-between gap-3">
-          <dt className="text-gray-500">Postęp</dt>
-          <dd className="font-semibold text-gray-900">{progress}%</dd>
+
+        <div className="pt-2">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-slate-500">Postęp</span>
+            <span className="font-bold text-slate-900">{progress}%</span>
+          </div>
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+            <div
+              className="h-full bg-[#009060] transition-all duration-500 ease-out"
+              style={{ width: `${progress}%` }}
+            />
+          </div>
         </div>
-      </dl>
-      <div className="mt-4 h-2 overflow-hidden rounded-full bg-gray-100">
-        <div
-          className="h-full rounded-full bg-emerald-500 transition-all"
-          style={{ width: `${progress}%` }}
-        />
       </div>
-      <p className="mt-4 text-sm leading-relaxed text-gray-600">
-        {boughtCount > 0
-          ? "Masz kupione pozycje — rozlicz je, żeby dodać zapasy do kuchni."
-          : pendingCount > 0
-            ? "Oznacz produkty jako kupione podczas zakupów."
-            : "Lista jest pusta. Dodaj produkty lub braki z przepisu."}
-      </p>
+
       {boughtCount > 0 ? (
-        <Button className="mt-4 hidden w-full lg:inline-flex" onClick={onCheckout}>
-          Rozlicz zakupy ({boughtCount})
-        </Button>
-      ) : null}
+        <div>
+          <p className="mb-4 text-[13px] leading-relaxed text-slate-500">
+            Masz kupione pozycje — rozlicz je, żeby dodać zapasy do kuchni.
+          </p>
+          <button
+            type="button"
+            onClick={onCheckout}
+            className="hidden w-full rounded-lg bg-[#009060] py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#007b52] lg:block"
+          >
+            Rozlicz zakupy ({boughtCount})
+          </button>
+        </div>
+      ) : (
+        <p className="text-[13px] leading-relaxed text-slate-500">
+          Oznacz produkty jako kupione podczas zakupów.
+        </p>
+      )}
     </aside>
   );
 }
@@ -564,9 +659,10 @@ export default function ShoppingListPage() {
 
   const totalCount =
     grouped.pending.length + grouped.bought.length + grouped.skipped.length;
-  const doneCount = grouped.bought.length + grouped.skipped.length;
   const progress =
-    totalCount > 0 ? Math.round((doneCount / totalCount) * 100) : 0;
+    totalCount > 0
+      ? Math.round((grouped.bought.length / totalCount) * 100)
+      : 0;
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ["shopping-list", kitchenId] });
@@ -690,162 +786,129 @@ export default function ShoppingListPage() {
     <AppShell kitchenId={kitchenId}>
       <div
         className={cn(
-          "w-full",
+          "-mx-4 -my-4 min-h-[calc(100vh-2rem)] bg-[#f4f7f6] px-6 py-10 sm:-mx-8 sm:-my-8 sm:px-8 lg:-mx-10 lg:-my-10 lg:px-10",
           hasBought &&
-            "pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] lg:pb-0",
+            "pb-[calc(5.5rem+env(safe-area-inset-bottom,0px))] lg:pb-10",
         )}
       >
-        <header className="mb-5 w-full">
-          <div className="flex w-full items-start justify-between gap-3">
-            <div className="min-w-0">
-              <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
+        <div className="mx-auto flex h-full max-w-7xl flex-col">
+          <div className="mb-6 flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+            <div>
+              <h1 className="text-[26px] font-bold tracking-tight text-slate-900">
                 Lista zakupów
               </h1>
-              <p className="mt-1 text-sm text-gray-500">
-                {totalCount > 0
-                  ? `${grouped.bought.length} kupione z ${totalCount}`
-                  : "Wspólna lista dla domowników"}
+              <p className="mt-1 text-[13px] text-slate-500">
+                {totalCount === 0
+                  ? "Wspólna lista dla domowników"
+                  : `${grouped.bought.length} kupione z ${totalCount}`}
               </p>
             </div>
-            <Button
-              size="sm"
-              className="shrink-0"
+            <button
+              type="button"
               onClick={() => setAddOpen(true)}
+              className="flex items-center justify-center gap-1.5 rounded-lg bg-[#009060] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#007b52]"
             >
-              <Plus size={16} className="mr-1" />
-              <span className="sm:hidden">Dodaj</span>
-              <span className="hidden sm:inline">Dodaj produkt</span>
-            </Button>
+              <Plus size={16} />
+              Dodaj produkt
+            </button>
           </div>
 
           {totalCount > 0 ? (
-            <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-gray-100">
+            <div className="mb-8 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
               <div
-                className="h-full rounded-full bg-emerald-500 transition-all"
+                className="h-full bg-[#009060] transition-all duration-500 ease-out"
                 style={{ width: `${progress}%` }}
               />
             </div>
           ) : null}
-        </header>
 
-        {listQuery.isPending ? (
-          <p className="text-center text-sm text-gray-500">Ładowanie listy…</p>
-        ) : null}
+          {listQuery.isPending ? (
+            <p className="text-center text-sm text-slate-500">Ładowanie listy…</p>
+          ) : null}
 
-        {listQuery.isError ? (
-          <p className="text-center text-sm text-red-600" role="alert">
-            {readApiError(listQuery.error)}
-          </p>
-        ) : null}
-
-        {!listQuery.isPending && !listQuery.isError && totalCount === 0 ? (
-          <div className="py-12 text-center">
-            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600">
-              <ShoppingCart size={28} />
-            </div>
-            <p className="font-medium text-gray-900">Lista jest pusta</p>
-            <p className="mx-auto mt-2 max-w-sm text-sm text-gray-500">
-              Dodaj produkty ręcznie albo z ekranu{" "}
-              <Link
-                href={`/kitchens/${kitchenId}/recipes`}
-                className="text-emerald-700 hover:underline"
-              >
-                przepisów
-              </Link>
-              .
+          {listQuery.isError ? (
+            <p className="text-center text-sm text-red-600" role="alert">
+              {readApiError(listQuery.error)}
             </p>
-          </div>
-        ) : null}
+          ) : null}
 
-        {!listQuery.isPending && !listQuery.isError && totalCount > 0 ? (
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start lg:gap-8">
-            <div className="min-w-0 space-y-5">
-              {grouped.pending.length > 0 ? (
-                <section className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white">
-                  <h2 className="border-b border-gray-100 px-4 py-3 text-xs font-semibold tracking-wide text-gray-500 uppercase sm:px-5">
-                    Do kupienia ({grouped.pending.length})
-                  </h2>
-                  <ul>
-                    {grouped.pending.map((item) => (
-                      <ShoppingRow
-                        key={item.id}
-                        item={item}
-                        kitchenId={kitchenId}
-                        pending={updateStatus.isPending}
-                        onToggleBought={() =>
-                          updateStatus.mutate({
-                            itemId: item.id,
-                            status: "bought",
-                          })
-                        }
-                        onSkip={() =>
-                          updateStatus.mutate({
-                            itemId: item.id,
-                            status: "skipped",
-                          })
-                        }
-                        onDelete={() => setItemToDelete(item)}
-                        onChangePurchaseMode={
-                          item.productId
-                            ? () => setItemToChangePurchase(item)
-                            : undefined
-                        }
-                      />
-                    ))}
-                  </ul>
-                </section>
-              ) : null}
+          {!listQuery.isPending && !listQuery.isError && totalCount === 0 ? (
+            <div className="flex flex-1 flex-col items-center justify-center pb-20 text-center">
+              <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-[#f0f9f6]">
+                <ShoppingCart size={24} className="text-[#009060]" />
+              </div>
+              <h3 className="mb-2 text-base font-bold text-slate-900">
+                Lista jest pusta
+              </h3>
+              <p className="text-sm text-slate-500">
+                Dodaj produkty ręcznie albo z ekranu{" "}
+                <Link
+                  href={`/kitchens/${kitchenId}/recipes`}
+                  className="cursor-pointer font-medium text-[#009060]"
+                >
+                  przepisów
+                </Link>
+                .
+              </p>
+            </div>
+          ) : null}
 
-              {grouped.bought.length > 0 ? (
-                <section className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white">
-                  <h2 className="border-b border-gray-100 px-4 py-3 text-xs font-semibold tracking-wide text-emerald-700 uppercase sm:px-5">
-                    Kupione ({grouped.bought.length})
-                  </h2>
-                  <ul>
-                    {grouped.bought.map((item) => (
-                      <ShoppingRow
-                        key={item.id}
-                        item={item}
-                        kitchenId={kitchenId}
-                        showUnbuy
-                        pending={updateStatus.isPending}
-                        onToggleBought={() =>
-                          updateStatus.mutate({
-                            itemId: item.id,
-                            status: "pending",
-                          })
-                        }
-                        onSkip={() => {}}
-                        onDelete={() => setItemToDelete(item)}
-                      />
-                    ))}
-                  </ul>
-                </section>
-              ) : null}
-
-              {grouped.skipped.length > 0 ? (
-                <section className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white">
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-2 border-b border-gray-100 px-4 py-3 text-left text-xs font-semibold tracking-wide text-gray-500 uppercase sm:px-5"
-                    onClick={() => setSkippedOpen((open) => !open)}
-                  >
-                    <ChevronDown
-                      size={14}
-                      className={cn(
-                        "transition-transform",
-                        !skippedOpen && "-rotate-90",
-                      )}
-                    />
-                    Pominięte ({grouped.skipped.length})
-                  </button>
-                  {skippedOpen ? (
-                    <ul>
-                      {grouped.skipped.map((item) => (
+          {!listQuery.isPending && !listQuery.isError && totalCount > 0 ? (
+            <div className="flex flex-col items-start gap-8 lg:flex-row">
+              <div className="w-full flex-1 space-y-6">
+                {grouped.pending.length > 0 ? (
+                  <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                    <div className="border-b border-slate-200 bg-slate-50 px-5 py-3.5">
+                      <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">
+                        Do kupienia ({grouped.pending.length})
+                      </span>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                      {grouped.pending.map((item) => (
                         <ShoppingRow
                           key={item.id}
                           item={item}
                           kitchenId={kitchenId}
+                          pending={updateStatus.isPending}
+                          onToggleBought={() =>
+                            updateStatus.mutate({
+                              itemId: item.id,
+                              status: "bought",
+                            })
+                          }
+                          onSkip={() =>
+                            updateStatus.mutate({
+                              itemId: item.id,
+                              status: "skipped",
+                            })
+                          }
+                          onDelete={() => setItemToDelete(item)}
+                          onChangePurchaseMode={
+                            item.productId
+                              ? () => setItemToChangePurchase(item)
+                              : undefined
+                          }
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+
+                {grouped.bought.length > 0 ? (
+                  <section className="overflow-hidden rounded-xl border border-slate-200 bg-white opacity-75 transition-opacity hover:opacity-100">
+                    <div className="border-b border-slate-200 bg-slate-50 px-5 py-3.5">
+                      <span className="text-[11px] font-bold tracking-wider text-[#009060] uppercase">
+                        Kupione ({grouped.bought.length})
+                      </span>
+                    </div>
+                    <div className="divide-y divide-slate-100">
+                      {grouped.bought.map((item) => (
+                        <ShoppingRow
+                          key={item.id}
+                          item={item}
+                          kitchenId={kitchenId}
+                          showUnbuy
+                          pending={updateStatus.isPending}
                           onToggleBought={() =>
                             updateStatus.mutate({
                               itemId: item.id,
@@ -856,29 +919,73 @@ export default function ShoppingListPage() {
                           onDelete={() => setItemToDelete(item)}
                         />
                       ))}
-                    </ul>
-                  ) : null}
-                </section>
-              ) : null}
-            </div>
+                    </div>
+                  </section>
+                ) : null}
 
-            <SummaryPanel
-              className="lg:sticky lg:top-8"
-              totalCount={totalCount}
-              boughtCount={grouped.bought.length}
-              pendingCount={grouped.pending.length}
-              progress={progress}
-              onCheckout={() => setCheckoutOpen(true)}
-            />
-          </div>
-        ) : null}
+                {grouped.skipped.length > 0 ? (
+                  <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-2 border-b border-slate-200 bg-slate-50 px-5 py-3.5 text-left"
+                      onClick={() => setSkippedOpen((open) => !open)}
+                    >
+                      <ChevronDown
+                        size={14}
+                        className={cn(
+                          "text-slate-400 transition-transform",
+                          !skippedOpen && "-rotate-90",
+                        )}
+                      />
+                      <span className="text-[11px] font-bold tracking-wider text-slate-500 uppercase">
+                        Pominięte ({grouped.skipped.length})
+                      </span>
+                    </button>
+                    {skippedOpen ? (
+                      <div className="divide-y divide-slate-100">
+                        {grouped.skipped.map((item) => (
+                          <ShoppingRow
+                            key={item.id}
+                            item={item}
+                            kitchenId={kitchenId}
+                            onToggleBought={() =>
+                              updateStatus.mutate({
+                                itemId: item.id,
+                                status: "pending",
+                              })
+                            }
+                            onSkip={() => {}}
+                            onDelete={() => setItemToDelete(item)}
+                          />
+                        ))}
+                      </div>
+                    ) : null}
+                  </section>
+                ) : null}
+              </div>
+
+              <SummaryPanel
+                className="sticky top-10"
+                totalCount={totalCount}
+                boughtCount={grouped.bought.length}
+                pendingCount={grouped.pending.length}
+                progress={progress}
+                onCheckout={() => setCheckoutOpen(true)}
+              />
+            </div>
+          ) : null}
+        </div>
       </div>
 
       {hasBought ? (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] backdrop-blur lg:hidden">
-          <Button className="w-full" onClick={() => setCheckoutOpen(true)}>
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] backdrop-blur lg:hidden">
+          <button
+            type="button"
+            className="w-full rounded-lg bg-[#009060] py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#007b52]"
+            onClick={() => setCheckoutOpen(true)}
+          >
             Rozlicz zakupy ({grouped.bought.length})
-          </Button>
+          </button>
         </div>
       ) : null}
 

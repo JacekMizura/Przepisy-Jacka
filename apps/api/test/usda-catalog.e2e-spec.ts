@@ -74,6 +74,76 @@ describe('USDA generic food catalog (e2e)', () => {
     expect((folded.body as { total: number }).total).toBeGreaterThan(0);
   });
 
+  it('wyszukuje paprykę (warianty, kolejność słów, angielski, bez ogonków)', async () => {
+    const res = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchenId}/usda-foods?q=${encodeURIComponent('papryka')}`,
+      { cookies: user.cookies, webOrigin: WEB_ORIGIN },
+    );
+    expect(res.status).toBe(200);
+    const body = res.body as {
+      total: number;
+      items: Array<{ polishName: string; fdcId: number; variantLabel: string }>;
+    };
+    expect(body.total).toBeGreaterThanOrEqual(3);
+    const names = body.items.map((i) => i.polishName.toLowerCase());
+    expect(names.some((n) => n.includes('czerwona'))).toBe(true);
+    expect(names.some((n) => n.includes('zielona'))).toBe(true);
+    const firstRawish = body.items[0]!.polishName.toLowerCase();
+    expect(firstRawish).toMatch(/surow/);
+
+    const swapped = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchenId}/usda-foods?q=${encodeURIComponent('czerwona papryka')}`,
+      { cookies: user.cookies, webOrigin: WEB_ORIGIN },
+    );
+    expect(swapped.status).toBe(200);
+    expect(
+      (swapped.body as { items: Array<{ polishName: string }> }).items.some(
+        (i) => /czerwona/i.test(i.polishName),
+      ),
+    ).toBe(true);
+
+    const en = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchenId}/usda-foods?q=${encodeURIComponent('red pepper')}`,
+      { cookies: user.cookies, webOrigin: WEB_ORIGIN },
+    );
+    expect(en.status).toBe(200);
+    expect((en.body as { total: number }).total).toBeGreaterThan(0);
+
+    const folded = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchenId}/usda-foods?q=${encodeURIComponent('losos')}`,
+      { cookies: user.cookies, webOrigin: WEB_ORIGIN },
+    );
+    expect(folded.status).toBe(200);
+    expect((folded.body as { total: number }).total).toBeGreaterThan(0);
+  });
+
+  it('suggest na 100 g nie miesza się z opakowaniem produktu', async () => {
+    const search = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchenId}/usda-foods?q=${encodeURIComponent('pomidor')}`,
+      { cookies: user.cookies, webOrigin: WEB_ORIGIN },
+    );
+    const item = (search.body as { items: Array<{ id: string }> }).items[0]!;
+    const suggest = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchenId}/usda-foods/${item.id}/suggest?productUnit=gram`,
+      { cookies: user.cookies, webOrigin: WEB_ORIGIN },
+    );
+    expect(suggest.status).toBe(200);
+    const suggested = (
+      suggest.body as {
+        suggested: { baseQuantity: string; baseUnit: string };
+        entry: { basisLabel: string };
+      }
+    ).suggested;
+    expect(Number(suggested.baseQuantity)).toBe(100);
+    expect(suggested.baseUnit).toBe('gram');
+  });
+
   it('blokuje dostęp bez członkostwa w kuchni', async () => {
     const res = await apiFetch(
       api.origin,

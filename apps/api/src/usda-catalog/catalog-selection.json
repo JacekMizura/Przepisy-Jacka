@@ -1,17 +1,680 @@
 {
-  "version": "2026-08-usda-v1",
+  "version": "2026-08-usda-v2",
   "foundationRelease": "2025-12-18",
   "srLegacyRelease": "2018-04",
   "selection": [
     {
-      "fdcId": 1750340,
-      "polishName": "Jabłko surowe ze skórką",
+      "fdcId": 169124,
+      "polishName": "Ananas surowy",
       "aliases": [
-        "jabłko",
-        "jabłka",
-        "apple"
+        "ananas",
+        "pineapple"
       ],
-      "variantLabel": "surowe, ze skórką (ogólne)"
+      "variantLabel": "surowy, wszystkie odmiany"
+    },
+    {
+      "fdcId": 168193,
+      "polishName": "Ananas surowy",
+      "aliases": [
+        "ananas",
+        "pineapple"
+      ],
+      "variantLabel": "raw, traditional varieties"
+    },
+    {
+      "fdcId": 168157,
+      "polishName": "Arbuz surowy",
+      "aliases": [
+        "arbuz",
+        "watermelon"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 168153,
+      "polishName": "Awokado surowe",
+      "aliases": [
+        "awokado",
+        "avocado"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 174899,
+      "polishName": "Bajgiel",
+      "aliases": [
+        "bajgiel",
+        "bagel"
+      ],
+      "variantLabel": "plain"
+    },
+    {
+      "fdcId": 170154,
+      "polishName": "Bakłażan surowy",
+      "aliases": [
+        "bakłażan",
+        "baklazany",
+        "eggplant"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 173944,
+      "polishName": "Banan surowy",
+      "aliases": [
+        "banan",
+        "banany",
+        "banana"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 174370,
+      "polishName": "Baranina mielona surowa",
+      "aliases": [
+        "baranina",
+        "jagnięcina mielona",
+        "lamb"
+      ],
+      "variantLabel": "ground, raw"
+    },
+    {
+      "fdcId": 168482,
+      "polishName": "Batat surowy",
+      "aliases": [
+        "batat",
+        "bataty",
+        "sweet potato"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 171317,
+      "polishName": "Bazylia suszona",
+      "aliases": [
+        "bazylia",
+        "basil"
+      ],
+      "variantLabel": "dried"
+    },
+    {
+      "fdcId": 174594,
+      "polishName": "Bekon surowy",
+      "aliases": [
+        "bekon",
+        "bacon"
+      ],
+      "variantLabel": "raw",
+      "compositionMayVary": true
+    },
+    {
+      "fdcId": 172183,
+      "polishName": "Białko jajka kurzego surowe",
+      "aliases": [
+        "białko jajka",
+        "egg white"
+      ],
+      "variantLabel": "egg white, raw"
+    },
+    {
+      "fdcId": 168580,
+      "polishName": "Boczniak surowy",
+      "aliases": [
+        "boczniak",
+        "boczniaki",
+        "oyster mushroom"
+      ],
+      "variantLabel": "oyster, raw"
+    },
+    {
+      "fdcId": 169991,
+      "polishName": "Boćwina surowa",
+      "aliases": [
+        "boćwina",
+        "botwina",
+        "szwajcarski botwiny",
+        "chard"
+      ],
+      "variantLabel": "swiss chard, raw"
+    },
+    {
+      "fdcId": 173950,
+      "polishName": "Borówka mrożona niesłodzona",
+      "aliases": [
+        "borówki mrożone",
+        "frozen blueberries"
+      ],
+      "variantLabel": "frozen, unsweetened"
+    },
+    {
+      "fdcId": 2346411,
+      "preferDataType": "Foundation",
+      "polishName": "Borówka surowa",
+      "aliases": [
+        "borówka",
+        "borówki",
+        "blueberry"
+      ],
+      "variantLabel": "surowa"
+    },
+    {
+      "fdcId": 747447,
+      "preferDataType": "Foundation",
+      "polishName": "Brokuł surowy",
+      "aliases": [
+        "brokuł",
+        "brokuły",
+        "broccoli",
+        "brokul"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 170379,
+      "polishName": "Brokuł surowy (SR Legacy)",
+      "aliases": [
+        "brokuł sr"
+      ],
+      "variantLabel": "surowy"
+    },
+    {
+      "fdcId": 169246,
+      "polishName": "Brukselka surowa",
+      "aliases": [
+        "brukselka",
+        "brukselki",
+        "brussels sprouts"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 171688,
+      "polishName": "Brzoskwinia surowa",
+      "aliases": [
+        "brzoskwinia",
+        "brzoskwinie",
+        "peach"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 170688,
+      "polishName": "Bulgur suchy",
+      "aliases": [
+        "bulgur",
+        "kasza bulgur"
+      ],
+      "variantLabel": "dry"
+    },
+    {
+      "fdcId": 170287,
+      "polishName": "Bulgur ugotowany",
+      "aliases": [
+        "bulgur ugotowany"
+      ],
+      "variantLabel": "cooked"
+    },
+    {
+      "fdcId": 169146,
+      "polishName": "Burak gotowany",
+      "aliases": [
+        "burak gotowany",
+        "buraki gotowane"
+      ],
+      "variantLabel": "boiled, drained"
+    },
+    {
+      "fdcId": 169243,
+      "polishName": "Burak surowy",
+      "aliases": [
+        "burak",
+        "buraki",
+        "beet",
+        "buraczki"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 169145,
+      "polishName": "Burak surowy (SR)",
+      "aliases": [
+        "burak"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 170001,
+      "polishName": "Cebula gotowana",
+      "aliases": [
+        "cebula gotowana"
+      ],
+      "variantLabel": "boiled, drained, without salt"
+    },
+    {
+      "fdcId": 170000,
+      "polishName": "Cebula surowa",
+      "aliases": [
+        "cebula",
+        "cebule",
+        "onion"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 171327,
+      "polishName": "Cebula w proszku",
+      "aliases": [
+        "cebula w proszku",
+        "onion powder"
+      ],
+      "variantLabel": "onion powder"
+    },
+    {
+      "fdcId": 335240,
+      "preferDataType": "Foundation",
+      "polishName": "Chleb pełnoziarnisty",
+      "aliases": [
+        "chleb razowy",
+        "whole wheat bread"
+      ],
+      "variantLabel": "whole-wheat"
+    },
+    {
+      "fdcId": 325871,
+      "preferDataType": "Foundation",
+      "polishName": "Chleb pszenny biały",
+      "aliases": [
+        "chleb",
+        "chleb biały",
+        "pieczywo",
+        "bread"
+      ],
+      "variantLabel": "white"
+    },
+    {
+      "fdcId": 172684,
+      "polishName": "Chleb żytni",
+      "aliases": [
+        "chleb żytni",
+        "chlebzytni",
+        "rye bread"
+      ],
+      "variantLabel": "rye"
+    },
+    {
+      "fdcId": 173472,
+      "polishName": "Chrzan tarty",
+      "aliases": [
+        "chrzan",
+        "horseradish"
+      ],
+      "variantLabel": "prepared"
+    },
+    {
+      "fdcId": 173756,
+      "polishName": "Ciecierzyca sucha",
+      "aliases": [
+        "ciecierzyca",
+        "chickpeas",
+        "garbanzo"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 746784,
+      "preferDataType": "Foundation",
+      "polishName": "Cukier biały",
+      "aliases": [
+        "cukier",
+        "sugar"
+      ],
+      "variantLabel": "granulated"
+    },
+    {
+      "fdcId": 169655,
+      "polishName": "Cukier biały granulowany",
+      "aliases": [
+        "cukier",
+        "sugar"
+      ],
+      "variantLabel": "granulated"
+    },
+    {
+      "fdcId": 168833,
+      "polishName": "Cukier brązowy",
+      "aliases": [
+        "cukier brązowy",
+        "brown sugar"
+      ],
+      "variantLabel": "brown"
+    },
+    {
+      "fdcId": 2685568,
+      "preferDataType": "Foundation",
+      "polishName": "Cukinia zielona surowa",
+      "aliases": [
+        "cukinia",
+        "cukinie",
+        "zucchini"
+      ],
+      "variantLabel": "zielona, ze skórką, surowa"
+    },
+    {
+      "fdcId": 170924,
+      "polishName": "Curry w proszku",
+      "aliases": [
+        "curry"
+      ],
+      "variantLabel": "curry powder"
+    },
+    {
+      "fdcId": 171320,
+      "polishName": "Cynamon",
+      "aliases": [
+        "cynamon",
+        "cinnamon"
+      ],
+      "variantLabel": "ground"
+    },
+    {
+      "fdcId": 169090,
+      "polishName": "Cytryna surowa",
+      "aliases": [
+        "cytryna",
+        "cytryny",
+        "lemon"
+      ],
+      "variantLabel": "raw, with peel"
+    },
+    {
+      "fdcId": 171705,
+      "polishName": "Czereśnia surowa",
+      "aliases": [
+        "czereśnia",
+        "czereśnie",
+        "sweet cherry"
+      ],
+      "variantLabel": "sweet, raw"
+    },
+    {
+      "fdcId": 1104647,
+      "preferDataType": "Foundation",
+      "polishName": "Czosnek surowy",
+      "aliases": [
+        "czosnek",
+        "garlic"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 169230,
+      "polishName": "Czosnek surowy (SR)",
+      "aliases": [
+        "czosnek",
+        "garlic"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 171325,
+      "polishName": "Czosnek w proszku",
+      "aliases": [
+        "czosnek w proszku",
+        "garlic powder"
+      ],
+      "variantLabel": "garlic powder"
+    },
+    {
+      "fdcId": 168191,
+      "polishName": "Daktyle Medjool",
+      "aliases": [
+        "daktyle",
+        "dates"
+      ],
+      "variantLabel": "medjool"
+    },
+    {
+      "fdcId": 171956,
+      "polishName": "Dorsz atlantycki pieczony",
+      "aliases": [
+        "dorsz pieczony"
+      ],
+      "variantLabel": "Atlantic, cooked dry heat"
+    },
+    {
+      "fdcId": 171955,
+      "polishName": "Dorsz atlantycki surowy",
+      "aliases": [
+        "dorsz",
+        "cod"
+      ],
+      "variantLabel": "Atlantic, raw"
+    },
+    {
+      "fdcId": 175043,
+      "polishName": "Drożdże piekarskie suszone",
+      "aliases": [
+        "drożdże",
+        "drozdze",
+        "yeast"
+      ],
+      "variantLabel": "baker's, active dry"
+    },
+    {
+      "fdcId": 169236,
+      "polishName": "Dynia surowa",
+      "aliases": [
+        "dynia",
+        "pumpkin"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 173734,
+      "polishName": "Fasola czarna sucha",
+      "aliases": [
+        "fasola czarna",
+        "black beans"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 173744,
+      "polishName": "Fasola kidney sucha",
+      "aliases": [
+        "fasola czerwona",
+        "kidney beans"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 169141,
+      "polishName": "Fasolka szparagowa gotowana",
+      "aliases": [
+        "fasolka gotowana"
+      ],
+      "variantLabel": "snap green, boiled"
+    },
+    {
+      "fdcId": 169244,
+      "polishName": "Fasolka szparagowa surowa",
+      "aliases": [
+        "fasolka szparagowa",
+        "green beans"
+      ],
+      "variantLabel": "green, raw"
+    },
+    {
+      "fdcId": 173021,
+      "polishName": "Figa surowa",
+      "aliases": [
+        "figa",
+        "figi",
+        "fig"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 170927,
+      "polishName": "Gałka kwiatowa (mace)",
+      "aliases": [
+        "mace"
+      ],
+      "variantLabel": "ground"
+    },
+    {
+      "fdcId": 171326,
+      "polishName": "Gałka muszkatołowa",
+      "aliases": [
+        "gałka muszkatołowa",
+        "galka",
+        "nutmeg"
+      ],
+      "variantLabel": "ground"
+    },
+    {
+      "fdcId": 171321,
+      "polishName": "Goździki mielone",
+      "aliases": [
+        "goździki",
+        "gozdziki",
+        "cloves"
+      ],
+      "variantLabel": "ground"
+    },
+    {
+      "fdcId": 169134,
+      "polishName": "Granat surowy",
+      "aliases": [
+        "granat",
+        "pomegranate"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 173033,
+      "polishName": "Grejpfrut surowy",
+      "aliases": [
+        "grejpfrut",
+        "grapefruit"
+      ],
+      "variantLabel": "raw, all areas"
+    },
+    {
+      "fdcId": 170420,
+      "polishName": "Groszek zielony gotowany",
+      "aliases": [
+        "groszek gotowany"
+      ],
+      "variantLabel": "green, boiled, drained"
+    },
+    {
+      "fdcId": 170419,
+      "polishName": "Groszek zielony surowy",
+      "aliases": [
+        "groszek",
+        "groszek zielony",
+        "peas"
+      ],
+      "variantLabel": "green, raw"
+    },
+    {
+      "fdcId": 171719,
+      "polishName": "Gruszka surowa",
+      "aliases": [
+        "gruszka",
+        "gruszki",
+        "pear"
+      ],
+      "variantLabel": "raw with skin"
+    },
+    {
+      "fdcId": 168182,
+      "polishName": "Gruszki z puszki w syropie",
+      "aliases": [
+        "gruszki z puszki"
+      ],
+      "variantLabel": "canned, heavy syrup, drained"
+    },
+    {
+      "fdcId": 170286,
+      "polishName": "Gryka (ziarno)",
+      "aliases": [
+        "gryka",
+        "buckwheat"
+      ],
+      "variantLabel": "buckwheat"
+    },
+    {
+      "fdcId": 172454,
+      "polishName": "Hummus domowy",
+      "aliases": [
+        "hummus",
+        "pasta ciecierzycowa"
+      ],
+      "variantLabel": "home prepared"
+    },
+    {
+      "fdcId": 170926,
+      "polishName": "Imbir mielony",
+      "aliases": [
+        "imbir mielony",
+        "ground ginger"
+      ],
+      "variantLabel": "ground"
+    },
+    {
+      "fdcId": 169231,
+      "polishName": "Imbir surowy",
+      "aliases": [
+        "imbir",
+        "ginger"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 2514747,
+      "preferDataType": "Foundation",
+      "polishName": "Indyk mielony 93% chudy surowy",
+      "aliases": [
+        "indyk mielony",
+        "ground turkey"
+      ],
+      "variantLabel": "93% chude / 7% tłuszczu, surowy"
+    },
+    {
+      "fdcId": 171505,
+      "polishName": "Indyk mielony surowy",
+      "aliases": [
+        "indyk mielony",
+        "ground turkey"
+      ],
+      "variantLabel": "ground, raw"
+    },
+    {
+      "fdcId": 171116,
+      "polishName": "Indyk pierś bez skóry surowa",
+      "aliases": [
+        "indyk pierś",
+        "turkey breast"
+      ],
+      "variantLabel": "breast, meat only, raw"
+    },
+    {
+      "fdcId": 167793,
+      "polishName": "Jabłko Fuji surowe ze skórką (SR)",
+      "aliases": [
+        "fuji"
+      ],
+      "variantLabel": "Fuji, surowe, ze skórką"
+    },
+    {
+      "fdcId": 168202,
+      "polishName": "Jabłko Golden Delicious surowe ze skórką",
+      "aliases": [
+        "golden delicious"
+      ],
+      "variantLabel": "Golden Delicious, surowe, ze skórką"
     },
     {
       "fdcId": 168203,
@@ -31,297 +694,386 @@
       "variantLabel": "Red Delicious, surowe, ze skórką"
     },
     {
-      "fdcId": 173944,
-      "polishName": "Banan surowy",
+      "fdcId": 1750340,
+      "polishName": "Jabłko surowe ze skórką",
       "aliases": [
-        "banan",
-        "banany",
-        "banana"
+        "jabłko",
+        "jabłka",
+        "apple",
+        "jablko"
       ],
-      "variantLabel": "surowy"
-    },
-    {
-      "fdcId": 2346409,
-      "preferDataType": "Foundation",
-      "polishName": "Truskawka surowa",
-      "aliases": [
-        "truskawka",
-        "truskawki",
-        "strawberry"
-      ],
-      "variantLabel": "surowa"
-    },
-    {
-      "fdcId": 2346411,
-      "preferDataType": "Foundation",
-      "polishName": "Borówka surowa",
-      "aliases": [
-        "borówka",
-        "borówki",
-        "blueberry"
-      ],
-      "variantLabel": "surowa"
-    },
-    {
-      "fdcId": 746771,
-      "preferDataType": "Foundation",
-      "polishName": "Pomarańcza Navel surowa",
-      "aliases": [
-        "pomarańcza",
-        "pomarańcze",
-        "orange"
-      ],
-      "variantLabel": "Navel, surowa"
-    },
-    {
-      "fdcId": 1999634,
-      "polishName": "Pomidor Roma surowy",
-      "aliases": [
-        "pomidor",
-        "pomidory",
-        "tomato"
-      ],
-      "variantLabel": "Roma, surowy"
-    },
-    {
-      "fdcId": 321360,
-      "polishName": "Pomidor koktajlowy surowy",
-      "aliases": [
-        "pomidorki cherry",
-        "grape tomato"
-      ],
-      "variantLabel": "grape, surowy"
-    },
-    {
-      "fdcId": 170393,
-      "polishName": "Marchew surowa",
-      "aliases": [
-        "marchew",
-        "marchewka",
-        "carrot"
-      ],
-      "variantLabel": "surowa"
-    },
-    {
-      "fdcId": 170000,
-      "polishName": "Cebula surowa",
-      "aliases": [
-        "cebula",
-        "cebule",
-        "onion"
-      ],
-      "variantLabel": "surowa"
-    },
-    {
-      "fdcId": 170026,
-      "polishName": "Ziemniak surowy ze skórką",
-      "aliases": [
-        "ziemniak",
-        "ziemniaki",
-        "potato"
-      ],
-      "variantLabel": "miąższ i skórka, surowy"
-    },
-    {
-      "fdcId": 168462,
-      "polishName": "Szpinak surowy",
-      "aliases": [
-        "szpinak",
-        "spinach"
-      ],
-      "variantLabel": "surowy"
-    },
-    {
-      "fdcId": 747447,
-      "preferDataType": "Foundation",
-      "polishName": "Brokuł surowy",
-      "aliases": [
-        "brokuł",
-        "brokuły",
-        "broccoli"
-      ],
-      "variantLabel": "surowy"
-    },
-    {
-      "fdcId": 2346406,
-      "preferDataType": "Foundation",
-      "polishName": "Ogórek ze skórką surowy",
-      "aliases": [
-        "ogórek",
-        "ogorki",
-        "cucumber"
-      ],
-      "variantLabel": "ze skórką, surowy"
-    },
-    {
-      "fdcId": 169225,
-      "polishName": "Ogórek obrany surowy",
-      "aliases": [
-        "ogórek obrany"
-      ],
-      "variantLabel": "obrany, surowy"
-    },
-    {
-      "fdcId": 1104647,
-      "preferDataType": "Foundation",
-      "polishName": "Czosnek surowy",
-      "aliases": [
-        "czosnek",
-        "garlic"
-      ],
-      "variantLabel": "surowy"
-    },
-    {
-      "fdcId": 2346388,
-      "preferDataType": "Foundation",
-      "polishName": "Sałata lodowa surowa",
-      "aliases": [
-        "sałata",
-        "iceberg"
-      ],
-      "variantLabel": "iceberg, surowa"
-    },
-    {
-      "fdcId": 2346389,
-      "preferDataType": "Foundation",
-      "polishName": "Sałata rzymska zielona surowa",
-      "aliases": [
-        "sałata rzymska",
-        "romaine"
-      ],
-      "variantLabel": "romaine, zielona, surowa"
-    },
-    {
-      "fdcId": 169975,
-      "polishName": "Kapusta surowa",
-      "aliases": [
-        "kapusta",
-        "cabbage"
-      ],
-      "variantLabel": "surowa"
-    },
-    {
-      "fdcId": 169124,
-      "polishName": "Ananas surowy",
-      "aliases": [
-        "ananas",
-        "pineapple"
-      ],
-      "variantLabel": "surowy, wszystkie odmiany"
+      "variantLabel": "with skin, raw",
+      "preferDataType": "Foundation"
     },
     {
       "fdcId": 171287,
-      "polishName": "Jajo kurze całe surowe",
+      "polishName": "Jajko kurze surowe",
       "aliases": [
         "jajko",
         "jajka",
         "jajo",
         "egg"
       ],
-      "variantLabel": "całe, świeże, surowe"
+      "variantLabel": "whole, raw, fresh"
     },
     {
-      "fdcId": 172183,
-      "polishName": "Białko jaja surowego",
+      "fdcId": 173424,
+      "polishName": "Jajko kurze ugotowane na twardo",
       "aliases": [
-        "białko jaja",
-        "egg white"
+        "jajko na twardo",
+        "jajka na twardo",
+        "hard boiled egg"
       ],
-      "variantLabel": "białko, świeże, surowe"
+      "variantLabel": "whole, hard-boiled"
     },
     {
-      "fdcId": 172184,
-      "polishName": "Żółtko jaja surowego",
+      "fdcId": 170283,
+      "polishName": "Jęczmień niełuskany",
       "aliases": [
-        "żółtko",
-        "egg yolk"
+        "jęczmień",
+        "jecmien",
+        "barley",
+        "kasza jęczmienna"
       ],
-      "variantLabel": "żółtko, świeże, surowe"
+      "variantLabel": "hulled"
     },
     {
-      "fdcId": 171474,
-      "polishName": "Pierś kurczaka ze skórą surowa",
-      "aliases": [
-        "pierś kurczaka",
-        "kurczak pierś"
-      ],
-      "variantLabel": "pierś, mięso i skóra, surowa"
-    },
-    {
-      "fdcId": 171077,
-      "polishName": "Pierś kurczaka bez skóry surowa",
-      "aliases": [
-        "pierś kurczaka bez skóry",
-        "chicken breast skinless"
-      ],
-      "variantLabel": "pierś, tylko mięso, surowa"
-    },
-    {
-      "fdcId": 171477,
-      "polishName": "Pierś kurczaka bez skóry pieczona",
-      "aliases": [
-        "pierś kurczaka pieczona"
-      ],
-      "variantLabel": "pierś, tylko mięso, pieczona"
-    },
-    {
-      "fdcId": 171480,
-      "polishName": "Udko kurczaka bez skóry surowe",
-      "aliases": [
-        "udko kurczaka",
-        "chicken thigh"
-      ],
-      "variantLabel": "udko, tylko mięso, surowe"
-    },
-    {
-      "fdcId": 2514743,
+      "fdcId": 2259794,
       "preferDataType": "Foundation",
-      "polishName": "Wołowina mielona 90% chuda surowa",
+      "polishName": "Jogurt grecki naturalny pełnotłusty",
       "aliases": [
-        "mięso mielone wołowe",
-        "ground beef 90"
+        "jogurt grecki",
+        "greek yogurt"
       ],
-      "variantLabel": "90% chude / 10% tłuszczu, surowa"
+      "variantLabel": "plain, whole milk"
     },
     {
-      "fdcId": 2514744,
+      "fdcId": 170886,
+      "polishName": "Jogurt naturalny niskotłuszczowy",
+      "aliases": [
+        "jogurt low fat",
+        "jogurt",
+        "jogurt naturalny",
+        "yogurt"
+      ],
+      "variantLabel": "plain, low fat"
+    },
+    {
+      "fdcId": 2647437,
       "preferDataType": "Foundation",
-      "polishName": "Wołowina mielona 80% chuda surowa",
+      "polishName": "Jogurt naturalny odtłuszczony",
       "aliases": [
-        "mięso mielone 80",
-        "ground beef 80"
+        "jogurt 0%",
+        "nonfat yogurt"
       ],
-      "variantLabel": "80% chude / 20% tłuszczu, surowa"
+      "variantLabel": "plain, nonfat"
     },
     {
-      "fdcId": 167829,
-      "polishName": "Schab wieprzowy chudy surowy",
-      "aliases": [
-        "schab",
-        "wieprzowina schab",
-        "pork loin"
-      ],
-      "variantLabel": "center loin, tylko chude, surowy"
-    },
-    {
-      "fdcId": 2514747,
+      "fdcId": 2259793,
       "preferDataType": "Foundation",
-      "polishName": "Indyk mielony 93% chudy surowy",
+      "polishName": "Jogurt naturalny pełnotłusty",
       "aliases": [
-        "indyk mielony",
-        "ground turkey"
+        "jogurt",
+        "jogurt naturalny",
+        "yogurt"
       ],
-      "variantLabel": "93% chude / 7% tłuszczu, surowy"
+      "variantLabel": "plain, whole milk"
     },
     {
-      "fdcId": 175167,
-      "polishName": "Łosoś atlantycki hodowlany surowy",
+      "fdcId": 169593,
+      "polishName": "Kakao w proszku niesłodzone",
       "aliases": [
-        "łosoś",
-        "losos",
-        "salmon"
+        "kakao",
+        "cocoa"
       ],
-      "variantLabel": "atlantycki, hodowlany, surowy"
+      "variantLabel": "unsweetened"
+    },
+    {
+      "fdcId": 2685573,
+      "preferDataType": "Foundation",
+      "polishName": "Kalafior surowy",
+      "aliases": [
+        "kalafior",
+        "kalafiory",
+        "cauliflower"
+      ],
+      "variantLabel": "surowy"
+    },
+    {
+      "fdcId": 168424,
+      "polishName": "Kalarepa surowa",
+      "aliases": [
+        "kalarepa",
+        "kohlrabi"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 169975,
+      "polishName": "Kapusta biała surowa",
+      "aliases": [
+        "kapusta",
+        "kapusta biała",
+        "cabbage"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 169977,
+      "polishName": "Kapusta czerwona surowa",
+      "aliases": [
+        "kapusta czerwona",
+        "red cabbage"
+      ],
+      "variantLabel": "red, raw"
+    },
+    {
+      "fdcId": 169279,
+      "polishName": "Kapusta kiszona",
+      "aliases": [
+        "kapusta kiszona",
+        "sauerkraut"
+      ],
+      "variantLabel": "canned, solids and liquids"
+    },
+    {
+      "fdcId": 170388,
+      "polishName": "Kapusta savoy surowa",
+      "aliases": [
+        "kapusta włoska",
+        "savoy"
+      ],
+      "variantLabel": "savoy, raw"
+    },
+    {
+      "fdcId": 169205,
+      "polishName": "Karczoch surowy",
+      "aliases": [
+        "karczoch",
+        "artichoke"
+      ],
+      "variantLabel": "globe, raw"
+    },
+    {
+      "fdcId": 171952,
+      "polishName": "Karp surowy",
+      "aliases": [
+        "karp",
+        "carp"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 170686,
+      "polishName": "Kasza gryczana prażona ugotowana",
+      "aliases": [
+        "kasza gryczana ugotowana"
+      ],
+      "variantLabel": "roasted, cooked"
+    },
+    {
+      "fdcId": 170685,
+      "polishName": "Kasza gryczana sucha",
+      "aliases": [
+        "kasza gryczana",
+        "kasza",
+        "kasze",
+        "buckwheat groats"
+      ],
+      "variantLabel": "roasted, dry"
+    },
+    {
+      "fdcId": 2003588,
+      "preferDataType": "Foundation",
+      "polishName": "Kasza manna (semolina)",
+      "aliases": [
+        "kasza manna",
+        "semolina"
+      ],
+      "variantLabel": "semolina, coarse"
+    },
+    {
+      "fdcId": 167868,
+      "polishName": "Kiełbasa wieprzowa gotowana",
+      "aliases": [
+        "kiełbasa",
+        "kielbasa",
+        "sausage"
+      ],
+      "variantLabel": "pork sausage, cooked",
+      "compositionMayVary": true
+    },
+    {
+      "fdcId": 173945,
+      "polishName": "Kiwi surowe",
+      "aliases": [
+        "kiwi"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 170923,
+      "polishName": "Kminek przyprawa",
+      "aliases": [
+        "kminek",
+        "cumin"
+      ],
+      "variantLabel": "cumin seed"
+    },
+    {
+      "fdcId": 169997,
+      "polishName": "Kolendra świeża (cilantro)",
+      "aliases": [
+        "kolendra",
+        "cilantro",
+        "coriander leaves"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 168874,
+      "polishName": "Komosa ryżowa surowa",
+      "aliases": [
+        "quinoa",
+        "komosa"
+      ],
+      "variantLabel": "uncooked"
+    },
+    {
+      "fdcId": 168917,
+      "polishName": "Komosa ryżowa ugotowana",
+      "aliases": [
+        "quinoa ugotowana",
+        "komosa ugotowana"
+      ],
+      "variantLabel": "cooked"
+    },
+    {
+      "fdcId": 170459,
+      "polishName": "Koncentrat pomidorowy",
+      "aliases": [
+        "koncentrat pomidorowy",
+        "tomato paste"
+      ],
+      "variantLabel": "canned paste, without salt added"
+    },
+    {
+      "fdcId": 171323,
+      "polishName": "Koper włoski (nasiona)",
+      "aliases": [
+        "koper włoski",
+        "fennel seed"
+      ],
+      "variantLabel": "fennel seed"
+    },
+    {
+      "fdcId": 170129,
+      "polishName": "Koperek surowy",
+      "aliases": [
+        "koperek",
+        "dill"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 171966,
+      "polishName": "Krab niebieski z puszki",
+      "aliases": [
+        "krab",
+        "crab"
+      ],
+      "variantLabel": "blue, canned"
+    },
+    {
+      "fdcId": 172746,
+      "polishName": "Krakersy solone",
+      "aliases": [
+        "krakersy",
+        "saltines"
+      ],
+      "variantLabel": "saltines"
+    },
+    {
+      "fdcId": 173680,
+      "polishName": "Krewetki gotowane",
+      "aliases": [
+        "krewetki",
+        "shrimp"
+      ],
+      "variantLabel": "cooked, moist heat"
+    },
+    {
+      "fdcId": 169308,
+      "polishName": "Kukurydza słodka surowa",
+      "aliases": [
+        "kukurydza",
+        "corn",
+        "sweet corn"
+      ],
+      "variantLabel": "sweet, yellow, raw"
+    },
+    {
+      "fdcId": 168314,
+      "polishName": "Kurczak mięso ze skórą surowy",
+      "aliases": [
+        "kurczak",
+        "chicken"
+      ],
+      "variantLabel": "meat and skin, raw"
+    },
+    {
+      "fdcId": 172231,
+      "polishName": "Kurkuma mielona",
+      "aliases": [
+        "kurkuma",
+        "turmeric"
+      ],
+      "variantLabel": "ground"
+    },
+    {
+      "fdcId": 169699,
+      "polishName": "Kuskus suchy",
+      "aliases": [
+        "kuskus",
+        "couscous"
+      ],
+      "variantLabel": "dry"
+    },
+    {
+      "fdcId": 169700,
+      "polishName": "Kuskus ugotowany",
+      "aliases": [
+        "kuskus ugotowany"
+      ],
+      "variantLabel": "cooked"
+    },
+    {
+      "fdcId": 168155,
+      "polishName": "Limonka surowa",
+      "aliases": [
+        "limonka",
+        "limonki",
+        "lime"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 170917,
+      "polishName": "Liść laurowy",
+      "aliases": [
+        "liść laurowy",
+        "lisc laurowy",
+        "bay leaf"
+      ],
+      "variantLabel": "bay leaf"
+    },
+    {
+      "fdcId": 171998,
+      "polishName": "Łosoś atlantycki dziki pieczony",
+      "aliases": [
+        "łosoś dziki pieczony"
+      ],
+      "variantLabel": "wild, cooked dry heat"
     },
     {
       "fdcId": 173686,
@@ -341,33 +1093,255 @@
       "variantLabel": "atlantycki, hodowlany, pieczony na sucho"
     },
     {
-      "fdcId": 171955,
-      "polishName": "Dorsz atlantycki surowy",
+      "fdcId": 175167,
+      "polishName": "Łosoś atlantycki hodowlany surowy",
       "aliases": [
-        "dorsz",
-        "cod"
+        "łosoś",
+        "losos",
+        "salmon"
       ],
-      "variantLabel": "atlantycki, surowy"
+      "variantLabel": "farmed, raw"
     },
     {
-      "fdcId": 173706,
-      "polishName": "Tuńczyk błękitnopłetwy świeży surowy",
+      "fdcId": 171964,
+      "polishName": "Łupacz (haddock) surowy",
       "aliases": [
-        "tuńczyk",
-        "tuna"
+        "łupacz",
+        "lupacz",
+        "haddock"
       ],
-      "variantLabel": "bluefin, świeży, surowy"
+      "variantLabel": "raw"
     },
     {
-      "fdcId": 746782,
+      "fdcId": 170928,
+      "polishName": "Majeranek suszony",
+      "aliases": [
+        "majeranek",
+        "marjoram"
+      ],
+      "variantLabel": "dried"
+    },
+    {
+      "fdcId": 169731,
+      "polishName": "Makaron jajeczny suchy",
+      "aliases": [
+        "makaron jajeczny",
+        "egg noodles"
+      ],
+      "variantLabel": "egg, dry, enriched"
+    },
+    {
+      "fdcId": 169742,
+      "polishName": "Makaron ryżowy suchy",
+      "aliases": [
+        "makaron ryżowy",
+        "rice noodles"
+      ],
+      "variantLabel": "rice noodles, dry"
+    },
+    {
+      "fdcId": 169736,
+      "polishName": "Makaron suchy",
+      "aliases": [
+        "makaron",
+        "pasta",
+        "spaghetti",
+        "makarony"
+      ],
+      "variantLabel": "dry, enriched"
+    },
+    {
+      "fdcId": 168928,
+      "polishName": "Makaron ugotowany",
+      "aliases": [
+        "makaron ugotowany",
+        "cooked pasta"
+      ],
+      "variantLabel": "cooked, enriched"
+    },
+    {
+      "fdcId": 175118,
+      "polishName": "Makrela atlantycka surowa",
+      "aliases": [
+        "makrela",
+        "mackerel"
+      ],
+      "variantLabel": "Atlantic, raw"
+    },
+    {
+      "fdcId": 171721,
+      "polishName": "Malina surowa",
+      "aliases": [
+        "malina",
+        "maliny",
+        "raspberry"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 168154,
+      "polishName": "Mango surowe",
+      "aliases": [
+        "mango"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 170394,
+      "polishName": "Marchew gotowana",
+      "aliases": [
+        "marchew gotowana",
+        "marchewka gotowana"
+      ],
+      "variantLabel": "boiled, drained, without salt"
+    },
+    {
+      "fdcId": 170393,
+      "polishName": "Marchew surowa",
+      "aliases": [
+        "marchew",
+        "marchewka",
+        "carrot"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 173430,
+      "polishName": "Masło niesolone",
+      "aliases": [
+        "masło niesolone",
+        "butter unsalted"
+      ],
+      "variantLabel": "without salt"
+    },
+    {
+      "fdcId": 173410,
+      "polishName": "Masło solone",
+      "aliases": [
+        "masło solone",
+        "butter salted"
+      ],
+      "variantLabel": "salted"
+    },
+    {
+      "fdcId": 170874,
+      "polishName": "Maślanka niskotłuszczowa",
+      "aliases": [
+        "maślanka",
+        "maslanka",
+        "buttermilk"
+      ],
+      "variantLabel": "cultured, lowfat"
+    },
+    {
+      "fdcId": 168893,
+      "polishName": "Mąka pszenna pełnoziarnista",
+      "aliases": [
+        "mąka razowa",
+        "whole wheat flour",
+        "mąka pełnoziarnista"
+      ],
+      "variantLabel": "whole-grain"
+    },
+    {
+      "fdcId": 789890,
       "preferDataType": "Foundation",
-      "polishName": "Mleko pełne 3,25%",
+      "polishName": "Mąka pszenna uniwersalna bielona",
       "aliases": [
-        "mleko",
-        "mleko pełne",
-        "whole milk"
+        "mąka",
+        "mąka pszenna",
+        "flour"
       ],
-      "variantLabel": "3,25% tłuszczu, z wit. D"
+      "variantLabel": "all-purpose, enriched, bleached"
+    },
+    {
+      "fdcId": 168894,
+      "polishName": "Mąka pszenna uniwersalna wzbogacana",
+      "aliases": [
+        "mąka biała",
+        "mąka",
+        "maka",
+        "mąka pszenna",
+        "flour"
+      ],
+      "variantLabel": "all-purpose, enriched, bleached"
+    },
+    {
+      "fdcId": 168885,
+      "polishName": "Mąka żytnia ciemna",
+      "aliases": [
+        "mąka żytnia",
+        "maka zytnia",
+        "rye flour"
+      ],
+      "variantLabel": "dark"
+    },
+    {
+      "fdcId": 168820,
+      "polishName": "Melasa",
+      "aliases": [
+        "melasa",
+        "molasses"
+      ],
+      "variantLabel": "molasses"
+    },
+    {
+      "fdcId": 167747,
+      "polishName": "Melon cantaloupe",
+      "aliases": [
+        "melon",
+        "cantaloupe"
+      ],
+      "variantLabel": "cantaloupe, raw"
+    },
+    {
+      "fdcId": 170567,
+      "polishName": "Migdały",
+      "aliases": [
+        "migdał",
+        "migdały",
+        "almonds"
+      ],
+      "variantLabel": "nuts, almonds"
+    },
+    {
+      "fdcId": 2346393,
+      "preferDataType": "Foundation",
+      "polishName": "Migdały surowe",
+      "aliases": [
+        "migdały",
+        "migdaly",
+        "almonds"
+      ],
+      "variantLabel": "whole, raw"
+    },
+    {
+      "fdcId": 174219,
+      "polishName": "Mintaj alaskański surowy",
+      "aliases": [
+        "mintaj",
+        "pollock"
+      ],
+      "variantLabel": "Alaska, raw"
+    },
+    {
+      "fdcId": 169640,
+      "polishName": "Miód",
+      "aliases": [
+        "miód",
+        "honey",
+        "miod"
+      ],
+      "variantLabel": "honey"
+    },
+    {
+      "fdcId": 173441,
+      "polishName": "Mleko 1%",
+      "aliases": [
+        "mleko 1%",
+        "milk 1%"
+      ],
+      "variantLabel": "1% fat"
     },
     {
       "fdcId": 746778,
@@ -380,55 +1354,864 @@
       "variantLabel": "2% tłuszczu"
     },
     {
-      "fdcId": 2259793,
-      "preferDataType": "Foundation",
-      "polishName": "Jogurt naturalny pełnotłusty",
+      "fdcId": 171267,
+      "polishName": "Mleko 2% (SR Legacy)",
       "aliases": [
-        "jogurt",
-        "jogurt naturalny",
-        "yogurt"
+        "mleko 2 sr"
       ],
-      "variantLabel": "plain, whole milk"
+      "variantLabel": "2% milkfat"
     },
     {
-      "fdcId": 2647437,
+      "fdcId": 746782,
       "preferDataType": "Foundation",
-      "polishName": "Jogurt naturalny odtłuszczony",
+      "polishName": "Mleko pełne 3,25%",
       "aliases": [
-        "jogurt 0%",
-        "nonfat yogurt"
+        "mleko",
+        "mleko pełne",
+        "whole milk",
+        "milk"
       ],
-      "variantLabel": "plain, nonfat"
+      "variantLabel": "whole, 3.25%"
     },
     {
-      "fdcId": 2346386,
-      "preferDataType": "Foundation",
-      "polishName": "Śmietana kremówka",
+      "fdcId": 171265,
+      "polishName": "Mleko pełne 3,25% (SR)",
       "aliases": [
-        "śmietana",
-        "cream",
-        "heavy cream"
+        "mleko pełne sr"
       ],
-      "variantLabel": "heavy cream"
+      "variantLabel": "3.25% milkfat with vitamin D"
     },
     {
-      "fdcId": 2346387,
-      "preferDataType": "Foundation",
-      "polishName": "Śmietana kwaśna pełnotłusta",
+      "fdcId": 171275,
+      "polishName": "Mleko skondensowane słodzone",
       "aliases": [
-        "śmietana kwaśna",
-        "sour cream"
+        "mleko skondensowane",
+        "condensed milk"
       ],
-      "variantLabel": "sour cream, full fat"
+      "variantLabel": "sweetened condensed"
     },
     {
-      "fdcId": 173410,
-      "polishName": "Masło solone",
+      "fdcId": 171697,
+      "polishName": "Morela surowa",
       "aliases": [
-        "masło",
-        "butter"
+        "morela",
+        "morele",
+        "apricot"
       ],
-      "variantLabel": "solone"
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 168101,
+      "polishName": "Mortadela wołowa niskotłuszczowa",
+      "aliases": [
+        "mortadela",
+        "bologna"
+      ],
+      "variantLabel": "beef, low fat",
+      "compositionMayVary": true
+    },
+    {
+      "fdcId": 169051,
+      "polishName": "Mozzarella odtłuszczona",
+      "aliases": [
+        "mozzarella nonfat"
+      ],
+      "variantLabel": "nonfat",
+      "compositionMayVary": true
+    },
+    {
+      "fdcId": 167772,
+      "polishName": "Mus jabłkowy niesłodzony",
+      "aliases": [
+        "mus jabłkowy",
+        "applesauce"
+      ],
+      "variantLabel": "canned, unsweetened"
+    },
+    {
+      "fdcId": 170554,
+      "polishName": "Nasiona chia",
+      "aliases": [
+        "chia",
+        "nasiona chia"
+      ],
+      "variantLabel": "dried"
+    },
+    {
+      "fdcId": 170099,
+      "polishName": "Natka pietruszki",
+      "aliases": [
+        "pietruszka",
+        "natka pietruszki",
+        "parsley"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 169914,
+      "polishName": "Nektarynka surowa",
+      "aliases": [
+        "nektarynka",
+        "nektarynki",
+        "nectarine"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 169421,
+      "polishName": "Nerkowce pieczone",
+      "aliases": [
+        "nerkowce",
+        "cashew"
+      ],
+      "variantLabel": "dry roasted"
+    },
+    {
+      "fdcId": 172237,
+      "polishName": "Ocet spirytusowy",
+      "aliases": [
+        "ocet",
+        "vinegar"
+      ],
+      "variantLabel": "distilled"
+    },
+    {
+      "fdcId": 169225,
+      "polishName": "Ogórek obrany surowy",
+      "aliases": [
+        "ogórek obrany"
+      ],
+      "variantLabel": "obrany, surowy"
+    },
+    {
+      "fdcId": 2346406,
+      "preferDataType": "Foundation",
+      "polishName": "Ogórek ze skórką surowy",
+      "aliases": [
+        "ogórek",
+        "ogorki",
+        "cucumber",
+        "ogorek",
+        "ogórki"
+      ],
+      "variantLabel": "with peel, raw"
+    },
+    {
+      "fdcId": 168409,
+      "polishName": "Ogórek ze skórką surowy (SR)",
+      "aliases": [
+        "ogórek sr"
+      ],
+      "variantLabel": "with peel, raw"
+    },
+    {
+      "fdcId": 168558,
+      "polishName": "Ogórki kiszone (dill)",
+      "aliases": [
+        "ogórki kiszone",
+        "ogorki kiszone",
+        "pickles"
+      ],
+      "variantLabel": "cucumber, dill"
+    },
+    {
+      "fdcId": 171410,
+      "polishName": "Olej arachidowy",
+      "aliases": [
+        "olej arachidowy",
+        "peanut oil"
+      ],
+      "variantLabel": "peanut, salad or cooking"
+    },
+    {
+      "fdcId": 171412,
+      "polishName": "Olej kokosowy",
+      "aliases": [
+        "olej kokosowy",
+        "coconut oil"
+      ],
+      "variantLabel": "coconut"
+    },
+    {
+      "fdcId": 172336,
+      "polishName": "Olej rzepakowy",
+      "aliases": [
+        "olej rzepakowy",
+        "canola"
+      ],
+      "variantLabel": "canola"
+    },
+    {
+      "fdcId": 171016,
+      "polishName": "Olej sezamowy",
+      "aliases": [
+        "olej sezamowy",
+        "sesame oil"
+      ],
+      "variantLabel": "sesame, salad or cooking"
+    },
+    {
+      "fdcId": 171017,
+      "polishName": "Olej słonecznikowy",
+      "aliases": [
+        "olej słonecznikowy",
+        "sunflower oil"
+      ],
+      "variantLabel": "sunflower, linoleic"
+    },
+    {
+      "fdcId": 171025,
+      "polishName": "Olej słonecznikowy (~65% kwasu linolowego)",
+      "aliases": [
+        "olej słonecznikowy",
+        "sunflower oil"
+      ],
+      "variantLabel": "sunflower, linoleic ~65%"
+    },
+    {
+      "fdcId": 171411,
+      "polishName": "Olej sojowy",
+      "aliases": [
+        "olej sojowy",
+        "soybean oil"
+      ],
+      "variantLabel": "soybean"
+    },
+    {
+      "fdcId": 171413,
+      "polishName": "Oliwa z oliwek",
+      "aliases": [
+        "oliwa",
+        "oliwa z oliwek",
+        "olive oil"
+      ],
+      "variantLabel": "salad or cooking"
+    },
+    {
+      "fdcId": 169094,
+      "polishName": "Oliwki czarne z puszki",
+      "aliases": [
+        "oliwki",
+        "olives"
+      ],
+      "variantLabel": "ripe, canned"
+    },
+    {
+      "fdcId": 171328,
+      "polishName": "Oregano suszone",
+      "aliases": [
+        "oregano"
+      ],
+      "variantLabel": "dried"
+    },
+    {
+      "fdcId": 170581,
+      "polishName": "Orzechy laskowe",
+      "aliases": [
+        "orzechy laskowe",
+        "hazelnuts",
+        "laskowe"
+      ],
+      "variantLabel": "filberts"
+    },
+    {
+      "fdcId": 2346395,
+      "preferDataType": "Foundation",
+      "polishName": "Orzechy pekan surowe",
+      "aliases": [
+        "pekan",
+        "pecans"
+      ],
+      "variantLabel": "halves, raw"
+    },
+    {
+      "fdcId": 170187,
+      "polishName": "Orzechy włoskie",
+      "aliases": [
+        "orzechy włoskie",
+        "walnuts"
+      ],
+      "variantLabel": "english walnuts"
+    },
+    {
+      "fdcId": 2346394,
+      "preferDataType": "Foundation",
+      "polishName": "Orzechy włoskie surowe",
+      "aliases": [
+        "orzechy włoskie",
+        "orzechy wloskie",
+        "walnuts"
+      ],
+      "variantLabel": "English, halves, raw"
+    },
+    {
+      "fdcId": 2515376,
+      "preferDataType": "Foundation",
+      "polishName": "Orzeszki ziemne surowe",
+      "aliases": [
+        "orzeszki ziemne",
+        "arachidowe",
+        "peanuts"
+      ],
+      "variantLabel": "surowe"
+    },
+    {
+      "fdcId": 172430,
+      "polishName": "Orzeszki ziemne surowe (wszystkie typy)",
+      "aliases": [
+        "arachidowe sr"
+      ],
+      "variantLabel": "all types, raw"
+    },
+    {
+      "fdcId": 2346397,
+      "preferDataType": "Foundation",
+      "polishName": "Owies cięty (steel cut)",
+      "aliases": [
+        "owies steel cut"
+      ],
+      "variantLabel": "steel cut, whole grain"
+    },
+    {
+      "fdcId": 172373,
+      "polishName": "Pałka kurczaka ze skórą surowa",
+      "aliases": [
+        "pałka kurczaka",
+        "udko pałka",
+        "drumstick"
+      ],
+      "variantLabel": "drumstick, meat and skin, raw"
+    },
+    {
+      "fdcId": 170106,
+      "polishName": "Papryczka chili czerwona surowa",
+      "aliases": [
+        "papryczka chili",
+        "chili",
+        "hot chili",
+        "papryka chili",
+        "chilli",
+        "papryki"
+      ],
+      "variantLabel": "hot chili, czerwona, surowa"
+    },
+    {
+      "fdcId": 170497,
+      "polishName": "Papryczka chili zielona surowa",
+      "aliases": [
+        "chili zielone",
+        "green chili",
+        "papryczka chili",
+        "papryki"
+      ],
+      "variantLabel": "hot chili, zielona, surowa"
+    },
+    {
+      "fdcId": 170457,
+      "polishName": "Papryka czerwona gotowana",
+      "aliases": [
+        "papryka gotowana",
+        "papryka czerwona gotowana"
+      ],
+      "variantLabel": "sweet, red, cooked, boiled, drained"
+    },
+    {
+      "fdcId": 168550,
+      "polishName": "Papryka czerwona podsmażona",
+      "aliases": [
+        "papryka podsmażona",
+        "papryka czerwona smażona"
+      ],
+      "variantLabel": "sweet, red, sauteed"
+    },
+    {
+      "fdcId": 170108,
+      "polishName": "Papryka czerwona surowa",
+      "aliases": [
+        "papryka",
+        "papryki",
+        "papryka czerwona",
+        "czerwona papryka",
+        "red pepper",
+        "sweet pepper",
+        "bell pepper",
+        "papryka slodka",
+        "papryka słodka"
+      ],
+      "variantLabel": "słodka, czerwona, surowa"
+    },
+    {
+      "fdcId": 168546,
+      "polishName": "Papryka czerwona z puszki",
+      "aliases": [
+        "papryka z puszki",
+        "papryka konserwowa"
+      ],
+      "variantLabel": "sweet, red, canned"
+    },
+    {
+      "fdcId": 171329,
+      "polishName": "Papryka mielona przyprawa",
+      "aliases": [
+        "papryka mielona",
+        "paprika spice",
+        "paprika"
+      ],
+      "variantLabel": "paprika spice"
+    },
+    {
+      "fdcId": 168570,
+      "polishName": "Papryka ostra suszona",
+      "aliases": [
+        "chili suszone",
+        "dried chili"
+      ],
+      "variantLabel": "hot chile, sun-dried"
+    },
+    {
+      "fdcId": 170428,
+      "polishName": "Papryka zielona gotowana",
+      "aliases": [
+        "papryka zielona gotowana"
+      ],
+      "variantLabel": "sweet, green, cooked, boiled, drained"
+    },
+    {
+      "fdcId": 170427,
+      "polishName": "Papryka zielona surowa",
+      "aliases": [
+        "papryka zielona",
+        "zielona papryka",
+        "green pepper",
+        "green bell pepper",
+        "papryka",
+        "papryki",
+        "sweet pepper",
+        "bell pepper"
+      ],
+      "variantLabel": "słodka, zielona, surowa"
+    },
+    {
+      "fdcId": 169383,
+      "polishName": "Papryka żółta surowa",
+      "aliases": [
+        "papryka żółta",
+        "żółta papryka",
+        "yellow pepper",
+        "papryka zolta",
+        "papryka",
+        "papryki",
+        "sweet pepper",
+        "bell pepper"
+      ],
+      "variantLabel": "słodka, żółta, surowa"
+    },
+    {
+      "fdcId": 325036,
+      "preferDataType": "Foundation",
+      "polishName": "Parmezan tarty",
+      "aliases": [
+        "parmezan",
+        "parmesan"
+      ],
+      "variantLabel": "grated",
+      "compositionMayVary": true
+    },
+    {
+      "fdcId": 170848,
+      "polishName": "Parmezan twardy",
+      "aliases": [
+        "parmezan hard"
+      ],
+      "variantLabel": "hard",
+      "compositionMayVary": true
+    },
+    {
+      "fdcId": 323121,
+      "polishName": "Parówka wołowa",
+      "aliases": [
+        "parówka",
+        "parowki",
+        "frankfurter hot dog"
+      ],
+      "variantLabel": "beef, unheated",
+      "compositionMayVary": true
+    },
+    {
+      "fdcId": 170204,
+      "polishName": "Pastrami wołowe",
+      "aliases": [
+        "pastrami"
+      ],
+      "variantLabel": "beef, cured",
+      "compositionMayVary": true
+    },
+    {
+      "fdcId": 2515380,
+      "preferDataType": "Foundation",
+      "polishName": "Pestki dyni surowe",
+      "aliases": [
+        "pestki dyni",
+        "dynia pestki",
+        "pumpkin seeds"
+      ],
+      "variantLabel": "pepitas, raw"
+    },
+    {
+      "fdcId": 170562,
+      "polishName": "Pestki słonecznika",
+      "aliases": [
+        "słonecznik",
+        "slonecznik",
+        "sunflower seeds"
+      ],
+      "variantLabel": "dried"
+    },
+    {
+      "fdcId": 169251,
+      "polishName": "Pieczarki białe surowe",
+      "aliases": [
+        "pieczarki",
+        "pieczarka",
+        "grzyby",
+        "mushroom",
+        "mushrooms"
+      ],
+      "variantLabel": "white, raw"
+    },
+    {
+      "fdcId": 170933,
+      "polishName": "Pieprz biały",
+      "aliases": [
+        "pieprz biały",
+        "white pepper"
+      ],
+      "variantLabel": "white"
+    },
+    {
+      "fdcId": 170931,
+      "polishName": "Pieprz czarny",
+      "aliases": [
+        "pieprz",
+        "black pepper"
+      ],
+      "variantLabel": "black"
+    },
+    {
+      "fdcId": 171477,
+      "polishName": "Pierś kurczaka bez skóry pieczona",
+      "aliases": [
+        "pierś kurczaka pieczona"
+      ],
+      "variantLabel": "pierś, tylko mięso, pieczona"
+    },
+    {
+      "fdcId": 171077,
+      "polishName": "Pierś kurczaka bez skóry surowa",
+      "aliases": [
+        "pierś kurczaka bez skóry",
+        "chicken breast skinless",
+        "pierś z kurczaka",
+        "piers z kurczaka",
+        "pierś kurczaka",
+        "chicken breast"
+      ],
+      "variantLabel": "breast, meat only, raw"
+    },
+    {
+      "fdcId": 171474,
+      "polishName": "Pierś kurczaka ze skórą surowa",
+      "aliases": [
+        "pierś kurczaka",
+        "kurczak pierś"
+      ],
+      "variantLabel": "pierś, mięso i skóra, surowa"
+    },
+    {
+      "fdcId": 170184,
+      "polishName": "Pistacje",
+      "aliases": [
+        "pistacje",
+        "pistachio"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 174648,
+      "polishName": "Płatki kukurydziane",
+      "aliases": [
+        "płatki kukurydziane",
+        "corn flakes"
+      ],
+      "variantLabel": "ready-to-eat corn flakes"
+    },
+    {
+      "fdcId": 2346396,
+      "preferDataType": "Foundation",
+      "polishName": "Płatki owsiane tradycyjne",
+      "aliases": [
+        "płatki owsiane",
+        "owies",
+        "oats",
+        "platki owsiane"
+      ],
+      "variantLabel": "rolled oats"
+    },
+    {
+      "fdcId": 168249,
+      "polishName": "Polędwiczka wieprzowa surowa",
+      "aliases": [
+        "polędwiczka",
+        "poledwiczka",
+        "pork tenderloin"
+      ],
+      "variantLabel": "tenderloin, lean only, raw"
+    },
+    {
+      "fdcId": 746771,
+      "preferDataType": "Foundation",
+      "polishName": "Pomarańcza Navel surowa",
+      "aliases": [
+        "pomarańcza",
+        "pomarańcze",
+        "orange"
+      ],
+      "variantLabel": "Navel, surowa"
+    },
+    {
+      "fdcId": 169097,
+      "polishName": "Pomarańcza surowa (odmiany handlowe)",
+      "aliases": [
+        "pomarańcza ogólna"
+      ],
+      "variantLabel": "all commercial varieties, raw"
+    },
+    {
+      "fdcId": 321360,
+      "polishName": "Pomidor koktajlowy surowy",
+      "aliases": [
+        "pomidorki cherry",
+        "grape tomato"
+      ],
+      "variantLabel": "grape, surowy"
+    },
+    {
+      "fdcId": 1999634,
+      "polishName": "Pomidor Roma surowy",
+      "aliases": [
+        "pomidor",
+        "pomidory",
+        "tomato"
+      ],
+      "variantLabel": "roma, raw",
+      "preferDataType": "Foundation"
+    },
+    {
+      "fdcId": 170051,
+      "polishName": "Pomidory czerwone z puszki",
+      "aliases": [
+        "pomidory z puszki",
+        "canned tomatoes"
+      ],
+      "variantLabel": "canned in tomato juice"
+    },
+    {
+      "fdcId": 170050,
+      "polishName": "Por surowy",
+      "aliases": [
+        "por",
+        "pory",
+        "leek"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 169702,
+      "polishName": "Proso surowe",
+      "aliases": [
+        "proso",
+        "millet",
+        "kasza jaglana"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 172804,
+      "polishName": "Proszek do pieczenia",
+      "aliases": [
+        "proszek do pieczenia",
+        "baking powder"
+      ],
+      "variantLabel": "double-acting"
+    },
+    {
+      "fdcId": 175122,
+      "polishName": "Pstrąg tęczowy surowy",
+      "aliases": [
+        "pstrąg",
+        "pstrag",
+        "trout"
+      ],
+      "variantLabel": "rainbow, farmed, raw"
+    },
+    {
+      "fdcId": 2512381,
+      "preferDataType": "Foundation",
+      "polishName": "Ryż biały długoziarnisty nieenrzyszony surowy",
+      "aliases": [
+        "ryż nieenrzyszony"
+      ],
+      "variantLabel": "long grain, unenriched, raw"
+    },
+    {
+      "fdcId": 169756,
+      "polishName": "Ryż biały długoziarnisty nieenrzyszony surowy (SR)",
+      "aliases": [
+        "ryż unenriched"
+      ],
+      "variantLabel": "long-grain, raw, unenriched"
+    },
+    {
+      "fdcId": 168877,
+      "polishName": "Ryż biały długoziarnisty surowy",
+      "aliases": [
+        "ryż",
+        "ryż biały",
+        "rice",
+        "ryz"
+      ],
+      "variantLabel": "long-grain, raw"
+    },
+    {
+      "fdcId": 168878,
+      "polishName": "Ryż biały długoziarnisty ugotowany",
+      "aliases": [
+        "ryż ugotowany",
+        "cooked rice"
+      ],
+      "variantLabel": "long-grain, cooked, enriched"
+    },
+    {
+      "fdcId": 169703,
+      "polishName": "Ryż brązowy surowy",
+      "aliases": [
+        "ryż brązowy",
+        "brown rice"
+      ],
+      "variantLabel": "long-grain, raw"
+    },
+    {
+      "fdcId": 168875,
+      "polishName": "Ryż brązowy średnioziarnisty ugotowany",
+      "aliases": [
+        "ryż brązowy ugotowany"
+      ],
+      "variantLabel": "medium-grain, cooked"
+    },
+    {
+      "fdcId": 169276,
+      "polishName": "Rzodkiewka surowa",
+      "aliases": [
+        "rzodkiewka",
+        "rzodkiewki",
+        "radish"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 174585,
+      "polishName": "Salami gotowane",
+      "aliases": [
+        "salami"
+      ],
+      "variantLabel": "beef and pork",
+      "compositionMayVary": true
+    },
+    {
+      "fdcId": 169248,
+      "polishName": "Sałata lodowa surowa",
+      "aliases": [
+        "rzodkiewka",
+        "rzodkiewki",
+        "radish",
+        "sałata lodowa",
+        "iceberg",
+        "sałata"
+      ],
+      "variantLabel": "iceberg, raw"
+    },
+    {
+      "fdcId": 2346388,
+      "preferDataType": "Foundation",
+      "polishName": "Sałata lodowa surowa",
+      "aliases": [
+        "sałata",
+        "iceberg"
+      ],
+      "variantLabel": "iceberg, surowa"
+    },
+    {
+      "fdcId": 169247,
+      "polishName": "Sałata rzymska surowa",
+      "aliases": [
+        "sałata rzymska",
+        "romaine"
+      ],
+      "variantLabel": "cos or romaine, raw"
+    },
+    {
+      "fdcId": 2346389,
+      "preferDataType": "Foundation",
+      "polishName": "Sałata rzymska zielona surowa",
+      "aliases": [
+        "sałata rzymska",
+        "romaine"
+      ],
+      "variantLabel": "romaine, zielona, surowa"
+    },
+    {
+      "fdcId": 169249,
+      "polishName": "Sałata zielona liściowa surowa",
+      "aliases": [
+        "sałata rzymska",
+        "romaine",
+        "sałata zielona",
+        "green leaf lettuce"
+      ],
+      "variantLabel": "green leaf, raw"
+    },
+    {
+      "fdcId": 167829,
+      "polishName": "Schab wieprzowy surowy",
+      "aliases": [
+        "schab",
+        "wieprzowina schab",
+        "pork loin",
+        "wieprzowina",
+        "pork"
+      ],
+      "variantLabel": "loin, raw"
+    },
+    {
+      "fdcId": 169967,
+      "polishName": "Seler naciowy surowy",
+      "aliases": [
+        "seler naciowy",
+        "seler",
+        "celery"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 172175,
+      "polishName": "Ser blue (pleśniowy)",
+      "aliases": [
+        "ser blue",
+        "blue cheese",
+        "pleśniowy"
+      ],
+      "variantLabel": "blue",
+      "compositionMayVary": true
     },
     {
       "fdcId": 328637,
@@ -436,16 +2219,61 @@
       "polishName": "Ser cheddar",
       "aliases": [
         "cheddar",
-        "ser żółty"
+        "ser żółty",
+        "ser zolty"
       ],
       "variantLabel": "cheddar",
+      "compositionMayVary": true
+    },
+    {
+      "fdcId": 170899,
+      "polishName": "Ser cheddar ostry",
+      "aliases": [
+        "cheddar ostry",
+        "ser żółty"
+      ],
+      "variantLabel": "sharp cheddar, sliced",
+      "compositionMayVary": true
+    },
+    {
+      "fdcId": 170854,
+      "polishName": "Ser cottage",
+      "aliases": [
+        "twaróg",
+        "twarog",
+        "cottage cheese",
+        "cottage"
+      ],
+      "variantLabel": "creamed",
+      "compositionMayVary": true
+    },
+    {
+      "fdcId": 173420,
+      "polishName": "Ser feta",
+      "aliases": [
+        "feta",
+        "ser feta"
+      ],
+      "variantLabel": "feta",
+      "compositionMayVary": true
+    },
+    {
+      "fdcId": 173417,
+      "polishName": "Ser gouda",
+      "aliases": [
+        "gouda",
+        "ser żółty",
+        "ser zolty"
+      ],
+      "variantLabel": "gouda",
       "compositionMayVary": true
     },
     {
       "fdcId": 170845,
       "polishName": "Ser mozzarella pełnotłusta",
       "aliases": [
-        "mozzarella"
+        "mozzarella",
+        "ser mozzarella"
       ],
       "variantLabel": "whole milk",
       "compositionMayVary": true
@@ -461,34 +2289,183 @@
       "compositionMayVary": true
     },
     {
+      "fdcId": 170850,
+      "polishName": "Ser provolone",
+      "aliases": [
+        "provolone"
+      ],
+      "variantLabel": "provolone",
+      "compositionMayVary": true
+    },
+    {
+      "fdcId": 170849,
+      "polishName": "Ser ricotta",
+      "aliases": [
+        "ricotta"
+      ],
+      "variantLabel": "whole milk",
+      "compositionMayVary": true
+    },
+    {
       "fdcId": 746767,
       "preferDataType": "Foundation",
-      "polishName": "Ser szwajcarski",
+      "polishName": "Ser swiss",
       "aliases": [
         "ser szwajcarski",
-        "swiss"
+        "swiss",
+        "swiss cheese"
       ],
       "variantLabel": "swiss",
       "compositionMayVary": true
     },
     {
-      "fdcId": 325036,
-      "preferDataType": "Foundation",
-      "polishName": "Parmezan tarty",
+      "fdcId": 171251,
+      "polishName": "Ser szwajcarski (SR)",
       "aliases": [
-        "parmezan",
-        "parmesan"
+        "swiss sr"
       ],
-      "variantLabel": "grated",
+      "variantLabel": "swiss",
       "compositionMayVary": true
     },
     {
-      "fdcId": 173420,
-      "polishName": "Ser feta",
+      "fdcId": 173418,
+      "polishName": "Serek śmietankowy",
       "aliases": [
-        "feta"
+        "serek śmietankowy",
+        "cream cheese"
       ],
-      "variantLabel": "feta",
+      "variantLabel": "cream cheese",
+      "compositionMayVary": true
+    },
+    {
+      "fdcId": 168436,
+      "polishName": "Shitake suszone",
+      "aliases": [
+        "shitake",
+        "shiitake"
+      ],
+      "variantLabel": "dried"
+    },
+    {
+      "fdcId": 172390,
+      "polishName": "Skrzydełko kurczaka ze skórą surowe",
+      "aliases": [
+        "skrzydełka",
+        "skrzydełko",
+        "chicken wing"
+      ],
+      "variantLabel": "wing, meat and skin, raw"
+    },
+    {
+      "fdcId": 2644283,
+      "preferDataType": "Foundation",
+      "polishName": "Soczewica sucha",
+      "aliases": [
+        "soczewica",
+        "lentils"
+      ],
+      "variantLabel": "dry"
+    },
+    {
+      "fdcId": 172420,
+      "polishName": "Soczewica sucha",
+      "aliases": [
+        "soczewica",
+        "lentils"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 174270,
+      "polishName": "Soja sucha",
+      "aliases": [
+        "soja",
+        "soybeans"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 173468,
+      "polishName": "Sól kuchenna",
+      "aliases": [
+        "sól",
+        "sol",
+        "salt"
+      ],
+      "variantLabel": "table"
+    },
+    {
+      "fdcId": 174186,
+      "polishName": "Sum kanałowy dziki surowy",
+      "aliases": [
+        "sum",
+        "catfish"
+      ],
+      "variantLabel": "channel, wild, raw"
+    },
+    {
+      "fdcId": 169994,
+      "polishName": "Szczypiorek surowy",
+      "aliases": [
+        "szczypiorek",
+        "chives"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 168389,
+      "polishName": "Szparagi surowe",
+      "aliases": [
+        "szparagi",
+        "szparag",
+        "asparagus"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 168463,
+      "polishName": "Szpinak gotowany",
+      "aliases": [
+        "szpinak gotowany"
+      ],
+      "variantLabel": "boiled, drained, without salt"
+    },
+    {
+      "fdcId": 168462,
+      "polishName": "Szpinak surowy",
+      "aliases": [
+        "szpinak",
+        "spinach"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 168092,
+      "polishName": "Szynka indycza plasterkowana ekstra chuda",
+      "aliases": [
+        "szynka z indyka"
+      ],
+      "variantLabel": "turkey ham, extra lean, deli",
+      "compositionMayVary": true
+    },
+    {
+      "fdcId": 173864,
+      "polishName": "Szynka plasterkowana",
+      "aliases": [
+        "szynka",
+        "ham"
+      ],
+      "variantLabel": "sliced",
+      "compositionMayVary": true
+    },
+    {
+      "fdcId": 746952,
+      "preferDataType": "Foundation",
+      "polishName": "Szynka plasterkowana (restauracyjna)",
+      "aliases": [
+        "szynka restaurant"
+      ],
+      "variantLabel": "sliced, restaurant",
       "compositionMayVary": true
     },
     {
@@ -512,264 +2489,120 @@
       "compositionMayVary": true
     },
     {
-      "fdcId": 171413,
-      "polishName": "Oliwa z oliwek do sałatek/gotowania",
+      "fdcId": 175179,
+      "polishName": "Śledź atlantycki surowy",
       "aliases": [
-        "oliwa",
-        "oliwa z oliwek",
-        "olive oil"
+        "śledź",
+        "sledz",
+        "herring"
       ],
-      "variantLabel": "salad or cooking"
+      "variantLabel": "Atlantic, raw"
     },
     {
-      "fdcId": 172336,
-      "polishName": "Olej rzepakowy",
+      "fdcId": 169910,
+      "polishName": "Śliwka surowa",
       "aliases": [
-        "olej rzepakowy",
-        "canola"
+        "śliwka",
+        "śliwki",
+        "sliwka",
+        "plum"
       ],
-      "variantLabel": "canola"
+      "variantLabel": "raw"
     },
     {
-      "fdcId": 171025,
-      "polishName": "Olej słonecznikowy (~65% kwasu linolowego)",
+      "fdcId": 170859,
+      "polishName": "Śmietana 36% (heavy cream)",
       "aliases": [
-        "olej słonecznikowy",
-        "sunflower oil"
+        "śmietana",
+        "smietana",
+        "cream",
+        "śmietana 36%"
       ],
-      "variantLabel": "sunflower, linoleic ~65%"
+      "variantLabel": "heavy whipping"
     },
     {
-      "fdcId": 2515376,
+      "fdcId": 2346386,
       "preferDataType": "Foundation",
-      "polishName": "Orzeszki ziemne surowe",
+      "polishName": "Śmietana kremówka",
       "aliases": [
-        "orzeszki ziemne",
-        "arachidowe",
-        "peanuts"
+        "śmietana",
+        "cream",
+        "heavy cream"
       ],
-      "variantLabel": "surowe"
+      "variantLabel": "heavy cream"
     },
     {
-      "fdcId": 170567,
-      "polishName": "Migdały",
-      "aliases": [
-        "migdał",
-        "migdały",
-        "almonds"
-      ],
-      "variantLabel": "nuts, almonds"
-    },
-    {
-      "fdcId": 170187,
-      "polishName": "Orzechy włoskie",
-      "aliases": [
-        "orzechy włoskie",
-        "walnuts"
-      ],
-      "variantLabel": "english walnuts"
-    },
-    {
-      "fdcId": 168877,
-      "polishName": "Ryż biały długoziarnisty surowy",
-      "aliases": [
-        "ryż",
-        "ryż biały",
-        "rice"
-      ],
-      "variantLabel": "long-grain, raw, enriched"
-    },
-    {
-      "fdcId": 168878,
-      "polishName": "Ryż biały długoziarnisty ugotowany",
-      "aliases": [
-        "ryż ugotowany",
-        "cooked rice"
-      ],
-      "variantLabel": "long-grain, cooked, enriched"
-    },
-    {
-      "fdcId": 2512381,
+      "fdcId": 2346387,
       "preferDataType": "Foundation",
-      "polishName": "Ryż biały długoziarnisty nieenrzyszony surowy",
+      "polishName": "Śmietana kwaśna pełnotłusta",
       "aliases": [
-        "ryż nieenrzyszony"
+        "śmietana kwaśna",
+        "sour cream",
+        "smietana kwasna"
       ],
-      "variantLabel": "long grain, unenriched, raw"
+      "variantLabel": "full fat"
     },
     {
-      "fdcId": 2346396,
+      "fdcId": 170857,
+      "polishName": "Śmietanka do kawy",
+      "aliases": [
+        "śmietanka",
+        "coffee cream"
+      ],
+      "variantLabel": "light cream"
+    },
+    {
+      "fdcId": 174272,
+      "polishName": "Tempeh",
+      "aliases": [
+        "tempeh"
+      ],
+      "variantLabel": "tempeh"
+    },
+    {
+      "fdcId": 172467,
+      "polishName": "Tempeh ugotowany",
+      "aliases": [
+        "tempeh ugotowany"
+      ],
+      "variantLabel": "cooked"
+    },
+    {
+      "fdcId": 175176,
+      "polishName": "Tilapia surowa",
+      "aliases": [
+        "tilapia"
+      ],
+      "variantLabel": "raw"
+    },
+    {
+      "fdcId": 172475,
+      "polishName": "Tofu twarde surowe",
+      "aliases": [
+        "tofu"
+      ],
+      "variantLabel": "firm, raw"
+    },
+    {
+      "fdcId": 2346409,
       "preferDataType": "Foundation",
-      "polishName": "Płatki owsiane tradycyjne",
+      "polishName": "Truskawka surowa",
       "aliases": [
-        "płatki owsiane",
-        "owies",
-        "oats"
+        "truskawka",
+        "truskawki",
+        "strawberry"
       ],
-      "variantLabel": "rolled, old fashioned"
+      "variantLabel": "raw"
     },
     {
-      "fdcId": 789890,
-      "preferDataType": "Foundation",
-      "polishName": "Mąka pszenna uniwersalna bielona",
+      "fdcId": 173706,
+      "polishName": "Tuńczyk błękitnopłetwy surowy",
       "aliases": [
-        "mąka",
-        "mąka pszenna",
-        "flour"
+        "tuńczyk",
+        "tuna",
+        "tunczyk"
       ],
-      "variantLabel": "all-purpose, enriched, bleached"
-    },
-    {
-      "fdcId": 168893,
-      "polishName": "Mąka pszenna pełnoziarnista",
-      "aliases": [
-        "mąka razowa",
-        "whole wheat flour"
-      ],
-      "variantLabel": "whole-grain"
-    },
-    {
-      "fdcId": 2644283,
-      "preferDataType": "Foundation",
-      "polishName": "Soczewica sucha",
-      "aliases": [
-        "soczewica",
-        "lentils"
-      ],
-      "variantLabel": "dry"
-    },
-    {
-      "fdcId": 169640,
-      "polishName": "Miód",
-      "aliases": [
-        "miód",
-        "honey"
-      ],
-      "variantLabel": "honey"
-    },
-    {
-      "fdcId": 169655,
-      "polishName": "Cukier biały granulowany",
-      "aliases": [
-        "cukier",
-        "sugar"
-      ],
-      "variantLabel": "granulated"
-    },
-    {
-      "fdcId": 168202,
-      "polishName": "Jabłko Golden Delicious surowe ze skórką",
-      "aliases": [
-        "golden delicious"
-      ],
-      "variantLabel": "Golden Delicious, surowe, ze skórką"
-    },
-    {
-      "fdcId": 167793,
-      "polishName": "Jabłko Fuji surowe ze skórką (SR)",
-      "aliases": [
-        "fuji"
-      ],
-      "variantLabel": "Fuji, surowe, ze skórką"
-    },
-    {
-      "fdcId": 169097,
-      "polishName": "Pomarańcza surowa (odmiany handlowe)",
-      "aliases": [
-        "pomarańcza ogólna"
-      ],
-      "variantLabel": "all commercial varieties, raw"
-    },
-    {
-      "fdcId": 170379,
-      "polishName": "Brokuł surowy (SR Legacy)",
-      "aliases": [
-        "brokuł sr"
-      ],
-      "variantLabel": "surowy"
-    },
-    {
-      "fdcId": 168409,
-      "polishName": "Ogórek ze skórką surowy (SR)",
-      "aliases": [
-        "ogórek sr"
-      ],
-      "variantLabel": "with peel, raw"
-    },
-    {
-      "fdcId": 169230,
-      "polishName": "Czosnek surowy (SR)",
-      "aliases": [
-        "czosnek sr"
-      ],
-      "variantLabel": "surowy"
-    },
-    {
-      "fdcId": 171267,
-      "polishName": "Mleko 2% (SR Legacy)",
-      "aliases": [
-        "mleko 2 sr"
-      ],
-      "variantLabel": "2% milkfat"
-    },
-    {
-      "fdcId": 170886,
-      "polishName": "Jogurt naturalny niskotłuszczowy",
-      "aliases": [
-        "jogurt low fat"
-      ],
-      "variantLabel": "plain, low fat"
-    },
-    {
-      "fdcId": 171251,
-      "polishName": "Ser szwajcarski (SR)",
-      "aliases": [
-        "swiss sr"
-      ],
-      "variantLabel": "swiss",
-      "compositionMayVary": true
-    },
-    {
-      "fdcId": 170848,
-      "polishName": "Parmezan twardy",
-      "aliases": [
-        "parmezan hard"
-      ],
-      "variantLabel": "hard",
-      "compositionMayVary": true
-    },
-    {
-      "fdcId": 169051,
-      "polishName": "Mozzarella odtłuszczona",
-      "aliases": [
-        "mozzarella nonfat"
-      ],
-      "variantLabel": "nonfat",
-      "compositionMayVary": true
-    },
-    {
-      "fdcId": 171795,
-      "polishName": "Wołowina mielona 90% pieczona (bochenek)",
-      "aliases": [
-        "mielone 90 pieczone"
-      ],
-      "variantLabel": "90% lean, loaf, baked"
-    },
-    {
-      "fdcId": 171798,
-      "polishName": "Wołowina mielona 80% smażona (kotlet)",
-      "aliases": [
-        "mielone 80 smażone"
-      ],
-      "variantLabel": "80% lean, patty, pan-broiled"
-    },
-    {
-      "fdcId": 171998,
-      "polishName": "Łosoś atlantycki dziki pieczony",
-      "aliases": [
-        "łosoś dziki pieczony"
-      ],
-      "variantLabel": "wild, cooked dry heat"
+      "variantLabel": "fresh, bluefin, raw"
     },
     {
       "fdcId": 173709,
@@ -781,81 +2614,194 @@
       "variantLabel": "light, canned in water, drained solids"
     },
     {
-      "fdcId": 171956,
-      "polishName": "Dorsz atlantycki pieczony",
+      "fdcId": 170938,
+      "polishName": "Tymianek suszony",
       "aliases": [
-        "dorsz pieczony"
+        "tymianek",
+        "thyme"
       ],
-      "variantLabel": "Atlantic, cooked dry heat"
+      "variantLabel": "dried"
     },
     {
-      "fdcId": 172430,
-      "polishName": "Orzeszki ziemne surowe (wszystkie typy)",
+      "fdcId": 171480,
+      "polishName": "Udko kurczaka bez skóry surowe",
       "aliases": [
-        "arachidowe sr"
+        "udko kurczaka",
+        "chicken thigh"
       ],
-      "variantLabel": "all types, raw"
+      "variantLabel": "udko, tylko mięso, surowe"
     },
     {
-      "fdcId": 168894,
-      "polishName": "Mąka pszenna uniwersalna bielona (SR)",
+      "fdcId": 167812,
+      "polishName": "Wieprzowina łopatka surowa",
       "aliases": [
-        "mąka biała"
+        "wieprzowina",
+        "łopatka",
+        "pork shoulder"
       ],
-      "variantLabel": "white, all-purpose, enriched, bleached"
+      "variantLabel": "shoulder blade, boneless, raw"
     },
     {
-      "fdcId": 169756,
-      "polishName": "Ryż biały długoziarnisty nieenrzyszony surowy (SR)",
+      "fdcId": 167762,
+      "polishName": "Winogrono surowe",
       "aliases": [
-        "ryż unenriched"
+        "winogrono",
+        "winogrona",
+        "grape",
+        "grapes"
       ],
-      "variantLabel": "long-grain, raw, unenriched"
+      "variantLabel": "raw"
     },
     {
-      "fdcId": 2346397,
+      "fdcId": 170840,
+      "polishName": "Wołowina antrykot surowy",
+      "aliases": [
+        "antrykot",
+        "ribeye",
+        "rib eye"
+      ],
+      "variantLabel": "rib eye, boneless, choice, raw"
+    },
+    {
+      "fdcId": 2514744,
       "preferDataType": "Foundation",
-      "polishName": "Owies cięty (steel cut)",
+      "polishName": "Wołowina mielona 80% chuda surowa",
       "aliases": [
-        "owies steel cut"
+        "mięso mielone 80",
+        "ground beef 80"
       ],
-      "variantLabel": "steel cut, whole grain"
+      "variantLabel": "80% chude / 20% tłuszczu, surowa"
     },
     {
-      "fdcId": 746952,
+      "fdcId": 174036,
+      "polishName": "Wołowina mielona 80% chuda surowa",
+      "aliases": [
+        "wołowina mielona 80%"
+      ],
+      "variantLabel": "80% lean / 20% fat, raw"
+    },
+    {
+      "fdcId": 171798,
+      "polishName": "Wołowina mielona 80% smażona (kotlet)",
+      "aliases": [
+        "mielone 80 smażone"
+      ],
+      "variantLabel": "80% lean, patty, pan-broiled"
+    },
+    {
+      "fdcId": 171796,
+      "polishName": "Wołowina mielona 85% chuda surowa",
+      "aliases": [
+        "wołowina mielona 85%",
+        "ground beef 85"
+      ],
+      "variantLabel": "85% lean / 15% fat, raw"
+    },
+    {
+      "fdcId": 2514743,
       "preferDataType": "Foundation",
-      "polishName": "Szynka plasterkowana (restauracyjna)",
+      "polishName": "Wołowina mielona 90% chuda surowa",
       "aliases": [
-        "szynka restaurant"
+        "mięso mielone wołowe",
+        "ground beef 90",
+        "wołowina",
+        "wolowina",
+        "mięso mielone",
+        "ground beef"
       ],
-      "variantLabel": "sliced, restaurant",
-      "compositionMayVary": true
+      "variantLabel": "90% lean, raw"
     },
     {
-      "fdcId": 168092,
-      "polishName": "Szynka indycza plasterkowana ekstra chuda",
+      "fdcId": 171795,
+      "polishName": "Wołowina mielona 90% pieczona (bochenek)",
       "aliases": [
-        "szynka z indyka"
+        "mielone 90 pieczone"
       ],
-      "variantLabel": "turkey ham, extra lean, deli",
-      "compositionMayVary": true
+      "variantLabel": "90% lean, loaf, baked"
     },
     {
-      "fdcId": 170857,
-      "polishName": "Śmietanka do kawy (light cream)",
+      "fdcId": 168726,
+      "polishName": "Wołowina rostbef (top sirloin) surowa",
       "aliases": [
-        "śmietanka",
-        "coffee cream"
+        "rostbef",
+        "sirloin",
+        "stek wołowy"
       ],
-      "variantLabel": "fluid, light"
+      "variantLabel": "top sirloin, lean and fat, raw"
     },
     {
-      "fdcId": 171265,
-      "polishName": "Mleko pełne 3,25% (SR)",
+      "fdcId": 168634,
+      "polishName": "Wołowina rostbef pieczona",
       "aliases": [
-        "mleko pełne sr"
+        "rostbef pieczony",
+        "sirloin pieczony"
       ],
-      "variantLabel": "3.25% milkfat with vitamin D"
+      "variantLabel": "top sirloin, lean only, broiled"
+    },
+    {
+      "fdcId": 170030,
+      "polishName": "Ziemniak pieczony ze skórką",
+      "aliases": [
+        "ziemniak pieczony",
+        "pieczony ziemniak"
+      ],
+      "variantLabel": "russet, flesh and skin, baked"
+    },
+    {
+      "fdcId": 170026,
+      "polishName": "Ziemniak surowy ze skórką",
+      "aliases": [
+        "ziemniak",
+        "ziemniaki",
+        "potato"
+      ],
+      "variantLabel": "flesh and skin, raw"
+    },
+    {
+      "fdcId": 168554,
+      "polishName": "Ziemniaki puree (przygotowane)",
+      "aliases": [
+        "puree ziemniaczane",
+        "mashed potatoes"
+      ],
+      "variantLabel": "mashed, prepared"
+    },
+    {
+      "fdcId": 167854,
+      "polishName": "Żeberka wieprzowe duszone",
+      "aliases": [
+        "żeberka duszone"
+      ],
+      "variantLabel": "spareribs, braised"
+    },
+    {
+      "fdcId": 167853,
+      "polishName": "Żeberka wieprzowe surowe",
+      "aliases": [
+        "żeberka",
+        "zeberka",
+        "spareribs"
+      ],
+      "variantLabel": "spareribs, lean and fat, raw"
+    },
+    {
+      "fdcId": 172184,
+      "polishName": "Żółtko jaja surowego",
+      "aliases": [
+        "żółtko",
+        "egg yolk"
+      ],
+      "variantLabel": "żółtko, świeże, surowe"
+    },
+    {
+      "fdcId": 171722,
+      "polishName": "Żurawina surowa",
+      "aliases": [
+        "żurawina",
+        "zurawina",
+        "cranberry"
+      ],
+      "variantLabel": "raw"
     }
   ]
 }

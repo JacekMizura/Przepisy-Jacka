@@ -1,0 +1,36 @@
+{
+  "formatVersion": "usda-catalog-v2",
+  "catalogVersion": "2026-08-usda-v2",
+  "entryCount": 291,
+  "importedAt": "2026-08-30",
+  "license": "USDA FoodData Central — public domain / CC0",
+  "entriesFile": "entries.json",
+  "entriesSha256": "d3d64bcbc013464dc75b06103f296391bbde1034ffd9594ae2d849a1f1c4f57a",
+  "entriesArraySha256": "8ad36bd3c62da77b1a6ff4b8d5b7992e8f944c400ce43e7195cbf498470ee718",
+  "sources": [
+    {
+      "dataType": "Foundation Foods",
+      "release": "2025-12-18",
+      "releaseDate": "2025-12-18",
+      "archiveFile": "FoodData_Central_foundation_food_json_2025-12-18.zip",
+      "archiveUrl": "https://fdc.nal.usda.gov/fdc-datasets/FoodData_Central_foundation_food_json_2025-12-18.zip",
+      "archiveSha256": "7ff2828e23ae9e7d5027ffa762117ffdfd0749f7851bcda82d7668f40eb14bbf",
+      "extractedJsonFile": "FoodData_Central_foundation_food_json_2025-12-18.json",
+      "extractedJsonSha256": "ed8b20fe378f815d4ec9add3f53d358c37212290340195dd20709efc2896ec39",
+      "downloadPageUrl": "https://fdc.nal.usda.gov/download-datasets/"
+    },
+    {
+      "dataType": "SR Legacy",
+      "release": "2018-04",
+      "releaseDate": "2018-04",
+      "archiveFile": "FoodData_Central_sr_legacy_food_json_2018-04.zip",
+      "archiveUrl": "https://fdc.nal.usda.gov/fdc-datasets/FoodData_Central_sr_legacy_food_json_2018-04.zip",
+      "archiveSha256": "0fe8ae486a2c8eb42cb96413f058deb51863a46c8fb8eeb4b1fb45006dd338ef",
+      "extractedJsonFile": "FoodData_Central_sr_legacy_food_json_2018-04.json",
+      "extractedJsonSha256": "70d4235ae3a2bdf48a7b9eaa1286a83fa67b6f3270436c9ce8b008213f500129",
+      "downloadPageUrl": "https://fdc.nal.usda.gov/download-datasets/"
+    }
+  ],
+  "missingFdcIds": [],
+  "incompleteFdcIds": []
+}

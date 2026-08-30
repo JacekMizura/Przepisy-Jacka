@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const API_ROOT = resolve(__dirname, '..');
 const TMP = join(API_ROOT, 'tmp-usda');
-const OUT_DIR = join(API_ROOT, 'data', 'usda-catalog', 'v1');
+const OUT_DIR = join(API_ROOT, 'data', 'usda-catalog', 'v2');
 
 const NUTRIENT = {
   energyKcal: 1008,

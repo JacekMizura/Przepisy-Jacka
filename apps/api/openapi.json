@@ -4054,6 +4054,18 @@
             "type": "string",
             "example": "18.000"
           },
+          "proteinGramsPer100g": {
+            "type": "string",
+            "example": "0.990"
+          },
+          "carbsGramsPer100g": {
+            "type": "string",
+            "example": "3.900"
+          },
+          "fatGramsPer100g": {
+            "type": "string",
+            "example": "0.300"
+          },
           "basisLabel": {
             "type": "string"
           },
@@ -4069,6 +4081,9 @@
           "descriptionOriginal",
           "compositionMayVary",
           "kcalPer100g",
+          "proteinGramsPer100g",
+          "carbsGramsPer100g",
+          "fatGramsPer100g",
           "basisLabel",
           "sourceDataset"
         ]

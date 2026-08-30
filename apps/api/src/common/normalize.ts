@@ -2,7 +2,7 @@ export function normalizeProductName(name: string): string {
   return name.trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
-/** Normalizacja do wyszukiwania PL (bez ogonków). */
+/** Normalizacja do wyszukiwania PL (bez ogonków, zbita spacja). */
 export function normalizeSearchText(name: string): string {
   return name
     .trim()

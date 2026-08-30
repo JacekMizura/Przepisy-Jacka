@@ -1180,6 +1180,12 @@ export interface components {
             compositionMayVary: boolean;
             /** @example 18.000 */
             kcalPer100g: string;
+            /** @example 0.990 */
+            proteinGramsPer100g: string;
+            /** @example 3.900 */
+            carbsGramsPer100g: string;
+            /** @example 0.300 */
+            fatGramsPer100g: string;
             basisLabel: string;
             sourceDataset: string;
         };

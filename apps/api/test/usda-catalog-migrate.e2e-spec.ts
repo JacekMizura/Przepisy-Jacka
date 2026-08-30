@@ -29,7 +29,9 @@ const ADMIN_URL =
   process.env.DATABASE_URL ??
   'postgresql://moja_kuchnia:moja_kuchnia_dev@127.0.0.1:5432/moja_kuchnia';
 const ID_NAMESPACE = 'moja-kuchnia:usda-catalog:v1';
-const SEED_MIGRATION = '20260829121000_usda_catalog_v1_seed';
+const SEED_MIGRATION_V1 = '20260829121000_usda_catalog_v1_seed';
+const SEED_MIGRATION_V2 = '20260830180000_usda_catalog_v2_upsert';
+const EXPECTED_V2_COUNT = 291;
 
 type CountRow = { c: number };
 
@@ -131,8 +133,8 @@ describe('USDA catalog via migrate deploy only (e2e)', () => {
       isolatedDb = false;
       await admin.query(`TRUNCATE TABLE "UsdaFoodCatalogEntry"`);
       await admin.query(
-        `DELETE FROM "_prisma_migrations" WHERE migration_name = $1`,
-        [SEED_MIGRATION],
+        `DELETE FROM "_prisma_migrations" WHERE migration_name = ANY($1::text[])`,
+        [[SEED_MIGRATION_V1, SEED_MIGRATION_V2]],
       );
     }
   });
@@ -153,9 +155,10 @@ describe('USDA catalog via migrate deploy only (e2e)', () => {
     }
   });
 
-  it('wypełnia 91 rekordów samym migrate deploy, bez sync-catalog i bez duplikatów', async () => {
+  it('wypełnia katalog v2 samym migrate deploy, bez sync-catalog i bez duplikatów', async () => {
     const first = migrateDeploy(dbUrl);
-    expect(first).toContain(SEED_MIGRATION);
+    expect(first).toContain(SEED_MIGRATION_V1);
+    expect(first).toContain(SEED_MIGRATION_V2);
 
     const client = new pg.Client({ connectionString: dbUrl });
     await client.connect();
@@ -163,7 +166,7 @@ describe('USDA catalog via migrate deploy only (e2e)', () => {
       const count = await client.query<CountRow>(
         `SELECT COUNT(*)::int AS c FROM "UsdaFoodCatalogEntry"`,
       );
-      expect(count.rows[0]?.c).toBe(91);
+      expect(count.rows[0]?.c).toBe(EXPECTED_V2_COUNT);
 
       const apple = await client.query<CatalogRow>(
         `SELECT id, "fdcId", "polishName", kcal, "proteinGrams", "fatGrams", "carbsGrams", "fiberGrams", "saltGrams", "sodiumMg", "energyField", "dataType"
@@ -182,6 +185,12 @@ describe('USDA catalog via migrate deploy only (e2e)', () => {
       expect(Number(appleRow.sodiumMg)).toBeCloseTo(1.01, 2);
       expect(Number(appleRow.saltGrams)).toBeCloseTo((1.01 * 2.5) / 1000, 3);
       expect(appleRow.energyField).toBe('2048_atwater_specific');
+
+      const peppers = await client.query<{ c: number }>(
+        `SELECT COUNT(*)::int AS c FROM "UsdaFoodCatalogEntry"
+         WHERE "polishNameNormalized" LIKE '%papryka%' OR aliases::text ILIKE '%papryka%'`,
+      );
+      expect(peppers.rows[0]?.c).toBeGreaterThanOrEqual(3);
 
       const granny = await client.query<CatalogRow>(
         `SELECT id, "fdcId", "polishName", kcal, "proteinGrams", "fatGrams", "carbsGrams", "fiberGrams", "saltGrams", "sodiumMg", "energyField", "dataType"
@@ -225,6 +234,18 @@ describe('USDA catalog via migrate deploy only (e2e)', () => {
     const appleItem = items.find((i) => i.fdcId === 1750340);
     expect(appleItem).toBeDefined();
 
+    const papryka = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchenId}/usda-foods?q=${encodeURIComponent('papryka')}`,
+      { cookies: user.cookies, webOrigin: WEB_ORIGIN },
+    );
+    expect(papryka.status).toBe(200);
+    const pepperItems = (
+      papryka.body as { items: Array<{ polishName: string; fdcId: number }> }
+    ).items;
+    expect(pepperItems.length).toBeGreaterThanOrEqual(3);
+    expect(pepperItems.some((i) => /czerwona/i.test(i.polishName))).toBe(true);
+
     const detail = await apiFetch(
       api.origin,
       `/api/kitchens/${kitchenId}/usda-foods/${appleItem!.id}`,
@@ -247,10 +268,14 @@ describe('USDA catalog via migrate deploy only (e2e)', () => {
           carbsGrams: string;
           fiberGrams: string | null;
           saltGrams: string | null;
+          baseQuantity: string;
+          baseUnit: string;
         };
       }
     ).suggested;
     expect(Number(suggested.kcal)).toBeCloseTo(58.2, 1);
+    expect(Number(suggested.baseQuantity)).toBe(100);
+    expect(suggested.baseUnit).toBe('gram');
 
     const product = await apiFetch(
       api.origin,
@@ -299,7 +324,7 @@ describe('USDA catalog via migrate deploy only (e2e)', () => {
       const count2 = await client2.query<CountRow>(
         `SELECT COUNT(*)::int AS c FROM "UsdaFoodCatalogEntry"`,
       );
-      expect(count2.rows[0]?.c).toBe(91);
+      expect(count2.rows[0]?.c).toBe(EXPECTED_V2_COUNT);
       const nutrition = await client2.query<NutritionRow>(
         `SELECT kcal, "proteinGrams", "sourceGenericFoodId", "sourceFdcId"
          FROM "ProductNutrition" WHERE "productId" = $1`,
@@ -315,15 +340,15 @@ describe('USDA catalog via migrate deploy only (e2e)', () => {
     }
 
     const entriesRaw = readFileSync(
-      resolve(__dirname, '../data/usda-catalog/v1/entries.json'),
+      resolve(__dirname, '../data/usda-catalog/v2/entries.json'),
     );
     const manifest = JSON.parse(
       readFileSync(
-        resolve(__dirname, '../data/usda-catalog/v1/manifest.json'),
+        resolve(__dirname, '../data/usda-catalog/v2/manifest.json'),
         'utf8',
       ),
     ) as { entriesSha256: string; entryCount: number };
-    expect(manifest.entryCount).toBe(91);
+    expect(manifest.entryCount).toBe(EXPECTED_V2_COUNT);
     expect(createHash('sha256').update(entriesRaw).digest('hex')).toBe(
       manifest.entriesSha256,
     );

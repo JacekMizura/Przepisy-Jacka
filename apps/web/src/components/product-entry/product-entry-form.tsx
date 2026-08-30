@@ -1641,6 +1641,7 @@ export function ProductEntryForm({
                   kitchenId={kitchenId}
                   productUnit={defaultUnit}
                   ean={ean}
+                  productName={name}
                   value={nutrition}
                   onChange={setNutrition}
                 />
@@ -2183,6 +2184,7 @@ export function ProductEntryForm({
             kitchenId={kitchenId}
             productUnit={defaultUnit}
             ean={ean}
+            productName={name}
             value={nutrition}
             onChange={setNutrition}
             defaultOpen={hadNutritionInitially}

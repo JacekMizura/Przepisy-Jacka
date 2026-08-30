@@ -43,8 +43,11 @@ function normalizeSearchText(name) {
     .replace(/\s+/g, ' ');
 }
 
-function buildSearchText(polishName, aliases) {
-  return [polishName, ...aliases].map(normalizeSearchText).join(' ');
+function buildSearchText(polishName, aliases, descriptionOriginal) {
+  return [polishName, ...aliases, descriptionOriginal ?? '']
+    .filter(Boolean)
+    .map(normalizeSearchText)
+    .join(' ');
 }
 
 function dec(value) {
@@ -58,7 +61,7 @@ async function main() {
     throw new Error('DATABASE_URL jest wymagane.');
   }
 
-  const catalogDir = join(__dirname, '../data/usda-catalog/v1');
+  const catalogDir = join(__dirname, '../data/usda-catalog/v2');
   const file = JSON.parse(readFileSync(join(catalogDir, 'entries.json'), 'utf8'));
   const importedAt = new Date(`${file.importedAt}T00:00:00.000Z`);
   const keepFdcIds = file.entries.map((e) => e.fdcId);
@@ -128,7 +131,7 @@ async function main() {
           entry.polishName,
           normalizeProductName(entry.polishName),
           JSON.stringify(aliases),
-          buildSearchText(entry.polishName, aliases),
+          buildSearchText(entry.polishName, aliases, entry.descriptionOriginal),
           entry.descriptionOriginal,
           entry.variantLabel,
           entry.dataType,

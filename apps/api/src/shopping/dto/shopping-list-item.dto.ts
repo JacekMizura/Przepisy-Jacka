@@ -230,4 +230,20 @@ export class ShoppingListItemDto {
       'Szacunek w groszach na podstawie ostatniej ceny zakupu produktu (skalowany do pozycji).',
   })
   estimatedPriceMinor!: number | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: '250.000',
+    description:
+      'Suma aktywnego zapasu produktu w defaultUnit (null gdy brak produktu lub zero).',
+  })
+  stockQuantity!: string | null;
+
+  @ApiPropertyOptional({
+    enum: ProductUnit,
+    nullable: true,
+    description: 'Jednostka stockQuantity (defaultUnit produktu).',
+  })
+  stockUnit!: ProductUnit | null;
 }

@@ -2044,6 +2044,10 @@ export interface components {
             purchaseOption?: components["schemas"]["PurchaseOptionSummaryDto"] | null;
             /** Szacunek w groszach na podstawie ostatniej ceny zakupu produktu. */
             estimatedPriceMinor?: number | null;
+            /** Suma aktywnego zapasu produktu w defaultUnit. */
+            stockQuantity?: string | null;
+            /** Jednostka stockQuantity (defaultUnit produktu). */
+            stockUnit?: "piece" | "gram" | "milliliter" | null;
         };
         CreateShoppingListItemDto: {
             productId?: string;

@@ -36,6 +36,7 @@ import {
   formatShoppingPurchaseLine,
   INPUT_UNIT_LABELS,
 } from "@/lib/shopping-labels";
+import { buildAddToShoppingListBody } from "@/lib/shopping-list-add";
 import { cn } from "@/lib/utils";
 
 type ShoppingListItem = components["schemas"]["ShoppingListItemDto"];
@@ -79,21 +80,50 @@ function AddProductModal({
     setFormError(null);
     const body: components["schemas"]["CreateShoppingListItemDto"] = {};
     if (addMode === "product") {
-      if (!productId) {
+      if (!productId || !selectedProduct) {
         setFormError("Wybierz produkt z katalogu.");
         return;
       }
-      body.productId = productId;
+      try {
+        Object.assign(
+          body,
+          buildAddToShoppingListBody(selectedProduct),
+        );
+      } catch (error) {
+        setFormError(
+          error instanceof Error
+            ? error.message
+            : "Nie udało się przygotować pozycji.",
+        );
+        return;
+      }
+      if (
+        selectedProduct.purchaseMode === "packaged" &&
+        plannedQuantity.trim()
+      ) {
+        const packages = Number(plannedQuantity.replace(",", "."));
+        if (!Number.isFinite(packages) || packages < 1) {
+          setFormError("Podaj liczbę opakowań (co najmniej 1).");
+          return;
+        }
+        body.packageCount = Math.round(packages);
+      } else if (
+        selectedProduct.purchaseMode !== "packaged" &&
+        plannedQuantity.trim()
+      ) {
+        body.plannedQuantity = plannedQuantity.trim();
+        body.plannedUnit = plannedUnit;
+      }
     } else {
       if (!customName.trim()) {
         setFormError("Podaj nazwę pozycji.");
         return;
       }
       body.customName = customName.trim();
-    }
-    if (plannedQuantity.trim()) {
-      body.plannedQuantity = plannedQuantity.trim();
-      body.plannedUnit = plannedUnit;
+      if (plannedQuantity.trim()) {
+        body.plannedQuantity = plannedQuantity.trim();
+        body.plannedUnit = plannedUnit;
+      }
     }
     if (note.trim()) {
       body.note = note.trim();
@@ -170,12 +200,12 @@ function AddProductModal({
                   Produkt
                 </label>
                 <div className="flex gap-2">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-[#f8fafc] text-slate-400">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-zinc-50 text-zinc-400">
                     {selectedProduct ? (
                       <ProductThumb
                         src={productImageUrls(selectedProduct).thumbnail}
                         alt={selectedProduct.name}
-                        className="!h-full !w-full rounded-none bg-transparent object-contain"
+                        className="!h-full !w-full rounded-none !bg-transparent object-contain p-1"
                         size="sm"
                       />
                     ) : (
@@ -391,7 +421,7 @@ function ShoppingRow({
       {item.status === "pending" ? (
         <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 border-zinc-300 transition-colors group-hover:border-zinc-500" />
       ) : isBought ? (
-        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 border-zinc-900 bg-zinc-900">
+        <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-2 border-emerald-600 bg-emerald-600">
           <Check size={14} className="text-white" strokeWidth={3} />
         </div>
       ) : (
@@ -402,14 +432,14 @@ function ShoppingRow({
 
       <div
         className={cn(
-          "shrink-0 overflow-hidden rounded-xl shadow-sm",
-          isBought ? "h-12 w-12 rounded-lg" : "h-14 w-14",
+          "flex shrink-0 items-center justify-center overflow-hidden bg-zinc-50",
+          isBought ? "h-12 w-12 rounded-lg" : "h-14 w-14 rounded-xl",
         )}
       >
         <ProductThumb
           src={thumb}
           alt={name}
-          className="!h-full !w-full rounded-none object-cover"
+          className="!h-full !w-full rounded-none !bg-transparent object-contain p-1"
           size="sm"
         />
       </div>
@@ -548,49 +578,38 @@ function SummaryPanel({
   return (
     <aside
       className={cn(
-        "w-full rounded-[32px] bg-zinc-950 p-8 text-white shadow-2xl lg:col-span-4",
+        "w-full rounded-3xl border border-zinc-200 bg-white p-8 shadow-sm lg:col-span-4",
         className,
       )}
     >
-      <div className="mb-8 flex items-center gap-3 text-zinc-400">
-        <Wallet size={24} aria-hidden />
+      <div className="mb-6 flex items-center gap-3 text-zinc-500">
+        <Wallet size={22} aria-hidden />
         <span className="text-xs font-bold tracking-widest uppercase">
-          Moduł Finansowy
+          Podsumowanie
         </span>
       </div>
 
+      <div className="mb-6 space-y-3 text-sm">
+        <div className="flex items-center justify-between border-b border-zinc-100 py-3">
+          <span className="font-medium text-zinc-500">Liczba pozycji</span>
+          <span className="text-lg font-bold text-zinc-900">{totalCount}</span>
+        </div>
+        <div className="flex items-center justify-between border-b border-zinc-100 py-3">
+          <span className="font-medium text-zinc-500">W koszyku</span>
+          <span className="text-lg font-bold text-emerald-700">{boughtCount}</span>
+        </div>
+      </div>
+
       <div className="mb-8">
-        <p className="mb-2 text-sm font-semibold text-zinc-400">
-          SZACOWANY CAŁKOWITY KOSZT
-        </p>
-        <p className="text-5xl font-black tracking-tighter sm:text-6xl">
-          — <span className="text-2xl font-bold text-zinc-500">zł</span>
-        </p>
-      </div>
-
-      <div className="mb-8 space-y-4">
-        <div className="flex items-center justify-between border-b border-zinc-800 py-4">
-          <span className="font-medium text-zinc-400">Liczba pozycji</span>
-          <span className="text-lg font-bold">{totalCount}</span>
-        </div>
-        <div className="flex items-center justify-between border-b border-zinc-800 py-4">
-          <span className="font-medium text-zinc-400">Aktualnie w koszyku</span>
-          <span className="text-lg font-bold text-emerald-400">
-            {boughtCount}
-          </span>
-        </div>
-      </div>
-
-      <div className="mb-10">
-        <div className="mb-3 flex items-end justify-between">
-          <span className="text-xs font-black tracking-widest text-zinc-400 uppercase">
+        <div className="mb-2 flex items-end justify-between">
+          <span className="text-xs font-bold tracking-widest text-zinc-400 uppercase">
             Postęp zakupów
           </span>
-          <span className="font-bold">{progress}%</span>
+          <span className="font-bold text-zinc-900">{progress}%</span>
         </div>
-        <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-800">
+        <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-100">
           <div
-            className="h-full rounded-full bg-emerald-400 transition-all duration-500"
+            className="h-full rounded-full bg-emerald-500 transition-all duration-500"
             style={{ width: `${progress}%` }}
           />
         </div>
@@ -601,13 +620,15 @@ function SummaryPanel({
         disabled={!canCheckout}
         onClick={onCheckout}
         className={cn(
-          "hidden w-full rounded-2xl py-5 text-lg font-black transition-all lg:block",
+          "hidden w-full rounded-2xl py-4 text-base font-bold transition-all lg:block",
           canCheckout
-            ? "bg-emerald-500 text-zinc-950 shadow-[0_0_40px_rgba(16,185,129,0.3)] hover:bg-emerald-400"
-            : "cursor-not-allowed bg-zinc-800 text-zinc-500",
+            ? "bg-emerald-600 text-white hover:bg-emerald-700"
+            : "cursor-not-allowed bg-zinc-100 text-zinc-400",
         )}
       >
-        {canCheckout ? `ZAKOŃCZ I ROZLICZ (${boughtCount})` : "CZEKAM NA ZAKUPY..."}
+        {canCheckout
+          ? `Rozlicz zakupy (${boughtCount})`
+          : "Czekam na zakupy…"}
       </button>
     </aside>
   );
@@ -814,13 +835,13 @@ export default function ShoppingListPage() {
               <p className="text-lg font-medium text-zinc-500">
                 {totalCount === 0
                   ? "Wspólna lista dla domowników"
-                  : "Koszty są szacowane na podstawie ostatniej ceny produktu."}
+                  : `${grouped.bought.length} kupione z ${totalCount}`}
               </p>
             </div>
             <button
               type="button"
               onClick={() => setAddOpen(true)}
-              className="flex items-center justify-center gap-2 rounded-xl bg-zinc-900 px-6 py-3.5 font-bold text-white shadow-sm transition-colors hover:bg-zinc-800"
+              className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3.5 font-bold text-white shadow-sm transition-colors hover:bg-emerald-700"
             >
               <Plus size={18} />
               Nowa pozycja
@@ -994,7 +1015,7 @@ export default function ShoppingListPage() {
             className="w-full rounded-2xl bg-emerald-500 py-3.5 text-sm font-black text-zinc-950 transition-colors hover:bg-emerald-400"
             onClick={() => setCheckoutOpen(true)}
           >
-            ZAKOŃCZ I ROZLICZ ({grouped.bought.length})
+            Rozlicz zakupy ({grouped.bought.length})
           </button>
         </div>
       ) : null}

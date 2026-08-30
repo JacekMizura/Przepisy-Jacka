@@ -10,15 +10,14 @@ function read(name: string): string {
   return readFileSync(join(__dirname, name), "utf8");
 }
 
-describe("stock revolution layout contracts", () => {
-  it("uses photo card grid matching reference breakpoints", () => {
+describe("stock polish layout contracts", () => {
+  it("uses compact card grid", () => {
     const tab = read("stock-tab.tsx");
     assert.match(tab, /data-testid="stock-cards-grid"/);
     assert.match(tab, /grid-cols-1/);
     assert.match(tab, /md:grid-cols-2/);
-    assert.match(tab, /lg:grid-cols-3/);
-    assert.match(tab, /xl:grid-cols-4/);
-    assert.match(tab, /gap-6/);
+    assert.match(tab, /xl:grid-cols-3/);
+    assert.match(tab, /gap-5/);
     assert.doesNotMatch(tab, /data-testid="stock-compact-list"/);
   });
 
@@ -35,13 +34,14 @@ describe("stock revolution layout contracts", () => {
     assert.match(card, /Warianty/);
   });
 
-  it("product card uses portal menu and consume action", () => {
+  it("product card uses contain image and category badge", () => {
     const card = read("inventory-card.tsx");
     assert.match(card, /ProductActionsMenu/);
+    assert.match(card, /ProductCategoryBadge/);
+    assert.match(card, /object-contain/);
     assert.match(card, />\s*Zużyj\s*</);
     assert.match(card, /Dodaj partię/);
     assert.match(card, /data-testid="stock-inventory-card"/);
-    assert.match(card, /h-48/);
   });
 
   it("actions menu uses portal", () => {
@@ -51,14 +51,16 @@ describe("stock revolution layout contracts", () => {
     assert.match(menu, /data-testid="product-actions-menu-portal"/);
   });
 
-  it("catalog uses table list layout", () => {
+  it("catalog uses table list with expandable groups", () => {
     const panel = readFileSync(
       join(__dirname, "../product-entry/product-catalog-panel.tsx"),
       "utf8",
     );
+    const catalog = read("catalog-card.tsx");
     assert.match(panel, /data-testid="catalog-cards-grid"/);
     assert.match(panel, /Produkt & Marka/);
-    assert.match(panel, /Kod EAN/);
-    assert.doesNotMatch(panel, /data-testid="catalog-compact-list"/);
+    assert.match(catalog, /setExpanded/);
+    assert.match(catalog, /ProductCategoryBadge/);
+    assert.match(catalog, /object-contain/);
   });
 });

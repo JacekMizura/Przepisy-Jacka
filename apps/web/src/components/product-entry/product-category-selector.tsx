@@ -76,12 +76,29 @@ export function ProductCategorySelector({
 export function ProductCategoryBadge({
   category,
   className,
+  variant = "text",
 }: {
   category: string | null | undefined;
   className?: string;
+  /** text = ikona + etykieta; pill = kolorowy badge jak w selektorze */
+  variant?: "text" | "pill";
 }) {
   const presentation = getProductCategoryPresentation(category);
   const Icon = presentation.icon;
+  if (variant === "pill") {
+    return (
+      <span
+        className={cn(
+          "inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[11px] font-bold",
+          presentation.selectedClassName,
+          className,
+        )}
+      >
+        <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        {presentation.label}
+      </span>
+    );
+  }
   return (
     <span
       className={cn(

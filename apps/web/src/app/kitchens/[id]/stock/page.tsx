@@ -46,6 +46,7 @@ import {
   parseStockListUrlState,
   type StockListUrlPatch,
 } from "@/lib/stock-url-state";
+import { buildAddToShoppingListBody } from "@/lib/shopping-list-add";
 import { cn } from "@/lib/utils";
 
 type ProductTarget = { id: string; name: string };
@@ -372,12 +373,17 @@ function StockPageInner() {
       productId: string;
       mergeQuantity?: boolean;
     }) => {
+      const product = productsQuery.data?.find((entry) => entry.id === productId);
+      if (!product) {
+        throw new Error("Nie znaleziono produktu w katalogu.");
+      }
+      const body = buildAddToShoppingListBody(product, { mergeQuantity });
       const client = createWebApiClient();
       const { data, error, response } = await client.POST(
         "/api/kitchens/{kitchenId}/shopping-list/items",
         {
           params: { path: { kitchenId } },
-          body: { productId, mergeQuantity },
+          body,
         },
       );
       if (response.status === 409) {
@@ -604,7 +610,7 @@ function StockPageInner() {
     view === "stock" ? (
       <Link
         href={purchaseHref}
-        className="flex w-full items-center justify-center gap-2 rounded-xl bg-zinc-900 px-6 py-3.5 font-bold text-white shadow-sm transition-colors hover:bg-zinc-800 md:w-auto"
+        className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3.5 font-bold text-white shadow-sm transition-colors hover:bg-emerald-700 md:w-auto"
       >
         <Plus size={18} />
         Szybki wpis

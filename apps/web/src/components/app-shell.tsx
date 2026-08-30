@@ -39,7 +39,7 @@ export function AppShell({
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-[#F4F4F5] text-sm text-zinc-500">
+        <div className="flex min-h-screen items-center justify-center bg-[#F9FAFB] text-sm text-gray-500">
           Ładowanie…
         </div>
       }
@@ -138,7 +138,7 @@ function AppShellInner({
 
   if (session.isPending) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F4F4F5] text-sm text-zinc-500">
+      <div className="flex min-h-screen items-center justify-center bg-[#F9FAFB] text-sm text-gray-500">
         Ładowanie sesji…
       </div>
     );
@@ -146,7 +146,7 @@ function AppShellInner({
 
   if (!session.data?.user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#F4F4F5] text-sm text-zinc-500">
+      <div className="flex min-h-screen items-center justify-center bg-[#F9FAFB] text-sm text-gray-500">
         Wymagane logowanie…
       </div>
     );
@@ -237,9 +237,9 @@ function AppShellInner({
   }
 
   return (
-    <div className="flex min-h-screen overflow-x-hidden bg-[#F4F4F5] font-sans antialiased selection:bg-zinc-900 selection:text-white">
+    <div className="flex min-h-screen overflow-x-hidden bg-[#F9FAFB] font-sans antialiased selection:bg-emerald-100 selection:text-emerald-900">
       <aside
-        className="app-shell-chrome fixed inset-y-0 left-0 z-30 hidden w-72 flex-col border-r border-zinc-800 bg-zinc-950 text-white md:flex"
+        className="app-shell-chrome fixed inset-y-0 left-0 z-30 hidden w-72 flex-col border-r border-gray-100 bg-white text-gray-900 md:flex"
         aria-label="Nawigacja"
       >
         <SidebarContent
@@ -262,11 +262,11 @@ function AppShellInner({
           <button
             type="button"
             aria-label="Zamknij menu"
-            className="app-shell-chrome fixed inset-0 z-40 bg-black/50 backdrop-blur-[2px] md:hidden"
+            className="app-shell-chrome fixed inset-0 z-40 bg-black/40 backdrop-blur-[2px] md:hidden"
             onClick={closeSidebar}
           />
           <aside
-            className="app-shell-chrome fixed inset-y-0 left-0 z-50 flex w-[min(18rem,100vw)] max-w-full flex-col border-r border-zinc-800 bg-zinc-950 text-white shadow-xl md:hidden"
+            className="app-shell-chrome fixed inset-y-0 left-0 z-50 flex w-[min(18rem,100vw)] max-w-full flex-col border-r border-gray-100 bg-white text-gray-900 shadow-xl md:hidden"
             aria-label="Menu mobilne"
           >
             <SidebarContent
@@ -290,17 +290,17 @@ function AppShellInner({
         <div className="app-shell-main-inner w-full px-4 py-4 md:px-8 md:py-8 lg:px-10 lg:py-10">
           <header className="app-shell-chrome mb-6 flex w-full items-center justify-between md:hidden">
             <div className="flex min-w-0 items-center gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-zinc-950 text-sm font-black text-white">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-sm font-black text-white">
                 M
               </div>
-              <span className="truncate text-lg font-black tracking-tight text-zinc-900">
+              <span className="truncate text-lg font-black tracking-tight text-gray-900">
                 Moja Kuchnia
               </span>
             </div>
             <button
               type="button"
               onClick={() => setSidebarOpen(true)}
-              className="-mr-1 rounded-lg p-2 text-zinc-600 hover:bg-zinc-200/60"
+              className="-mr-1 rounded-lg p-2 text-gray-600 hover:bg-gray-100"
               aria-label="Otwórz menu"
             >
               <Menu size={24} />
@@ -359,14 +359,14 @@ function SidebarContent({
             onClick={onNavigate}
             className="flex min-w-0 items-center gap-3"
           >
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-xl font-black text-zinc-950">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-xl font-black text-white">
               M
             </div>
             <div className="min-w-0">
-              <h1 className="truncate text-xl leading-none font-black tracking-tight">
+              <h1 className="truncate text-xl leading-none font-black tracking-tight text-gray-900">
                 Moja Kuchnia
               </h1>
-              <p className="mt-1 text-xs font-semibold text-zinc-500">
+              <p className="mt-1 text-xs font-semibold text-gray-400">
                 SYSTEM ZARZĄDZANIA
               </p>
             </div>
@@ -374,7 +374,7 @@ function SidebarContent({
           {showClose ? (
             <button
               type="button"
-              className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-900 hover:text-white"
+              className="rounded-lg p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700"
               onClick={onClose}
               aria-label="Zamknij menu"
             >
@@ -401,8 +401,8 @@ function SidebarContent({
                 className={cn(
                   "flex w-full items-center gap-4 rounded-xl px-4 py-3.5 text-sm font-semibold transition-all duration-200",
                   active
-                    ? "bg-white text-zinc-950 shadow-sm"
-                    : "text-zinc-400 hover:bg-zinc-900 hover:text-white",
+                    ? "bg-emerald-50 text-emerald-700"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
                   item.disabled && "opacity-60",
                 )}
               >
@@ -414,9 +414,9 @@ function SidebarContent({
         </nav>
       </div>
 
-      <div className="space-y-4 p-8">
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900 p-5">
-          <p className="mb-1 text-xs font-semibold text-zinc-400">
+      <div className="space-y-4 border-t border-gray-100 p-8">
+        <div className="rounded-2xl border border-gray-100 bg-gray-50 p-5">
+          <p className="mb-1 text-xs font-semibold text-gray-400">
             AKTYWNA LOKALIZACJA
           </p>
           <label className="sr-only" htmlFor="kitchen-switcher">
@@ -425,7 +425,7 @@ function SidebarContent({
           <div className="relative">
             <MapPin
               size={14}
-              className="pointer-events-none absolute top-1/2 left-0 -translate-y-1/2 text-emerald-400"
+              className="pointer-events-none absolute top-1/2 left-0 -translate-y-1/2 text-emerald-600"
               aria-hidden
             />
             <select
@@ -433,24 +433,18 @@ function SidebarContent({
               aria-label="Aktywna kuchnia"
               value={activeKitchenId}
               onChange={(event) => onKitchenChange(event.target.value)}
-              className="w-full cursor-pointer appearance-none bg-transparent py-0.5 pl-5 text-sm font-bold text-white focus:outline-none"
+              className="w-full cursor-pointer appearance-none bg-transparent py-0.5 pl-5 text-sm font-bold text-gray-900 focus:outline-none"
             >
-              <option value="" className="text-zinc-900">
-                Wybierz kuchnię
-              </option>
+              <option value="">Wybierz kuchnię</option>
               {kitchens.map((kitchen) => (
-                <option
-                  key={kitchen.id}
-                  value={kitchen.id}
-                  className="text-zinc-900"
-                >
+                <option key={kitchen.id} value={kitchen.id}>
                   {kitchen.name}
                 </option>
               ))}
             </select>
           </div>
           {!activeKitchenId ? (
-            <p className="mt-1 pl-5 text-sm font-bold text-white">
+            <p className="mt-1 pl-5 text-sm font-bold text-gray-900">
               {kitchenName}
             </p>
           ) : null}
@@ -460,7 +454,7 @@ function SidebarContent({
           <button
             type="submit"
             disabled={signingOut}
-            className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-zinc-400 transition-colors hover:bg-zinc-900 hover:text-white disabled:opacity-60"
+            className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-900 disabled:opacity-60"
           >
             <LogOut size={18} />
             {signingOut ? "Wylogowywanie…" : "Wyloguj"}

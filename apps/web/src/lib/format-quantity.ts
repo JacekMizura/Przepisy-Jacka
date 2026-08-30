@@ -62,6 +62,57 @@ export function formatQuantityWithUnit(
   return `${amount}\u00A0${label}`;
 }
 
+/**
+ * Prezentacja ilości w zapasach: 2400 g → 2,4 kg, 1500 ml → 1,5 l.
+ * Nie zmienia wartości API — wyłącznie UI.
+ */
+export function formatDisplayQuantityWithUnit(
+  quantity: string | number | null | undefined,
+  unit: string | null | undefined,
+): string {
+  if (unit === "to_taste") {
+    return UNIT_LABELS["to_taste"] ?? "do smaku";
+  }
+  if (quantity === null || quantity === undefined || quantity === "") {
+    return formatQuantityWithUnit(quantity, unit);
+  }
+  const numeric = typeof quantity === "number" ? quantity : Number(quantity);
+  if (!Number.isFinite(numeric)) {
+    return formatQuantityWithUnit(quantity, unit);
+  }
+
+  let displayValue = numeric;
+  let displayUnit = unit ?? "";
+
+  if (unit === "gram" && Math.abs(numeric) >= 1000) {
+    displayValue = numeric / 1000;
+    displayUnit = "kilogram";
+  } else if (unit === "milliliter" && Math.abs(numeric) >= 1000) {
+    displayValue = numeric / 1000;
+    displayUnit = "liter";
+  }
+
+  return formatQuantityWithUnit(displayValue, displayUnit);
+}
+
+/** Suma ilości w nagłówku rodzaju (prezentacja, np. 2,4 kg). */
+export function formatGroupTotalQuantity(
+  items: Array<{ totalQuantity: string; defaultUnit: string }>,
+): string {
+  const units = new Set(items.map((item) => item.defaultUnit));
+  if (units.size === 1) {
+    const sum = items
+      .reduce((acc, item) => acc + Number(item.totalQuantity), 0)
+      .toFixed(3);
+    return formatDisplayQuantityWithUnit(sum, items[0]!.defaultUnit);
+  }
+  return items
+    .map((item) =>
+      formatDisplayQuantityWithUnit(item.totalQuantity, item.defaultUnit),
+    )
+    .join(" · ");
+}
+
 /** Wartości odżywcze: bez zbędnych zer, kcal domyślnie bez części dziesiętnej. */
 export function formatNutritionNumber(
   value: string | number | null | undefined,

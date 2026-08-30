@@ -2,7 +2,6 @@
 
 import type { components } from "@moja-kuchnia/api-client";
 import { ChevronDown, Package } from "lucide-react";
-import Link from "next/link";
 
 import { ProductCategoryBadge } from "@/components/product-entry/product-category-selector";
 import {
@@ -11,7 +10,7 @@ import {
 } from "@/components/stock/product-actions-menu";
 import { Button } from "@/components/ui/button";
 import { LOCATION_LABELS } from "@/lib/errors";
-import { formatQuantityWithUnit } from "@/lib/format-quantity";
+import { formatDisplayQuantityWithUnit } from "@/lib/format-quantity";
 import { isDisplayableUrl, mediaDisplayUrl } from "@/lib/media-upload";
 import {
   formatBatchPricePresentation,
@@ -23,6 +22,7 @@ import { cn } from "@/lib/utils";
 type Product = components["schemas"]["ProductDto"];
 type StockSummary = components["schemas"]["StockProductSummaryDto"];
 type StockBatch = components["schemas"]["StockBatchDetailDto"];
+
 
 export function productImageUrls(product: Product | undefined): {
   thumbnail: string | null;
@@ -60,16 +60,6 @@ export function expiryHint(summary: StockSummary): string | null {
   return null;
 }
 
-export function pluralizeBatches(count: number): string {
-  if (count === 1) return "1 partia";
-  const mod10 = count % 10;
-  const mod100 = count % 100;
-  if (mod10 >= 2 && mod10 <= 4 && !(mod100 >= 12 && mod100 <= 14)) {
-    return `${count} partie`;
-  }
-  return `${count} partii`;
-}
-
 type StockProductRowProps = {
   kitchenId: string;
   summary: StockSummary;
@@ -82,6 +72,7 @@ type StockProductRowProps = {
   menuItems: ProductActionItem[];
   onWriteOffBatch: (batchId: string) => void;
   onDeleteBatch: (batch: { id: string; label: string }) => void;
+  /** Wariant wewnątrz karty rodzaju — bez własnej ramki karty. */
   nested?: boolean;
 };
 
@@ -102,84 +93,116 @@ export function StockProductRow({
   const images = productImageUrls(product);
   const meta = brandVariantLabel(product);
   const hint = expiryHint(summary);
+  const category = product?.category ?? summary.category;
 
   return (
-    <li
-      className={cn(
-        nested ? "border-t border-gray-50 px-3 py-3 sm:px-4" : "px-4 py-3",
-      )}
-    >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <li className={cn(nested ? "bg-white" : undefined)}>
+      <div
+        className={cn(
+          "grid grid-cols-[48px_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5 sm:gap-4 sm:px-4",
+          nested && "pl-4 sm:pl-5",
+          !nested && "min-h-[72px] py-3",
+          nested && "min-h-[72px]",
+        )}
+      >
+        <ProductThumb
+          thumbnail={images.thumbnail}
+          full={images.full}
+          alt={summary.productName}
+          size={nested ? "sm" : "md"}
+          onPreview={onPreviewImage}
+        />
         <button
           type="button"
-          className="flex min-w-0 flex-1 items-start gap-3 rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+          className="min-w-0 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
           aria-expanded={expanded}
           onClick={onToggleExpanded}
         >
-          <ProductThumb
-            thumbnail={images.thumbnail}
-            full={images.full}
-            alt={summary.productName}
-            onPreview={onPreviewImage}
-          />
-          <div className="min-w-0 flex-1 pt-0.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="font-medium text-gray-900">{summary.productName}</p>
-              {kindBadge ? (
-                <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800 ring-1 ring-emerald-100">
-                  {kindBadge}
-                </span>
-              ) : null}
-              {summary.isArchived ? (
-                <span className="text-xs font-medium text-amber-700">
-                  Zarchiwizowany
-                </span>
-              ) : null}
-            </div>
-            {(product?.category ?? summary.category) ? (
-              <ProductCategoryBadge
-                category={product?.category ?? summary.category}
-                className="mt-0.5 text-xs"
-              />
-            ) : null}
-            {meta ? (
-              <p className="truncate text-xs text-gray-500">{meta}</p>
-            ) : null}
-            <p className="mt-0.5 text-sm text-gray-600">
-              {formatProductStockHeadline({
-                totalQuantity: summary.totalQuantity,
-                defaultUnit: summary.defaultUnit,
-                batchCount: summary.batchCount,
-                batches: summary.batches,
-              })}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <p className="text-sm font-semibold leading-snug text-gray-900 sm:text-[15px]">
+              {summary.productName}
             </p>
-            {hint ? (
-              <p className="mt-0.5 text-xs text-amber-700">{hint}</p>
+            {kindBadge ? (
+              <span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-800 ring-1 ring-emerald-100">
+                {kindBadge}
+              </span>
+            ) : null}
+            {summary.isArchived ? (
+              <span className="text-[11px] font-medium text-amber-700">
+                Zarchiwizowany
+              </span>
             ) : null}
           </div>
-          <ChevronDown
-            size={18}
-            className={cn(
-              "mt-2 shrink-0 text-gray-400 transition-transform",
-              expanded && "rotate-180",
-            )}
-            aria-hidden
-          />
+          {meta || category ? (
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-gray-500">
+              {meta ? <span className="truncate">{meta}</span> : null}
+              {meta && category ? <span aria-hidden>·</span> : null}
+              {category ? (
+                <ProductCategoryBadge
+                  category={category}
+                  className="!mt-0 text-[11px] font-normal opacity-90"
+                />
+              ) : null}
+            </p>
+          ) : null}
+          <p className="mt-0.5 text-xs text-gray-600 sm:text-sm">
+            {formatProductStockHeadline({
+              totalQuantity: summary.totalQuantity,
+              defaultUnit: summary.defaultUnit,
+              batchCount: summary.batchCount,
+              batches: summary.batches,
+            })}
+          </p>
+          {hint ? (
+            <p className="mt-0.5 text-[11px] text-amber-700">{hint}</p>
+          ) : null}
         </button>
-        <div className="flex shrink-0 items-center gap-2 self-end sm:self-start">
-          <Button type="button" size="sm" variant="amber" onClick={onConsume}>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <Button
+            type="button"
+            size="sm"
+            variant="amber"
+            className="h-8 px-2.5 text-xs sm:text-sm"
+            onClick={(event) => {
+              event.stopPropagation();
+              onConsume();
+            }}
+          >
             Zużyj
           </Button>
-          <ProductActionsMenu
-            label={`Akcje: ${summary.productName}`}
-            items={menuItems}
-          />
+          <div onClick={(event) => event.stopPropagation()}>
+            <ProductActionsMenu
+              label={`Akcje: ${summary.productName}`}
+              items={menuItems}
+            />
+          </div>
+          <button
+            type="button"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+            aria-expanded={expanded}
+            aria-label={
+              expanded
+                ? `Zwiń partie: ${summary.productName}`
+                : `Rozwiń partie: ${summary.productName}`
+            }
+            onClick={(event) => {
+              event.stopPropagation();
+              onToggleExpanded();
+            }}
+          >
+            <ChevronDown
+              size={16}
+              className={cn("transition-transform", expanded && "rotate-180")}
+              aria-hidden
+            />
+          </button>
         </div>
       </div>
       {expanded ? (
         <StockBatchList
           kitchenId={kitchenId}
           summary={summary}
+          nested={nested}
           onWriteOffBatch={onWriteOffBatch}
           onDeleteBatch={onDeleteBatch}
         />
@@ -192,18 +215,28 @@ function ProductThumb({
   thumbnail,
   full,
   alt,
+  size,
   onPreview,
 }: {
   thumbnail: string | null;
   full: string | null;
   alt: string;
+  size: "sm" | "md";
   onPreview?: (src: string, alt: string) => void;
 }) {
+  const box =
+    size === "sm"
+      ? "h-11 w-11 rounded-lg"
+      : "h-12 w-12 rounded-xl";
+
   if (thumbnail && full && onPreview) {
     return (
       <button
         type="button"
-        className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-emerald-50 bg-emerald-50/40 transition-shadow hover:shadow-md"
+        className={cn(
+          "flex shrink-0 items-center justify-center overflow-hidden border border-gray-200 bg-gray-50 transition-shadow hover:shadow-md",
+          box,
+        )}
         onClick={(event) => {
           event.stopPropagation();
           onPreview(full, alt);
@@ -216,12 +249,17 @@ function ProductThumb({
     );
   }
   return (
-    <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-emerald-50 bg-emerald-50/40">
+    <div
+      className={cn(
+        "flex shrink-0 items-center justify-center overflow-hidden border border-gray-200 bg-gray-50",
+        box,
+      )}
+    >
       {thumbnail ? (
         // eslint-disable-next-line @next/next/no-img-element -- podpisane URL-e magazynu zdjęć
         <img src={thumbnail} alt="" className="h-full w-full object-contain" />
       ) : (
-        <Package size={18} className="text-emerald-300" />
+        <Package size={16} className="text-gray-300" />
       )}
     </div>
   );
@@ -230,16 +268,23 @@ function ProductThumb({
 function StockBatchList({
   kitchenId,
   summary,
+  nested,
   onWriteOffBatch,
   onDeleteBatch,
 }: {
   kitchenId: string;
   summary: StockSummary;
+  nested: boolean;
   onWriteOffBatch: (batchId: string) => void;
   onDeleteBatch: (batch: { id: string; label: string }) => void;
 }) {
   return (
-    <ul className="mt-3 space-y-2 border-t border-gray-50 pt-3">
+    <ul
+      className={cn(
+        "space-y-1.5 border-t border-gray-100 bg-gray-50/50 px-3 py-2 sm:px-4",
+        nested && "pl-4 sm:pl-5",
+      )}
+    >
       {summary.batches.map((batch) => (
         <StockBatchRow
           key={batch.id}
@@ -251,7 +296,7 @@ function StockBatchList({
           onDelete={() =>
             onDeleteBatch({
               id: batch.id,
-              label: `${summary.productName} (${formatQuantityWithUnit(
+              label: `${summary.productName} (${formatDisplayQuantityWithUnit(
                 batch.quantity,
                 summary.defaultUnit,
               )})`,
@@ -281,70 +326,80 @@ function StockBatchRow({
   const qty = formatBatchQuantityPresentation(batch, unit);
   const priceLine = formatBatchPricePresentation(batch);
 
+  const storePart = batch.storeName ? batch.storeName : "Ręczne dodanie";
+  const purchasePart = batch.purchasedAt
+    ? `zakup ${new Date(batch.purchasedAt).toLocaleDateString("pl-PL")}`
+    : null;
+  const line1Parts = [qty.primary, storePart, purchasePart].filter(Boolean);
+
+  const location = LOCATION_LABELS[batch.location];
+  const priceOrUnknown = priceLine
+    ? priceLine.charAt(0).toUpperCase() + priceLine.slice(1)
+    : "Cena nieznana";
+  const line2Parts = [priceOrUnknown, location];
+
+  const menuItems: ProductActionItem[] = [];
+  if (batch.purchaseId) {
+    menuItems.push({
+      id: "purchase",
+      label: "Zobacz zakup / paragon",
+      href: `/kitchens/${kitchenId}/purchases/${batch.purchaseId}`,
+    });
+  }
+  menuItems.push({
+    id: "writeoff",
+    label: "Odpisz",
+    onSelect: onWriteOff,
+  });
+  if (batch.canDelete) {
+    menuItems.push({
+      id: "delete",
+      label: "Usuń partię",
+      onSelect: onDelete,
+      destructive: true,
+    });
+  }
+
   return (
     <li
       className={cn(
-        "rounded-xl border p-3 text-sm",
-        batch.isExpired
-          ? "border-red-100 bg-red-50/40"
-          : "border-gray-100 bg-gray-50/60",
+        "rounded-md px-2.5 py-2 text-sm",
+        batch.isExpired ? "bg-red-50/70" : "bg-white/80",
       )}
     >
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0 space-y-1">
-          <p className="font-medium text-gray-900">
-            {qty.primary}
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1 space-y-0.5">
+          <p className="text-[13px] leading-snug text-gray-900">
+            <span className="font-medium">{line1Parts.join(" · ")}</span>
             {batch.isExpired ? (
-              <span className="ml-2 rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-800">
+              <span className="ml-1.5 rounded bg-red-100 px-1 py-0.5 text-[10px] font-semibold text-red-800">
                 Przeterminowane
               </span>
             ) : null}
           </p>
           {qty.secondary ? (
-            <p className="text-xs text-gray-500">{qty.secondary}</p>
+            <p className="text-[11px] leading-snug text-gray-500">
+              {qty.secondary}
+            </p>
           ) : null}
-          <p className="text-xs text-gray-500">
-            {batch.storeName ? batch.storeName : "Ręczne dodanie"}
-            {batch.purchasedAt
-              ? ` · zakup ${new Date(batch.purchasedAt).toLocaleDateString("pl-PL")}`
-              : ""}
+          <p className="text-[11px] leading-snug text-gray-500">
+            {line2Parts.join(" · ")}
             {batch.expiresAt
-              ? ` · ważne do ${new Date(batch.expiresAt).toLocaleDateString("pl-PL")}`
+              ? ` · Ważne do ${new Date(batch.expiresAt).toLocaleDateString("pl-PL")}`
               : ""}
           </p>
-          <p className="text-xs text-gray-500">
-            {LOCATION_LABELS[batch.location]}
-            {priceLine ? ` · ${priceLine}` : " · cena nieznana"}
-          </p>
-          {batch.purchaseId ? (
-            <Link
-              href={`/kitchens/${kitchenId}/purchases/${batch.purchaseId}`}
-              className="text-xs font-medium text-emerald-700 hover:underline"
-            >
-              Zobacz zakup / paragon
-            </Link>
-          ) : null}
           {batch.deleteBlockReason ? (
-            <p className="text-xs text-gray-500">{batch.deleteBlockReason}</p>
+            <p className="text-[11px] text-gray-500">{batch.deleteBlockReason}</p>
           ) : null}
         </div>
-        <div className="flex flex-wrap gap-2">
-          {!batch.canDelete || batch.isExpired ? (
-            <Button type="button" size="sm" variant="amber" onClick={onWriteOff}>
-              Odpisz
-            </Button>
-          ) : null}
-          {batch.canDelete ? (
-            <Button
-              type="button"
-              size="sm"
-              variant="destructive"
-              onClick={onDelete}
-              aria-label={`Usuń partię: ${productName}`}
-            >
-              Usuń partię
-            </Button>
-          ) : null}
+        <div
+          className="shrink-0"
+          onClick={(event) => event.stopPropagation()}
+        >
+          <ProductActionsMenu
+            label={`Akcje partii: ${productName}`}
+            items={menuItems}
+          />
         </div>
       </div>
     </li>

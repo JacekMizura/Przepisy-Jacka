@@ -1,7 +1,7 @@
 "use client";
 
 import type { components } from "@moja-kuchnia/api-client";
-import { ChevronDown, Package, ShoppingBasket } from "lucide-react";
+import { ChevronDown, ShoppingBasket } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
@@ -12,12 +12,15 @@ import {
   type UnitFilter,
 } from "@/components/stock/stock-filters";
 import {
+  formatGroupStockSubtitle,
+} from "@/lib/stock-group-presentation";
+import { formatGroupTotalQuantity } from "@/lib/format-quantity";
+import { StockGroupThumb } from "@/components/stock/stock-group-thumb";
+import {
   StockProductRow,
-  pluralizeBatches,
   productImageUrls,
 } from "@/components/stock/stock-product-row";
 import { newPurchaseHref } from "@/components/stock/stock-view";
-import { formatQuantityWithUnit } from "@/lib/format-quantity";
 import { PRODUCT_CATEGORY_OPTIONS } from "@/lib/product-media";
 import { cn } from "@/lib/utils";
 
@@ -185,184 +188,157 @@ export function StockTab({
         onLocationChange={onLocationFilterChange}
       />
 
-      <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-        {isPending ? (
-          <div className="p-8 text-center text-sm text-gray-500">
-            Ładowanie zapasów…
-          </div>
-        ) : null}
-        {isError ? (
-          <div className="p-8 text-center text-sm text-red-600" role="alert">
-            {errorMessage ?? "Nie udało się pobrać zapasów."}
-          </div>
-        ) : null}
-        {!isPending && !isError && listEntries.length === 0 ? (
-          <div className="px-4 py-8 text-center">
-            <p className="text-sm font-medium text-gray-900">
-              Brak produktów w zapasach
-            </p>
-            <p className="mt-1 text-sm text-gray-500">
-              Dodaj zakup, aby zobaczyć ilości i daty ważności.
-            </p>
-            <Link
-              href={newPurchaseHref(kitchenId)}
-              className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-medium text-white shadow-sm shadow-emerald-200 hover:bg-emerald-700"
-            >
-              <ShoppingBasket size={16} />
-              Dodaj zakup
-            </Link>
-          </div>
-        ) : null}
-        {listEntries.length > 0 ? (
-          <ul className="divide-y divide-gray-50">
-            {listEntries.map((entry) => {
-              if (entry.type === "product") {
-                return (
-                  <StockProductRow
-                    key={entry.key}
-                    kitchenId={kitchenId}
-                    summary={entry.summary}
-                    product={entry.product}
-                    kindBadge={entry.kindBadge}
-                    expanded={expandedStockIds.has(entry.summary.productId)}
-                    onToggleExpanded={() =>
-                      toggleStockExpanded(entry.summary.productId)
-                    }
-                    onConsume={() => onConsume(entry.summary)}
-                    onPreviewImage={onPreviewImage}
-                    menuItems={buildMenuItems({
-                      productId: entry.summary.productId,
-                      productName: entry.summary.productName,
-                      summary: entry.summary,
-                    })}
-                    onWriteOffBatch={(batchId) =>
-                      onConsume(entry.summary, {
-                        batchId,
-                        preferManual: true,
-                      })
-                    }
-                    onDeleteBatch={onDeleteBatch}
-                  />
-                );
-              }
-
-              const groupExpanded = expandedGroupIds.has(entry.groupId);
-              const units = new Set(
-                entry.items.map((item) => item.summary.defaultUnit),
-              );
-              const totalLabel =
-                units.size === 1
-                  ? formatQuantityWithUnit(
-                      entry.items
-                        .reduce(
-                          (sum, item) =>
-                            sum + Number(item.summary.totalQuantity),
-                          0,
-                        )
-                        .toFixed(3),
-                      entry.items[0]!.summary.defaultUnit,
-                    )
-                  : entry.items
-                      .map((item) =>
-                        formatQuantityWithUnit(
-                          item.summary.totalQuantity,
-                          item.summary.defaultUnit,
-                        ),
-                      )
-                      .join(" · ");
-              const batchTotal = entry.items.reduce(
-                (sum, item) => sum + item.summary.batchCount,
-                0,
-              );
-              const covers = entry.items
-                .map((item) => productImageUrls(item.product).thumbnail)
-                .filter(Boolean)
-                .slice(0, 3) as string[];
-
+      {isPending ? (
+        <div className="rounded-2xl border border-gray-100 bg-white p-8 text-center text-sm text-gray-500 shadow-sm">
+          Ładowanie zapasów…
+        </div>
+      ) : null}
+      {isError ? (
+        <div
+          className="rounded-2xl border border-gray-100 bg-white p-8 text-center text-sm text-red-600 shadow-sm"
+          role="alert"
+        >
+          {errorMessage ?? "Nie udało się pobrać zapasów."}
+        </div>
+      ) : null}
+      {!isPending && !isError && listEntries.length === 0 ? (
+        <div className="rounded-2xl border border-gray-100 bg-white px-4 py-8 text-center shadow-sm">
+          <p className="text-sm font-medium text-gray-900">
+            Brak produktów w zapasach
+          </p>
+          <p className="mt-1 text-sm text-gray-500">
+            Dodaj zakup, aby zobaczyć ilości i daty ważności.
+          </p>
+          <Link
+            href={newPurchaseHref(kitchenId)}
+            className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-medium text-white shadow-sm shadow-emerald-200 hover:bg-emerald-700"
+          >
+            <ShoppingBasket size={16} />
+            Dodaj zakup
+          </Link>
+        </div>
+      ) : null}
+      {listEntries.length > 0 ? (
+        <ul className="space-y-3">
+          {listEntries.map((entry) => {
+            if (entry.type === "product") {
               return (
-                <li key={entry.key}>
-                  <button
-                    type="button"
-                    className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-gray-50/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500"
-                    aria-expanded={groupExpanded}
-                    onClick={() => toggleGroupExpanded(entry.groupId)}
-                  >
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center">
-                      {covers.length > 0 ? (
-                        <div className="flex -space-x-2">
-                          {covers.map((src) => (
-                            // eslint-disable-next-line @next/next/no-img-element -- podpisane URL-e
-                            <img
-                              key={src}
-                              src={src}
-                              alt=""
-                              className="h-10 w-10 rounded-xl border-2 border-white object-contain bg-emerald-50/40"
-                            />
-                          ))}
-                        </div>
-                      ) : (
-                        <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-emerald-50 bg-emerald-50/40">
-                          <Package size={18} className="text-emerald-300" />
-                        </div>
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-gray-900">
-                        {entry.groupName}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        {entry.items.length} warianty · {totalLabel} ·{" "}
-                        {pluralizeBatches(batchTotal)}
-                      </p>
-                    </div>
-                    <ChevronDown
-                      size={18}
-                      className={cn(
-                        "mt-2 shrink-0 text-gray-400 transition-transform",
-                        groupExpanded && "rotate-180",
-                      )}
-                      aria-hidden
+                <li
+                  key={entry.key}
+                  className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm"
+                >
+                  <ul>
+                    <StockProductRow
+                      kitchenId={kitchenId}
+                      summary={entry.summary}
+                      product={entry.product}
+                      kindBadge={entry.kindBadge}
+                      expanded={expandedStockIds.has(entry.summary.productId)}
+                      onToggleExpanded={() =>
+                        toggleStockExpanded(entry.summary.productId)
+                      }
+                      onConsume={() => onConsume(entry.summary)}
+                      onPreviewImage={onPreviewImage}
+                      menuItems={buildMenuItems({
+                        productId: entry.summary.productId,
+                        productName: entry.summary.productName,
+                        summary: entry.summary,
+                      })}
+                      onWriteOffBatch={(batchId) =>
+                        onConsume(entry.summary, {
+                          batchId,
+                          preferManual: true,
+                        })
+                      }
+                      onDeleteBatch={onDeleteBatch}
                     />
-                  </button>
-                  {groupExpanded ? (
-                    <ul className="border-t border-gray-50 bg-gray-50/40">
-                      {entry.items.map((item) => (
-                        <StockProductRow
-                          key={item.summary.productId}
-                          kitchenId={kitchenId}
-                          summary={item.summary}
-                          product={item.product}
-                          nested
-                          expanded={expandedStockIds.has(
-                            item.summary.productId,
-                          )}
-                          onToggleExpanded={() =>
-                            toggleStockExpanded(item.summary.productId)
-                          }
-                          onConsume={() => onConsume(item.summary)}
-                          onPreviewImage={onPreviewImage}
-                          menuItems={buildMenuItems({
-                            productId: item.summary.productId,
-                            productName: item.summary.productName,
-                            summary: item.summary,
-                          })}
-                          onWriteOffBatch={(batchId) =>
-                            onConsume(item.summary, {
-                              batchId,
-                              preferManual: true,
-                            })
-                          }
-                          onDeleteBatch={onDeleteBatch}
-                        />
-                      ))}
-                    </ul>
-                  ) : null}
+                  </ul>
                 </li>
               );
-            })}
-          </ul>
-        ) : null}
-      </div>
+            }
+
+            const groupExpanded = expandedGroupIds.has(entry.groupId);
+            const totalLabel = formatGroupTotalQuantity(
+              entry.items.map((item) => item.summary),
+            );
+            const batchTotal = entry.items.reduce(
+              (sum, item) => sum + item.summary.batchCount,
+              0,
+            );
+            const covers = entry.items.map(
+              (item) => productImageUrls(item.product).thumbnail,
+            );
+            const subtitle = formatGroupStockSubtitle({
+              variantCount: entry.items.length,
+              batchCount: batchTotal,
+              totalLabel,
+            });
+
+            return (
+              <li
+                key={entry.key}
+                className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm"
+              >
+                <button
+                  type="button"
+                  className="grid w-full grid-cols-[52px_minmax(0,1fr)_auto] items-center gap-3 px-3 py-3 text-left hover:bg-gray-50/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500 sm:gap-4 sm:px-4"
+                  aria-expanded={groupExpanded}
+                  onClick={() => toggleGroupExpanded(entry.groupId)}
+                >
+                  <StockGroupThumb imageUrls={covers} />
+                  <div className="min-w-0">
+                    <p className="font-semibold text-gray-900">
+                      {entry.groupName}
+                    </p>
+                    <p className="text-sm leading-snug text-gray-600">
+                      {subtitle}
+                    </p>
+                  </div>
+                  <ChevronDown
+                    size={18}
+                    className={cn(
+                      "shrink-0 text-gray-400 transition-transform",
+                      groupExpanded && "rotate-180",
+                    )}
+                    aria-hidden
+                  />
+                </button>
+                {groupExpanded ? (
+                  <ul className="divide-y divide-gray-100 border-t border-gray-100">
+                    {entry.items.map((item) => (
+                      <StockProductRow
+                        key={item.summary.productId}
+                        kitchenId={kitchenId}
+                        summary={item.summary}
+                        product={item.product}
+                        nested
+                        expanded={expandedStockIds.has(item.summary.productId)}
+                        onToggleExpanded={() =>
+                          toggleStockExpanded(item.summary.productId)
+                        }
+                        onConsume={() => onConsume(item.summary)}
+                        onPreviewImage={onPreviewImage}
+                        menuItems={buildMenuItems({
+                          productId: item.summary.productId,
+                          productName: item.summary.productName,
+                          summary: item.summary,
+                        })}
+                        onWriteOffBatch={(batchId) =>
+                          onConsume(item.summary, {
+                            batchId,
+                            preferManual: true,
+                          })
+                        }
+                        onDeleteBatch={onDeleteBatch}
+                      />
+                    ))}
+                  </ul>
+                ) : null}
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
     </section>
   );
 }

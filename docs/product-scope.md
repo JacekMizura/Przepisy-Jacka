@@ -55,7 +55,7 @@ Partia zapasu (`StockItem`) ma:
 
 Cena nie zmienia znaczenia po częściowym zużyciu. Ilości w JSON są decimal stringami z maksymalnie 3 miejscami, np. `"500.000"`.
 
-Ten sam produkt z katalogu może mieć wiele partii (np. zakupy w różnych sklepach). W widoku zbiorczym zapasów grupujemy po `productId` — jedna pozycja na produkt z łączną ilością i rozwinięciem partii (sklep, data, termin ważności, cena jednostkowa, odnośnik do zakupu). Nie scalamy automatycznie produktów o podobnych nazwach.
+Ten sam produkt z katalogu może mieć wiele partii (np. zakupy w różnych sklepach). W widoku zbiorczym zapasów grupujemy po `productId` — jedna pozycja na produkt z łączną ilością i rozwinięciem partii (sklep, data, termin ważności, cena opakowania/razem, odnośnik do zakupu). Produkty przypisane do tego samego `ProductGroup` (rodzaju) są na liście zapasów prezentowane jako jedna karta rodzaju z zagnieżdżonymi wariantami (bez zmiany API). Ilości w UI mogą być skalowane prezentacyjnie (np. `2400 g` → `2,4 kg`). Nie scalamy automatycznie produktów o podobnych nazwach.
 
 Zmiana pozostałej ilości odbywa się wyłącznie przez akcję **„Zużyj”** / **„Odpisz”** (`StockConsumption` z `kind`: `consume` | `write_off`, opcjonalny `reason` wymagany przy odpisie, + linie pobrania z konkretnych partii). Edycja partii nie pozwala nadpisać `quantity` — tylko metadane (miejsce, daty, EAN, zdjęcie). Koszt zatwierdzonego zużycia liczymy narastająco z cen partii: `round(cena × zużytePo / początkowa) − round(cena × zużytePrzed / początkowa)` (grosze), dzięki czemu kolejne częściowe odpisy sumują się do ceny zakupu. Brak ceny w partii oznacza niekompletny koszt, nie zero. Szacunek kosztu przepisu z ostatnich zakupów pozostaje bez zmian.
 

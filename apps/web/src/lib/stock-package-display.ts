@@ -1,7 +1,7 @@
 import { UNIT_LABELS } from "./errors";
 import {
+  formatDisplayQuantityWithUnit,
   formatQuantityNumber,
-  formatQuantityWithUnit,
 } from "./format-quantity";
 
 function zlotyFromMinor(minor: number): string {
@@ -75,8 +75,11 @@ export function formatBatchQuantityPresentation(
   batch: BatchPackageSnapshot,
   defaultUnit: keyof typeof UNIT_LABELS,
 ): { primary: string; secondary: string | null } {
-  const remaining = formatQuantityWithUnit(batch.quantity, defaultUnit);
-  const initial = formatQuantityWithUnit(batch.initialQuantity, defaultUnit);
+  const remaining = formatDisplayQuantityWithUnit(batch.quantity, defaultUnit);
+  const initial = formatDisplayQuantityWithUnit(
+    batch.initialQuantity,
+    defaultUnit,
+  );
 
   if (hasPackageSnapshot(batch) && isBatchIntact(batch)) {
     const size = formatPackageSize(
@@ -140,7 +143,7 @@ export function formatProductStockHeadline(args: {
   batchCount: number;
   batches: BatchPackageSnapshot[];
 }): string {
-  const qty = formatQuantityWithUnit(args.totalQuantity, args.defaultUnit);
+  const qty = formatDisplayQuantityWithUnit(args.totalQuantity, args.defaultUnit);
   const batchesLabel =
     args.batchCount === 1 ? "1 partia" : `${args.batchCount} partie`;
 
@@ -168,7 +171,7 @@ export function formatEditStockSummary(args: {
   batchCount: number;
   batches: BatchPackageSnapshot[];
 }): string {
-  const qty = formatQuantityWithUnit(args.totalQuantity, args.defaultUnit);
+  const qty = formatDisplayQuantityWithUnit(args.totalQuantity, args.defaultUnit);
   const batchesLabel =
     args.batchCount === 1 ? "1 partia" : `${args.batchCount} partie`;
 

@@ -45,9 +45,12 @@ import { Label } from "@/components/ui/label";
 import { createWebApiClient } from "@/lib/api";
 import { LOCATION_LABELS, UNIT_LABELS, readApiError } from "@/lib/errors";
 import {
-  formatQuantityWithUnit,
   formatMoneyMinor,
+  formatQuantityWithUnit,
 } from "@/lib/format-quantity";
+import {
+  formatEditStockSummary,
+} from "@/lib/stock-package-display";
 import { deleteKitchenMedia, MEDIA_FILE_HINT } from "@/lib/media-upload";
 import {
   PACKAGE_UNIT_OPTIONS,
@@ -56,6 +59,11 @@ import {
   type PackageUnit,
 } from "@/lib/package-quantity";
 import {
+  packagePriceMinorFromInput,
+  parsePositivePackageCount,
+  totalPriceMinorFromPackages,
+} from "@/lib/package-price";
+import {
   PRODUCT_CATEGORY_OPTIONS,
   validateOptionalEan,
 } from "@/lib/product-media";
@@ -63,10 +71,12 @@ import {
   convertToBaseQuantity,
   inputUnitsFor,
   minorFromZloty,
+  zlotyFromMinor,
   type BaseUnit,
   type InputUnit,
 } from "@/lib/quantity-input";
 import { cn } from "@/lib/utils";
+import { StoreNameCombobox } from "@/components/store-name-combobox";
 
 const FIELD_CLASS =
   "w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm disabled:bg-gray-50 disabled:text-gray-500";
@@ -229,7 +239,19 @@ export function ProductEntryForm({
 
   const [quantity, setQuantity] = useState(initialQuantity);
   const [packageCount, setPackageCount] = useState("");
-  const [stockByPackages, setStockByPackages] = useState(false);
+  const [stockByPackages, setStockByPackages] = useState(() => {
+    const hasPackage =
+      Boolean(initialProduct?.packageQuantity) &&
+      Boolean(initialProduct?.packageUnit);
+    if (!hasPackage) {
+      return false;
+    }
+    return (
+      mode === "add-batch" ||
+      initialProduct?.purchaseMode === "packaged" ||
+      mode === "create"
+    );
+  });
   const [inputUnit, setInputUnit] = useState<InputUnit>(
     () =>
       inputUnitsFor(
@@ -562,17 +584,8 @@ export function ProductEntryForm({
       return { ok: true, stock: undefined };
     }
 
-    const purchasePriceMinor = price.trim() ? minorFromZloty(price) : null;
-    if (price.trim() && purchasePriceMinor === null) {
-      return {
-        ok: false,
-        message: "Podaj cenę w złotych, np. 5,99, albo zostaw puste.",
-      };
-    }
-
     const stockMeta = {
       location,
-      ...(purchasePriceMinor !== null ? { purchasePriceMinor } : {}),
       storeName: storeName.trim() || null,
       purchasedAt: purchasedAt
         ? new Date(purchasedAt).toISOString()
@@ -580,15 +593,22 @@ export function ProductEntryForm({
       expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
     } as Omit<
       NonNullable<CreateProductIntake["stock"]>,
-      "quantity" | "packageCount"
+      "quantity" | "packageCount" | "purchasePriceMinor"
     >;
 
     if (stockByPackages && packageConfigured) {
       if (!packageCount.trim()) {
         return { ok: false, message: "Podaj liczbę opakowań." };
       }
+      const countInt = parsePositivePackageCount(packageCount);
+      if (countInt === null) {
+        return {
+          ok: false,
+          message: "Podaj całkowitą liczbę opakowań (np. 2).",
+        };
+      }
       const converted = packageCountToBaseQuantity({
-        packageCount,
+        packageCount: String(countInt),
         packageQuantity,
         packageUnit: packageUnit as PackageUnit,
         defaultUnit: stockUnit,
@@ -596,12 +616,38 @@ export function ProductEntryForm({
       if (!converted.ok) {
         return { ok: false, message: converted.message };
       }
+
+      let purchasePriceMinor: number | undefined;
+      if (price.trim()) {
+        const perPackage = packagePriceMinorFromInput(price);
+        if (perPackage === null) {
+          return {
+            ok: false,
+            message: "Podaj cenę za opakowanie w złotych, np. 2,99, albo zostaw puste.",
+          };
+        }
+        const total = totalPriceMinorFromPackages(perPackage, countInt);
+        if (total === null) {
+          return { ok: false, message: "Nie udało się policzyć ceny łącznej." };
+        }
+        purchasePriceMinor = total;
+      }
+
       return {
         ok: true,
         stock: {
-          packageCount: packageCount.trim().replace(",", "."),
+          packageCount: String(countInt),
           ...stockMeta,
+          ...(purchasePriceMinor !== undefined ? { purchasePriceMinor } : {}),
         } as CreateProductIntake["stock"],
+      };
+    }
+
+    const purchasePriceMinor = price.trim() ? minorFromZloty(price) : null;
+    if (price.trim() && purchasePriceMinor === null) {
+      return {
+        ok: false,
+        message: "Podaj cenę w złotych, np. 5,99, albo zostaw puste.",
       };
     }
 
@@ -614,6 +660,7 @@ export function ProductEntryForm({
       stock: {
         quantity: converted.quantity,
         ...stockMeta,
+        ...(purchasePriceMinor !== null ? { purchasePriceMinor } : {}),
       } as CreateProductIntake["stock"],
     };
   }
@@ -1658,7 +1705,9 @@ export function ProductEntryForm({
                           htmlFor="entry-price"
                           className="mb-1 block text-sm font-medium text-gray-700"
                         >
-                          Cena (zł, opcjonalnie)
+                          {stockByPackages && packageConfigured
+                            ? "Cena za opakowanie (zł)"
+                            : "Cena łączna (zł, opcjonalnie)"}
                         </label>
                         <div className="relative">
                           <input
@@ -1676,10 +1725,21 @@ export function ProductEntryForm({
                             <span className="text-gray-500 sm:text-sm">zł</span>
                           </div>
                         </div>
-                        <p className="mt-1 flex items-center gap-1 text-xs text-gray-500">
-                          <AlertCircle className="h-3 w-3" /> Cena to łączna
-                          kwota za tę partię.
-                        </p>
+                        {stockByPackages && packageConfigured ? (
+                          <PackagePriceHints
+                            packageCount={packageCount}
+                            packageQuantity={packageQuantity}
+                            packageUnit={packageUnit}
+                            price={price}
+                            computedPackageStock={computedPackageStock}
+                            stockUnit={stockUnit}
+                          />
+                        ) : (
+                          <p className="mt-1 flex items-center gap-1 text-xs text-gray-500">
+                            <AlertCircle className="h-3 w-3" /> Cena to łączna
+                            kwota za tę partię.
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -1692,12 +1752,11 @@ export function ProductEntryForm({
                           <Store className="h-4 w-4 text-gray-400" /> Sklep
                           (opcjonalnie)
                         </label>
-                        <input
+                        <StoreNameCombobox
                           id="entry-store"
                           value={storeName}
-                          onChange={(event) => setStoreName(event.target.value)}
-                          placeholder="np. Lidl"
-                          className={FIELD_ORANGE_CLASS}
+                          onChange={setStoreName}
+                          inputClassName={FIELD_ORANGE_CLASS}
                         />
                       </div>
                       <div>
@@ -2041,7 +2100,13 @@ export function ProductEntryForm({
               </label>
               <select
                 id="product-entry-purchase-mode"
-                value={purchaseMode}
+                value={
+                  purchaseMode === "exact" || purchaseMode === "packaged"
+                    ? purchaseMode
+                    : packageConfigured
+                      ? "packaged"
+                      : "exact"
+                }
                 onChange={(event) =>
                   setPurchaseMode(
                     event.target.value as UpdateProduct["purchaseMode"],
@@ -2049,9 +2114,8 @@ export function ProductEntryForm({
                 }
                 className={cn(FIELD_CLASS, "bg-white")}
               >
-                <option value="unconfigured">Nieustawiony</option>
-                <option value="packaged">Opakowania</option>
-                <option value="exact">Dokładna ilość</option>
+                <option value="packaged">W opakowaniach</option>
+                <option value="exact">Na dokładną ilość / luzem</option>
               </select>
             </div>
           </div>
@@ -2078,13 +2142,21 @@ export function ProductEntryForm({
         ) : productStock ? (
           <div className="rounded-xl border border-gray-100 bg-gray-50/70 px-4 py-3 text-sm">
             <p className="font-medium text-gray-900">
-              {formatQuantityWithUnit(
-                productStock.totalQuantity,
-                productStock.defaultUnit,
-              )}{" "}
-              · {productStock.batchCount}{" "}
-              {productStock.batchCount === 1 ? "partia" : "partie"}
+              {formatEditStockSummary({
+                totalQuantity: productStock.totalQuantity,
+                defaultUnit: productStock.defaultUnit,
+                batchCount: productStock.batchCount,
+                batches: productStock.batches,
+              })}
             </p>
+            {packageConfigured ? (
+              <p className="mt-1 text-xs text-gray-600">
+                Wielkość produktu: {packageQuantity.trim()}{" "}
+                {PACKAGE_UNIT_OPTIONS.find((o) => o.value === packageUnit)
+                  ?.label ?? packageUnit}{" "}
+                w opakowaniu
+              </p>
+            ) : null}
             {productStock.nearestExpiry ? (
               <p className="mt-1 text-xs text-amber-700">
                 Najbliższa ważność:{" "}
@@ -2109,6 +2181,8 @@ export function ProductEntryForm({
             productId={resolvedProduct.id}
             defaultUnit={resolvedProduct.defaultUnit as BaseUnit}
             purchaseMode={resolvedProduct.purchaseMode}
+            packageQuantity={resolvedProduct.packageQuantity}
+            packageUnit={resolvedProduct.packageUnit}
           />
         ) : null}
       </section>
@@ -2266,10 +2340,10 @@ function PurchaseCard({
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {stockByPackages && packageConfigured ? (
           <div>
-            <Label htmlFor="entry-package-count">Opakowania</Label>
+            <Label htmlFor="entry-package-count">Liczba opakowań</Label>
             <Input
               id="entry-package-count"
-              inputMode="decimal"
+              inputMode="numeric"
               value={packageCount}
               onChange={(event) => setPackageCount(event.target.value)}
               placeholder="np. 2"
@@ -2277,16 +2351,13 @@ function PurchaseCard({
             />
             {computedPackageStock?.ok ? (
               <p className="mt-1 text-xs text-emerald-700">
-                Razem:{" "}
-                {formatQuantityWithUnit(
-                  computedPackageStock.quantity,
+                {formatPackagePurchaseSummary({
+                  packageCount,
+                  packageQuantity,
+                  packageUnit,
+                  totalQuantity: computedPackageStock.quantity,
                   stockUnit,
-                )}{" "}
-                ({packageCount || "?"} × {packageQuantity}{" "}
-                {PACKAGE_UNIT_OPTIONS.find(
-                  (option) => option.value === packageUnit,
-                )?.label ?? packageUnit}
-                )
+                })}
               </p>
             ) : computedPackageStock && !computedPackageStock.ok ? (
               <p className="mt-1 text-xs text-red-600">
@@ -2330,7 +2401,11 @@ function PurchaseCard({
         )}
 
         <div>
-          <Label htmlFor="entry-price">Cena łączna (zł)</Label>
+          <Label htmlFor="entry-price">
+            {stockByPackages && packageConfigured
+              ? "Cena za opakowanie (zł)"
+              : "Cena łączna (zł)"}
+          </Label>
           <div className="relative">
             <Input
               id="entry-price"
@@ -2344,7 +2419,17 @@ function PurchaseCard({
               zł
             </span>
           </div>
-          {price.trim() && minorFromZloty(price) != null ? (
+          {stockByPackages && packageConfigured ? (
+            <PackagePriceHints
+              packageCount={packageCount}
+              packageQuantity={packageQuantity}
+              packageUnit={packageUnit}
+              price={price}
+              computedPackageStock={computedPackageStock}
+              stockUnit={stockUnit}
+              hideQuantity
+            />
+          ) : price.trim() && minorFromZloty(price) != null ? (
             <p className="mt-1 text-xs text-gray-400">
               {formatMoneyMinor(minorFromZloty(price))}
             </p>
@@ -2353,11 +2438,11 @@ function PurchaseCard({
 
         <div>
           <Label htmlFor="entry-store">Sklep</Label>
-          <Input
+          <StoreNameCombobox
             id="entry-store"
             value={storeName}
-            onChange={(event) => setStoreName(event.target.value)}
-            placeholder="np. Lidl"
+            onChange={setStoreName}
+            inputClassName="field-input"
           />
         </div>
 
@@ -2406,6 +2491,79 @@ function PurchaseCard({
         </div>
       </div>
     </section>
+  );
+}
+
+function formatPackagePurchaseSummary(args: {
+  packageCount: string;
+  packageQuantity: string;
+  packageUnit: PackageUnit | "";
+  totalQuantity: string;
+  stockUnit: BaseUnit;
+}): string {
+  const count = parsePositivePackageCount(args.packageCount);
+  const unitLabel =
+    PACKAGE_UNIT_OPTIONS.find((option) => option.value === args.packageUnit)
+      ?.label ?? args.packageUnit;
+  const size = `${args.packageQuantity}\u00A0${unitLabel}`;
+  const total = formatQuantityWithUnit(args.totalQuantity, args.stockUnit);
+  if (count == null) {
+    return `? opakowań × ${size} = ${total}`;
+  }
+  return `${count} opakowania × ${size} = ${total}`.replace(
+    /^1 opakowania/,
+    "1 opakowanie",
+  );
+}
+
+function PackagePriceHints({
+  packageCount,
+  packageQuantity,
+  packageUnit,
+  price,
+  computedPackageStock,
+  stockUnit,
+  hideQuantity = false,
+}: {
+  packageCount: string;
+  packageQuantity: string;
+  packageUnit: PackageUnit | "";
+  price: string;
+  computedPackageStock:
+    | { ok: true; quantity: string }
+    | { ok: false; message: string }
+    | null;
+  stockUnit: BaseUnit;
+  hideQuantity?: boolean;
+}) {
+  const count = parsePositivePackageCount(packageCount);
+  const perPackage = price.trim() ? packagePriceMinorFromInput(price) : null;
+  const total =
+    count != null && perPackage != null
+      ? totalPriceMinorFromPackages(perPackage, count)
+      : null;
+
+  return (
+    <div className="mt-1 space-y-0.5 text-xs text-emerald-700">
+      {!hideQuantity && computedPackageStock?.ok ? (
+        <p>
+          {formatPackagePurchaseSummary({
+            packageCount,
+            packageQuantity,
+            packageUnit,
+            totalQuantity: computedPackageStock.quantity,
+            stockUnit,
+          })}
+        </p>
+      ) : null}
+      {total != null && count != null && perPackage != null ? (
+        <p>
+          {count} × {zlotyFromMinor(perPackage)} zł = {zlotyFromMinor(total)} zł
+        </p>
+      ) : price.trim() && perPackage == null ? (
+        <p className="text-red-600">Podaj cenę jak 2,99 albo 2.99</p>
+      ) : null}
+    </div>
   );
 }
 

@@ -25,15 +25,15 @@ export function packageCountToBaseQuantity(params: {
 }):
   | { ok: true; quantity: string }
   | { ok: false; message: string } {
-  const countRaw = params.packageCount.trim().replace(",", ".");
-  if (!/^(?:0|[1-9]\d*)(?:\.\d{1,3})?$/.test(countRaw)) {
+  const countRaw = params.packageCount.trim();
+  if (!/^[1-9]\d*$/.test(countRaw)) {
     return {
       ok: false,
-      message: "Podaj liczbę opakowań (max. 3 miejsca po przecinku).",
+      message: "Podaj całkowitą liczbę opakowań (np. 2).",
     };
   }
-  const count = Number(countRaw);
-  if (!Number.isFinite(count) || count <= 0) {
+  const count = Number.parseInt(countRaw, 10);
+  if (!Number.isSafeInteger(count) || count < 1) {
     return { ok: false, message: "Liczba opakowań musi być większa od zera." };
   }
 
@@ -44,15 +44,19 @@ export function packageCountToBaseQuantity(params: {
       message: "Podaj ilość w opakowaniu (max. 3 miejsca po przecinku).",
     };
   }
-  const packageQuantity = Number(qtyRaw);
-  if (!Number.isFinite(packageQuantity) || packageQuantity <= 0) {
+  const [wholePart, frac = ""] = qtyRaw.split(".");
+  const whole = wholePart ?? "0";
+  const fracPadded = `${frac}000`.slice(0, 3);
+  const thousandths =
+    Number.parseInt(whole, 10) * 1000 + Number.parseInt(fracPadded, 10);
+  if (!Number.isSafeInteger(thousandths) || thousandths <= 0) {
     return {
       ok: false,
       message: "Ilość w opakowaniu musi być większa od zera.",
     };
   }
-
-  const content = count * packageQuantity;
+  const contentThousandths = thousandths * count;
+  const content = contentThousandths / 1000;
   const converted = convertPackageContentToBase(
     content,
     params.packageUnit,

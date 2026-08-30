@@ -80,6 +80,7 @@ Produkt może mieć opcjonalnie:
 - `image` — zdjęcie z magazynu zdjęć (patrz „Zdjęcia”), ma pierwszeństwo nad `imageUrl`,
 - `nutrition` — wartości odżywcze na wybraną ilość odniesienia,
 - `category` — etykieta kategorii do filtrowania i grupowania w stanie magazynowym (na webie: wybór kafelkami z ikoną; prezentacja ikona+kolor tylko w UI, nie w bazie),
+- przy zakupie w opakowaniach partia (`StockItem`) może mieć snapshot `packageCount` + `packageQuantitySnapshot` + `packageUnitSnapshot` (null dla zakupu luzem i starych partii).
 
 ### Wartości odżywcze produktu
 

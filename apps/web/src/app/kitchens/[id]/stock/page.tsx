@@ -534,7 +534,7 @@ function StockPageInner() {
     <AppShell kitchenId={kitchenId}>
       <div className="mx-auto max-w-5xl space-y-4">
         <header className="space-y-3">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div className="min-w-0">
               <h1 className="text-2xl font-bold tracking-tight text-gray-900">
                 Moje zapasy
@@ -543,7 +543,9 @@ function StockPageInner() {
                 Stan w domu, katalog produktów i historia zużyć.
               </p>
             </div>
-            {headerCta}
+            <div className="flex h-10 shrink-0 items-center justify-end">
+              {headerCta}
+            </div>
           </div>
           <StockViewTabs kitchenId={kitchenId} active={view} />
         </header>

@@ -13,7 +13,10 @@ import {
   ValidateIf,
 } from 'class-validator';
 
-import { StorageLocation } from '../../generated/prisma/client';
+import {
+  StorageLocation,
+  PackageContentUnit,
+} from '../../generated/prisma/client';
 import {
   EAN_PATTERN,
   IMAGE_URL_PATTERN,
@@ -176,6 +179,26 @@ export class StockItemDto {
 
   @ApiProperty({ type: String, nullable: true })
   storeName!: string | null;
+
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    description: 'Snapshot liczby opakowań przy zakupie; null = luzem / stare.',
+  })
+  packageCount!: number | null;
+
+  @ApiPropertyOptional({
+    type: String,
+    nullable: true,
+    example: '125.000',
+  })
+  packageQuantitySnapshot!: string | null;
+
+  @ApiPropertyOptional({
+    enum: PackageContentUnit,
+    nullable: true,
+  })
+  packageUnitSnapshot!: PackageContentUnit | null;
 
   @ApiProperty({ example: 'PLN' })
   currency!: string;

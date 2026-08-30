@@ -10,10 +10,14 @@ import {
   type ProductActionItem,
 } from "@/components/stock/product-actions-menu";
 import { Button } from "@/components/ui/button";
-import { LOCATION_LABELS, UNIT_LABELS } from "@/lib/errors";
+import { LOCATION_LABELS } from "@/lib/errors";
 import { formatQuantityWithUnit } from "@/lib/format-quantity";
 import { isDisplayableUrl, mediaDisplayUrl } from "@/lib/media-upload";
-import { zlotyFromMinor } from "@/lib/quantity-input";
+import {
+  formatBatchPricePresentation,
+  formatBatchQuantityPresentation,
+  formatProductStockHeadline,
+} from "@/lib/stock-package-display";
 import { cn } from "@/lib/utils";
 
 type Product = components["schemas"]["ProductDto"];
@@ -142,9 +146,12 @@ export function StockProductRow({
               <p className="truncate text-xs text-gray-500">{meta}</p>
             ) : null}
             <p className="mt-0.5 text-sm text-gray-600">
-              {formatQuantityWithUnit(summary.totalQuantity, summary.defaultUnit)}
-              {" · "}
-              {pluralizeBatches(summary.batchCount)}
+              {formatProductStockHeadline({
+                totalQuantity: summary.totalQuantity,
+                defaultUnit: summary.defaultUnit,
+                batchCount: summary.batchCount,
+                batches: summary.batches,
+              })}
             </p>
             {hint ? (
               <p className="mt-0.5 text-xs text-amber-700">{hint}</p>
@@ -271,6 +278,9 @@ function StockBatchRow({
   onWriteOff: () => void;
   onDelete: () => void;
 }) {
+  const qty = formatBatchQuantityPresentation(batch, unit);
+  const priceLine = formatBatchPricePresentation(batch);
+
   return (
     <li
       className={cn(
@@ -283,15 +293,16 @@ function StockBatchRow({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 space-y-1">
           <p className="font-medium text-gray-900">
-            {formatQuantityWithUnit(batch.quantity, unit)}
-            {" / "}
-            {formatQuantityWithUnit(batch.initialQuantity, unit)}
+            {qty.primary}
             {batch.isExpired ? (
               <span className="ml-2 rounded bg-red-100 px-1.5 py-0.5 text-xs font-semibold text-red-800">
                 Przeterminowane
               </span>
             ) : null}
           </p>
+          {qty.secondary ? (
+            <p className="text-xs text-gray-500">{qty.secondary}</p>
+          ) : null}
           <p className="text-xs text-gray-500">
             {batch.storeName ? batch.storeName : "Ręczne dodanie"}
             {batch.purchasedAt
@@ -303,11 +314,7 @@ function StockBatchRow({
           </p>
           <p className="text-xs text-gray-500">
             {LOCATION_LABELS[batch.location]}
-            {batch.unitPriceMinor != null
-              ? ` · ${zlotyFromMinor(batch.unitPriceMinor)} ${batch.currency}/${UNIT_LABELS[unit]}`
-              : batch.purchasePriceMinor != null
-                ? ` · ${zlotyFromMinor(batch.purchasePriceMinor)} ${batch.currency} za partię`
-                : " · cena nieznana"}
+            {priceLine ? ` · ${priceLine}` : " · cena nieznana"}
           </p>
           {batch.purchaseId ? (
             <Link

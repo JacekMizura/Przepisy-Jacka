@@ -38,7 +38,7 @@ export function ProductCategorySelector({
       <div
         role="group"
         aria-labelledby={`${id}-label`}
-        className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+        className="grid grid-cols-2 gap-2 sm:grid-cols-4"
       >
         {tiles.map((tile) => {
           const selected = selectedValue === tile.value;
@@ -52,16 +52,16 @@ export function ProductCategorySelector({
               aria-label={tile.label}
               onClick={() => onChange(tile.value)}
               className={cn(
-                "flex flex-col items-center justify-center rounded-3xl border-2 p-4 transition-all duration-200",
+                "flex flex-col items-center justify-center rounded-xl border px-2 py-2.5 transition-all duration-200",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2",
                 "disabled:cursor-not-allowed disabled:opacity-50",
                 selected
-                  ? cn(tile.selectedClassName, "scale-105 shadow-md")
-                  : "border-slate-100 bg-white text-slate-400 hover:border-slate-200 hover:bg-slate-50",
+                  ? cn(tile.selectedClassName, "scale-[1.02] shadow-sm")
+                  : "border-slate-200 bg-white text-slate-400 hover:border-slate-300 hover:bg-slate-50",
               )}
             >
-              <Icon className="mb-2 h-8 w-8" aria-hidden />
-              <span className="text-center text-sm font-bold leading-tight">
+              <Icon className="mb-1 h-5 w-5" aria-hidden />
+              <span className="text-center text-xs font-semibold leading-tight">
                 {tile.label}
               </span>
             </button>

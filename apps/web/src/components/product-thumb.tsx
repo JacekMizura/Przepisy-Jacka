@@ -22,7 +22,7 @@ export function ProductThumb({
     return (
       <span
         className={cn(
-          "inline-flex shrink-0 items-center justify-center rounded-lg bg-stone-100 text-stone-400",
+          "inline-flex shrink-0 items-center justify-center rounded-lg bg-transparent text-stone-400",
           sizeClass,
           className,
         )}
@@ -38,7 +38,7 @@ export function ProductThumb({
       src={src}
       alt={alt}
       className={cn(
-        "shrink-0 rounded-lg object-cover bg-stone-100",
+        "shrink-0 rounded-lg object-contain bg-transparent",
         sizeClass,
         className,
       )}

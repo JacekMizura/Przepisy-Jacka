@@ -150,6 +150,9 @@ export function ProductCatalogPanel({
                     groupName={entry.groupName}
                     variantCount={entry.variantCount}
                     category={entry.variants[0]?.category ?? null}
+                    variants={entry.variants}
+                    buildMenuItems={buildMenuItems}
+                    onPreview={onPreview}
                   />
                 );
               })}

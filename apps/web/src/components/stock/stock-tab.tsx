@@ -127,7 +127,7 @@ export function StockTab({
       {items.length > 0 ? (
         <>
           <div
-            className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+            className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3"
             data-testid="stock-cards-grid"
           >
             {items.map((entry) => {
@@ -227,7 +227,7 @@ function StockModernChrome({
             placeholder="Szukaj po nazwie, kodzie EAN..."
             value={searchDraft}
             onChange={(event) => setSearchDraft(event.target.value)}
-            className="w-full rounded-xl border border-zinc-200 bg-white py-3.5 pr-4 pl-12 text-sm font-medium shadow-sm transition-all focus:ring-2 focus:ring-zinc-900 focus:outline-none"
+            className="w-full rounded-xl border border-zinc-200 bg-white py-3.5 pr-4 pl-12 text-sm font-medium shadow-sm transition-all focus:ring-2 focus:ring-emerald-500/30 focus:outline-none"
           />
         </div>
         <div className="flex flex-wrap items-center gap-2">

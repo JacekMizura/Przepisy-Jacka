@@ -37,6 +37,8 @@ type ProductActionsMenuProps = {
   label: string;
   items: ProductActionItem[];
   className?: string;
+  triggerClassName?: string;
+  icon?: ReactNode;
 };
 
 const VIEWPORT_GAP = 8;
@@ -73,6 +75,8 @@ export function ProductActionsMenu({
   label,
   items,
   className,
+  triggerClassName,
+  icon,
 }: ProductActionsMenuProps) {
   const [open, setOpen] = useState(false);
   const [coords, setCoords] = useState<MenuCoords | null>(null);
@@ -272,14 +276,17 @@ export function ProductActionsMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+        className={cn(
+          "inline-flex h-9 w-9 items-center justify-center rounded-xl border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500",
+          triggerClassName,
+        )}
         onClick={(event) => {
           event.stopPropagation();
           setOpen((current) => !current);
         }}
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <MoreHorizontal size={16} aria-hidden />
+        {icon ?? <MoreHorizontal size={16} aria-hidden />}
       </button>
       {menu}
     </div>

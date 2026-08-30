@@ -95,6 +95,24 @@ export function formatDisplayQuantityWithUnit(
   return formatQuantityWithUnit(displayValue, displayUnit);
 }
 
+/** Amount + unit labels for stock cards (e.g. 2,4 + kg). */
+export function splitDisplayQuantity(
+  quantity: string | number | null | undefined,
+  unit: string | null | undefined,
+): { amount: string; unit: string } {
+  const formatted = formatDisplayQuantityWithUnit(quantity, unit);
+  if (!formatted || formatted === "—") {
+    return { amount: formatted || "—", unit: "" };
+  }
+  const parts = formatted.split(/\s|\u00A0/);
+  if (parts.length < 2) {
+    return { amount: formatted, unit: "" };
+  }
+  const unitPart = parts[parts.length - 1] ?? "";
+  const amount = parts.slice(0, -1).join("\u00A0");
+  return { amount, unit: unitPart };
+}
+
 /** Suma ilości w nagłówku rodzaju (prezentacja, np. 2,4 kg). */
 export function formatGroupTotalQuantity(
   items: Array<{ totalQuantity: string; defaultUnit: string }>,

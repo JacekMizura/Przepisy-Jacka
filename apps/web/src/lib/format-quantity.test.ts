@@ -9,12 +9,24 @@ import {
   formatPackagePurchase,
   formatQuantityNumber,
   formatQuantityWithUnit,
+  splitDisplayQuantity,
   toApiQuantityString,
 } from "./format-quantity.ts";
 
 describe("format-quantity", () => {
   it("formats 100.000 as 100", () => {
     assert.equal(formatQuantityNumber("100.000"), "100");
+  });
+
+  it("splits display quantity into amount and unit for cards", () => {
+    assert.deepEqual(splitDisplayQuantity("400.000", "gram"), {
+      amount: "400",
+      unit: "g",
+    });
+    assert.deepEqual(splitDisplayQuantity("2400.000", "gram"), {
+      amount: "2,4",
+      unit: "kg",
+    });
   });
 
   it("formats 1.500 as 1,5", () => {

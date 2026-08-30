@@ -10,38 +10,35 @@ function read(name: string): string {
   return readFileSync(join(__dirname, name), "utf8");
 }
 
-describe("stock compact layout contracts", () => {
-  it("stock list container avoids heavy card chrome", () => {
+describe("stock modern cards layout contracts", () => {
+  it("uses card grid matching reference breakpoints", () => {
     const tab = read("stock-tab.tsx");
-    assert.match(tab, /data-testid="stock-compact-list"/);
+    assert.match(tab, /data-testid="stock-cards-grid"/);
+    assert.match(tab, /grid-cols-1/);
+    assert.match(tab, /md:grid-cols-2/);
+    assert.match(tab, /xl:grid-cols-3/);
+    assert.match(tab, /gap-6/);
+    assert.doesNotMatch(tab, /data-testid="stock-compact-list"/);
+  });
+
+  it("group card has no whole-group Zużyj action", () => {
+    const card = read("inventory-card.tsx");
+    const groupStart = card.indexOf("export function InventoryGroupCard");
+    assert.ok(groupStart > 0);
+    const groupBlock = card.slice(groupStart);
     assert.doesNotMatch(
-      tab,
-      /data-testid="stock-compact-list"[\s\S]{0,200}rounded-2xl[\s\S]{0,80}shadow-sm/,
+      groupBlock.slice(0, groupBlock.indexOf("function VariantRow")),
+      />\s*Zużyj\s*</,
     );
-    assert.match(tab, /Produkt/);
-    assert.match(tab, /Stan/);
-    assert.match(tab, /Partie/);
-    assert.match(tab, /Najbliższy termin/);
-    assert.match(tab, /Miejsce/);
-    assert.match(tab, /Akcje/);
+    assert.match(card, /data-testid="stock-group-card"/);
+    assert.match(card, /Warianty \(/);
   });
 
-  it("group row has no Zużyj action", () => {
-    const tab = read("stock-tab.tsx");
-    const groupBlockStart = tab.indexOf("function StockGroupTableBlock");
-    const groupBlockEnd = tab.indexOf("function StockGroupMobileBlock");
-    assert.ok(groupBlockStart > 0 && groupBlockEnd > groupBlockStart);
-    const groupBlock = tab.slice(groupBlockStart, groupBlockEnd);
-    assert.doesNotMatch(groupBlock, />\s*Zużyj\s*</);
-    assert.match(groupBlock, /data-testid="stock-group-row"/);
-  });
-
-  it("batch delete lives only in portal menu as destructive item", () => {
-    const row = read("stock-product-row.tsx");
-    assert.match(row, /label:\s*"Usuń partię"/);
-    assert.match(row, /destructive:\s*true/);
-    assert.doesNotMatch(row, />\s*Usuń partię\s*</);
-    assert.match(row, /ProductActionsMenu/);
+  it("product card uses portal menu and consume action", () => {
+    const card = read("inventory-card.tsx");
+    assert.match(card, /ProductActionsMenu/);
+    assert.match(card, />\s*Zużyj\s*</);
+    assert.match(card, /data-testid="stock-inventory-card"/);
   });
 
   it("actions menu uses portal", () => {
@@ -49,5 +46,15 @@ describe("stock compact layout contracts", () => {
     assert.match(menu, /createPortal/);
     assert.match(menu, /document\.body/);
     assert.match(menu, /data-testid="product-actions-menu-portal"/);
+  });
+
+  it("group thumb field is neutral package icon not first variant photo", () => {
+    const card = read("inventory-card.tsx");
+    const groupStart = card.indexOf("export function InventoryGroupCard");
+    const variantStart = card.indexOf("function VariantRow");
+    const groupBlock = card.slice(groupStart, variantStart);
+    assert.match(groupBlock, /Package/);
+    assert.doesNotMatch(groupBlock, /variants\[0\]/);
+    assert.doesNotMatch(groupBlock, /imageUrl/);
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, ShoppingBasket } from "lucide-react";
+import { Plus } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -128,7 +128,7 @@ function StockPageInner() {
       const client = createWebApiClient();
       const query: Record<string, string | number> = {
         page: urlState.page,
-        limit: 50,
+        limit: 24,
         sort: urlState.sort,
         archived: urlState.archived,
       };
@@ -577,39 +577,47 @@ function StockPageInner() {
     view === "stock" ? (
       <Link
         href={purchaseHref}
-        className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
+        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-3 font-semibold text-white shadow-xl shadow-slate-900/20 transition-all hover:bg-slate-800 md:w-auto"
       >
-        <ShoppingBasket size={16} />
-        Dodaj zakup
+        <Plus size={20} className="text-emerald-400" />
+        Dodaj nowy zakup
       </Link>
     ) : view === "catalog" ? (
       <Link
         href={catalogHref}
-        className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
+        className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition-colors hover:bg-slate-800"
       >
-        <Plus size={16} />
+        <Plus size={16} className="text-emerald-400" />
         Dodaj produkt do katalogu
       </Link>
     ) : null;
 
   return (
     <AppShell kitchenId={kitchenId}>
-      <div className="mx-auto w-full max-w-[1400px] space-y-4 px-6 sm:px-8">
-        <header className="space-y-3">
-          <div className="flex flex-row items-center justify-between gap-3">
-            <h1 className="min-w-0 text-2xl font-bold tracking-tight text-gray-900">
+      <div className="-mx-4 -my-4 min-h-[calc(100vh-2rem)] bg-[#f4f7f6] px-6 py-6 sm:-mx-8 sm:-my-8 sm:px-8 sm:py-8 lg:-mx-10 lg:-my-10 lg:px-10 lg:py-8">
+        <div className="mx-auto w-full max-w-7xl space-y-6">
+        <header className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
+          <div>
+            <h1 className="text-3xl font-black tracking-tight text-slate-900 lg:text-4xl">
               Moje zapasy
             </h1>
-            <div className="flex h-10 shrink-0 items-center justify-end">
-              {headerCta}
-            </div>
+            <p className="mt-1 font-medium text-slate-500">
+              Zarządzaj swoimi produktami w domu
+            </p>
           </div>
+          <div className="flex w-full shrink-0 items-center justify-end md:w-auto">
+            {headerCta}
+          </div>
+        </header>
+
+        {view !== "stock" ? (
           <StockViewTabs
             kitchenId={kitchenId}
             active={view}
             urlState={urlState}
+            variant="modern"
           />
-        </header>
+        ) : null}
 
         {view === "stock" ? (
           <StockTab
@@ -624,7 +632,6 @@ function StockPageInner() {
             urlState={urlState}
             onUrlPatch={patchUrl}
             onConsume={openConsume}
-            onDeleteBatch={setBatchToDelete}
             onPreviewImage={(src, alt) => setPreview({ src, alt })}
             buildMenuItems={({ productId, productName, summary }) =>
               buildMenuItems({
@@ -828,6 +835,7 @@ function StockPageInner() {
         onDismiss={() => setToast(null)}
         durationMs={toast?.actionLabel ? 6000 : 3500}
       />
+      </div>
     </AppShell>
   );
 }

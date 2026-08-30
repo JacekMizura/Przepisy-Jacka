@@ -5,6 +5,7 @@ import {
   type RunningApi,
 } from './create-api-app';
 import { closeTestPool } from './pg-client';
+import { flattenStockSummaryBody } from './stock-summary-helpers';
 
 jest.setTimeout(90_000);
 
@@ -156,7 +157,9 @@ describe('Stock purchase batches and consumption (e2e)', () => {
       { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
     );
     expect(summaryRes.status).toBe(200);
-    const summaries = summaryRes.body as StockSummary[];
+    const summaries = flattenStockSummaryBody(
+      summaryRes.body,
+    ) as StockSummary[];
     expect(summaries).toHaveLength(1);
     expect(summaries[0]?.productId).toBe(product.id);
     expect(summaries[0]?.totalQuantity).toBe('1500.000');
@@ -255,7 +258,9 @@ describe('Stock purchase batches and consumption (e2e)', () => {
       `/api/kitchens/${kitchen.id}/stock-summary`,
       { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
     );
-    const summary = (summaryAfter.body as StockSummary[])[0];
+    const summary = (
+      flattenStockSummaryBody(summaryAfter.body) as StockSummary[]
+    )[0];
     expect(summary?.totalQuantity).toBe('900.000');
     expect(summary?.batchCount).toBe(1);
     expect(summary?.batches[0]?.quantity).toBe('900.000');
@@ -349,9 +354,10 @@ describe('Stock purchase batches and consumption (e2e)', () => {
       `/api/kitchens/${kitchen.id}/stock-summary`,
       { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
     );
-    expect((summaryAfter.body as StockSummary[])[0]?.totalQuantity).toBe(
-      '200.000',
-    );
+    expect(
+      (flattenStockSummaryBody(summaryAfter.body) as StockSummary[])[0]
+        ?.totalQuantity,
+    ).toBe('200.000');
   });
 
   it('isolates stock summary between kitchens', async () => {
@@ -371,7 +377,13 @@ describe('Stock purchase batches and consumption (e2e)', () => {
       { webOrigin: WEB_ORIGIN, cookies: ownerB.cookies },
     );
     expect(listedB.status).toBe(200);
-    expect(listedB.body).toEqual([]);
+    expect(listedB.body).toEqual({
+      items: [],
+      page: 1,
+      limit: 50,
+      total: 0,
+      pageCount: 0,
+    });
   });
 
   it('does not duplicate stock batches on repeated checkout', async () => {
@@ -482,7 +494,9 @@ describe('Stock purchase batches and consumption (e2e)', () => {
       `/api/kitchens/${kitchen.id}/stock-summary`,
       { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
     );
-    const summaries = summaryRes.body as StockSummary[];
+    const summaries = flattenStockSummaryBody(
+      summaryRes.body,
+    ) as StockSummary[];
     expect(summaries).toHaveLength(1);
     expect(summaries[0]?.batchCount).toBe(1);
     expect(summaries[0]?.totalQuantity).toBe('200.000');
@@ -628,7 +642,10 @@ describe('Stock purchase batches and consumption (e2e)', () => {
       `/api/kitchens/${kitchen.id}/stock-summary`,
       { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
     );
-    expect((summary.body as StockSummary[])[0]?.totalQuantity).toBe('100.000');
+    expect(
+      (flattenStockSummaryBody(summary.body) as StockSummary[])[0]
+        ?.totalQuantity,
+    ).toBe('100.000');
   });
 
   it('assigns exactly 100 groszy across three piece consumptions', async () => {
@@ -708,7 +725,7 @@ describe('Stock purchase batches and consumption (e2e)', () => {
       { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
     );
     const manualDetail = (
-      summaryBefore.body as StockSummary[]
+      flattenStockSummaryBody(summaryBefore.body) as StockSummary[]
     )[0]?.batches.find((b) => b.id === manual.id) as {
       canDelete?: boolean;
       deleteBlockReason?: string | null;
@@ -884,7 +901,7 @@ describe('Stock purchase batches and consumption (e2e)', () => {
       { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
     );
     const purchaseBatch = (
-      summaryAfter.body as StockSummary[]
+      flattenStockSummaryBody(summaryAfter.body) as StockSummary[]
     )[0]?.batches.find((b) => b.id === purchaseBatchId) as {
       canDelete?: boolean;
     };
@@ -1096,7 +1113,10 @@ describe('Stock purchase batches and consumption (e2e)', () => {
       `/api/kitchens/${kitchen.id}/stock-summary`,
       { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
     );
-    expect((summary.body as StockSummary[])[0]?.totalQuantity).toBe('100.000');
+    expect(
+      (flattenStockSummaryBody(summary.body) as StockSummary[])[0]
+        ?.totalQuantity,
+    ).toBe('100.000');
   });
 
   it('consume without kind/reason still works (backward compatible)', async () => {

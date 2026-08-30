@@ -6,8 +6,12 @@ import { cn } from "@/lib/utils";
 
 import {
   type StockView,
-  stockViewHref,
 } from "@/components/stock/stock-view";
+import {
+  applyStockListPatch,
+  buildStockListHref,
+  type StockListUrlState,
+} from "@/lib/stock-url-state";
 
 const TABS: { id: StockView; label: string }[] = [
   { id: "stock", label: "Zapasy" },
@@ -18,9 +22,14 @@ const TABS: { id: StockView; label: string }[] = [
 type StockViewTabsProps = {
   kitchenId: string;
   active: StockView;
+  urlState?: StockListUrlState;
 };
 
-export function StockViewTabs({ kitchenId, active }: StockViewTabsProps) {
+export function StockViewTabs({
+  kitchenId,
+  active,
+  urlState,
+}: StockViewTabsProps) {
   return (
     <nav
       aria-label="Widoki zapasów"
@@ -28,10 +37,18 @@ export function StockViewTabs({ kitchenId, active }: StockViewTabsProps) {
     >
       {TABS.map((tab) => {
         const isActive = tab.id === active;
+        const href = urlState
+          ? buildStockListHref(
+              kitchenId,
+              applyStockListPatch(urlState, { view: tab.id, page: 1 }),
+            )
+          : tab.id === "stock"
+            ? `/kitchens/${kitchenId}/stock`
+            : `/kitchens/${kitchenId}/stock?view=${tab.id}`;
         return (
           <Link
             key={tab.id}
-            href={stockViewHref(kitchenId, tab.id)}
+            href={href}
             aria-current={isActive ? "page" : undefined}
             className={cn(
               "rounded-lg px-3 py-2 text-center text-sm font-medium transition-colors",

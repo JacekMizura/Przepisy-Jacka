@@ -23,15 +23,24 @@ import {
   AssignProductGroupDto,
   CatalogProductDto,
   CreateProductGroupDto,
-  KitchenCatalogDto,
   ProductGroupDetailDto,
   ProductGroupDto,
   ProductGroupStockByUnitDto,
   ProductGroupSummaryDto,
   UpdateProductGroupDto,
 } from './dto/product-group.dto';
+import type {
+  CatalogListQueryDto,
+  CatalogPageDto,
+  CatalogSort,
+} from './dto/catalog-list-query.dto';
 import { ProductDto } from './dto/product.dto';
 import { toProductDto } from './product-mapper';
+import {
+  buildPaginatedMeta,
+  normalizePagination,
+  slicePage,
+} from '../common/pagination';
 
 const productInclude = {
   purchaseOptions: {
@@ -224,56 +233,246 @@ export class ProductGroupService {
   async listCatalog(
     userId: string,
     kitchenId: string,
-    options: { search?: string } = {},
-  ): Promise<KitchenCatalogDto> {
+    options: CatalogListQueryDto = {},
+  ): Promise<CatalogPageDto> {
     await requireKitchenMember(this.prisma, kitchenId, userId);
-    const groups = await this.listGroups(userId, kitchenId, {
-      search: options.search,
-      archive: 'active',
+    const { page, limit } = normalizePagination({
+      page: options.page,
+      limit: options.limit,
     });
-
     const search = options.search?.trim();
-    const ungrouped = await this.prisma.product.findMany({
+    const archive = options.archived ?? 'active';
+    const hasStock = options.hasStock === 'true' || options.hasStock === '1';
+    const sort: CatalogSort = options.sort ?? 'name';
+
+    const products = await this.prisma.product.findMany({
       where: {
         kitchenId,
-        groupId: null,
-        archivedAt: null,
+        ...(archive === 'active'
+          ? { archivedAt: null }
+          : archive === 'archived'
+            ? { archivedAt: { not: null } }
+            : {}),
+        ...(options.category ? { category: options.category } : {}),
+        ...(options.unit ? { defaultUnit: options.unit } : {}),
         ...(search
           ? {
               OR: [
                 { name: { contains: search, mode: 'insensitive' } },
                 { brand: { contains: search, mode: 'insensitive' } },
-                { variantLabel: { contains: search, mode: 'insensitive' } },
+                {
+                  variantLabel: { contains: search, mode: 'insensitive' },
+                },
                 { ean: { contains: search } },
+                { category: { contains: search, mode: 'insensitive' } },
+                {
+                  group: {
+                    name: { contains: search, mode: 'insensitive' },
+                  },
+                },
               ],
+            }
+          : {}),
+        ...(hasStock || options.place
+          ? {
+              stockItems: {
+                some: {
+                  quantity: { gt: 0 },
+                  ...(options.place ? { location: options.place } : {}),
+                },
+              },
             }
           : {}),
       },
       include: {
         ...productInclude,
         stockItems: {
+          where: {
+            quantity: { gt: 0 },
+            ...(options.place ? { location: options.place } : {}),
+          },
           select: { quantity: true },
         },
       },
-      orderBy: [{ name: 'asc' }],
     });
 
-    const ungroupedProducts: CatalogProductDto[] = await Promise.all(
-      ungrouped.map(async (product) => {
+    type CatalogAgg = {
+      dto: CatalogProductDto;
+      groupId: string | null;
+      groupName: string | null;
+      stockQty: number;
+      createdAt: Date;
+      updatedAt: Date;
+    };
+
+    const aggregates: CatalogAgg[] = await Promise.all(
+      products.map(async (product) => {
         const base = await this.toProductDtoWithMedia(product);
         const total = product.stockItems.reduce(
           (acc, item) => acc.add(item.quantity),
           new Prisma.Decimal(0),
         );
         return {
-          ...base,
-          batchCount: product.stockItems.length,
-          totalQuantity: formatQuantity(total),
+          dto: {
+            ...base,
+            batchCount: product.stockItems.length,
+            totalQuantity: formatQuantity(total),
+          },
+          groupId: product.groupId,
+          groupName: product.group?.name ?? null,
+          stockQty: Number(total.toString()),
+          createdAt: product.createdAt,
+          updatedAt: product.updatedAt,
         };
       }),
     );
 
-    return { groups, ungroupedProducts };
+    type Entry =
+      | {
+          kind: 'product';
+          product: CatalogProductDto;
+          groupName: string | null;
+          sortName: string;
+          stockQty: number;
+          createdAt: Date;
+          updatedAt: Date;
+        }
+      | {
+          kind: 'group';
+          groupId: string;
+          groupName: string;
+          variantCount: number;
+          batchCount: number;
+          totalQuantity: string;
+          defaultUnit: ProductUnit;
+          variants: CatalogProductDto[];
+          sortName: string;
+          stockQty: number;
+          createdAt: Date;
+          updatedAt: Date;
+        };
+
+    const byGroup = new Map<string, CatalogAgg[]>();
+    const singles: CatalogAgg[] = [];
+    for (const agg of aggregates) {
+      if (!agg.groupId) {
+        singles.push(agg);
+        continue;
+      }
+      const list = byGroup.get(agg.groupId) ?? [];
+      list.push(agg);
+      byGroup.set(agg.groupId, list);
+    }
+
+    const entries: Entry[] = [];
+    for (const agg of singles) {
+      entries.push({
+        kind: 'product',
+        product: agg.dto,
+        groupName: null,
+        sortName: agg.dto.name,
+        stockQty: agg.stockQty,
+        createdAt: agg.createdAt,
+        updatedAt: agg.updatedAt,
+      });
+    }
+    for (const [, variants] of byGroup) {
+      if (variants.length === 1) {
+        const only = variants[0]!;
+        entries.push({
+          kind: 'product',
+          product: only.dto,
+          groupName: only.groupName,
+          sortName: only.dto.name,
+          stockQty: only.stockQty,
+          createdAt: only.createdAt,
+          updatedAt: only.updatedAt,
+        });
+        continue;
+      }
+      let stockQty = 0;
+      let batchCount = 0;
+      let createdAt = variants[0]!.createdAt;
+      let updatedAt = variants[0]!.updatedAt;
+      const unitCounts = new Map<ProductUnit, number>();
+      for (const v of variants) {
+        stockQty += v.stockQty;
+        batchCount += v.dto.batchCount;
+        if (v.createdAt > createdAt) createdAt = v.createdAt;
+        if (v.updatedAt > updatedAt) updatedAt = v.updatedAt;
+        unitCounts.set(
+          v.dto.defaultUnit,
+          (unitCounts.get(v.dto.defaultUnit) ?? 0) + 1,
+        );
+      }
+      let defaultUnit = variants[0]!.dto.defaultUnit;
+      let best = 0;
+      for (const [unit, count] of unitCounts) {
+        if (count > best) {
+          best = count;
+          defaultUnit = unit;
+        }
+      }
+      const first = variants[0]!;
+      entries.push({
+        kind: 'group',
+        groupId: first.groupId!,
+        groupName: first.groupName ?? 'Rodzaj',
+        variantCount: variants.length,
+        batchCount,
+        totalQuantity: stockQty.toFixed(3),
+        defaultUnit,
+        variants: variants
+          .map((v) => v.dto)
+          .sort((a, b) => a.name.localeCompare(b.name, 'pl')),
+        sortName: first.groupName ?? 'Rodzaj',
+        stockQty,
+        createdAt,
+        updatedAt,
+      });
+    }
+
+    entries.sort((a, b) => {
+      if (sort === 'newest') {
+        return b.createdAt.getTime() - a.createdAt.getTime();
+      }
+      if (sort === 'updated') {
+        return b.updatedAt.getTime() - a.updatedAt.getTime();
+      }
+      if (sort === 'has_stock') {
+        if (a.stockQty > 0 !== b.stockQty > 0) {
+          return a.stockQty > 0 ? -1 : 1;
+        }
+        return a.sortName.localeCompare(b.sortName, 'pl');
+      }
+      return a.sortName.localeCompare(b.sortName, 'pl');
+    });
+
+    const total = entries.length;
+    const pageEntries = slicePage(entries, page, limit);
+
+    return {
+      items: pageEntries.map((entry) => {
+        if (entry.kind === 'product') {
+          return {
+            kind: 'product' as const,
+            product: entry.product,
+            groupName: entry.groupName,
+          };
+        }
+        return {
+          kind: 'group' as const,
+          groupId: entry.groupId,
+          groupName: entry.groupName,
+          variantCount: entry.variantCount,
+          batchCount: entry.batchCount,
+          totalQuantity: entry.totalQuantity,
+          defaultUnit: entry.defaultUnit,
+          variants: entry.variants,
+        };
+      }),
+      ...buildPaginatedMeta(total, page, limit),
+    };
   }
 
   async createGroupInClient(

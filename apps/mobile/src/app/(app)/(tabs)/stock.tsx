@@ -26,6 +26,10 @@ import {
   requireApiData,
 } from '@/lib/api';
 import { formatDate, formatQuantity, type StockSummary } from '@/lib/format';
+import {
+  asStockSummaryPage,
+  flattenStockProducts,
+} from '@/lib/stock-summary-page';
 import { useAuthKitchen } from '@/providers/auth-kitchen';
 import { ui } from '@/theme/ui';
 
@@ -41,13 +45,19 @@ export default function StockTab() {
       const client = createMobileApiClient();
       const result = await client.GET(
         '/api/kitchens/{kitchenId}/stock-summary',
-        { params: { path: { kitchenId: kitchenId! } } },
+        {
+          params: {
+            path: { kitchenId: kitchenId! },
+            query: { limit: 100 } as never,
+          },
+        },
       );
       if (apiStatus(result) === 401) {
         await signOut();
         throw new ApiRequestError(401, 'Sesja wygasła.');
       }
-      return requireApiData(result, 'Nie udało się pobrać zapasów.');
+      const data = requireApiData(result, 'Nie udało się pobrać zapasów.');
+      return flattenStockProducts(asStockSummaryPage(data));
     },
   });
 

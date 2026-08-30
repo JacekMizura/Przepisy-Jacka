@@ -67,6 +67,11 @@ import {
   StockProductSummaryDto,
   type StockBatchDetailDto,
 } from './dto/stock-summary.dto';
+import type {
+  ExpiryStatusFilter,
+  StockSort,
+  StockSummaryPageDto,
+} from './dto/stock-list-query.dto';
 import {
   allocateConsumption,
   stockItemDeleteBlockReason,
@@ -78,6 +83,13 @@ import {
   packageCountToStockQuantity,
   convertPackageContentToProductUnit,
 } from './package-quantity';
+import {
+  buildStockListEntries,
+  matchesExpiryStatus,
+  paginateStockListEntries,
+  sortStockListEntries,
+  type StockListProductAggregate,
+} from './stock-list';
 import { parsePositivePackageCount } from './package-price';
 import { buildProductMatchMessage } from './product-match-message';
 import { ProductGroupService } from './product-group.service';
@@ -1228,65 +1240,136 @@ export class StockService {
   async listStockSummary(
     userId: string,
     kitchenId: string,
-    filters: { location?: StorageLocation; productId?: string },
-  ): Promise<StockProductSummaryDto[]> {
+    filters: {
+      location?: StorageLocation;
+      place?: StorageLocation;
+      productId?: string;
+      search?: string;
+      category?: string;
+      unit?: ProductUnit;
+      expiryStatus?: ExpiryStatusFilter;
+      archived?: 'active' | 'archived' | 'all';
+      sort?: StockSort;
+      page?: number;
+      limit?: number;
+    } = {},
+  ): Promise<StockSummaryPageDto> {
     await requireKitchenMember(this.prisma, kitchenId, userId);
     const now = new Date();
+    const place = filters.place ?? filters.location;
+    const search = filters.search?.trim();
+    const archive = filters.archived ?? 'all';
+
     const items = await this.prisma.stockItem.findMany({
       where: {
-        product: { kitchenId },
-        productId: filters.productId,
-        location: filters.location,
         quantity: { gt: 0 },
+        productId: filters.productId,
+        location: place,
+        product: {
+          kitchenId,
+          ...(filters.unit ? { defaultUnit: filters.unit } : {}),
+          ...(filters.category ? { category: filters.category } : {}),
+          ...(archive === 'active'
+            ? { archivedAt: null }
+            : archive === 'archived'
+              ? { archivedAt: { not: null } }
+              : {}),
+          ...(search
+            ? {
+                OR: [
+                  { name: { contains: search, mode: 'insensitive' } },
+                  { brand: { contains: search, mode: 'insensitive' } },
+                  {
+                    variantLabel: { contains: search, mode: 'insensitive' },
+                  },
+                  { ean: { contains: search } },
+                  { category: { contains: search, mode: 'insensitive' } },
+                  {
+                    group: {
+                      name: { contains: search, mode: 'insensitive' },
+                    },
+                  },
+                ],
+              }
+            : {}),
+        },
       },
       include: {
-        product: true,
+        product: { include: { group: true } },
         ...stockBatchInclude,
       },
       orderBy: [{ expiresAt: 'asc' }, { createdAt: 'asc' }],
     });
 
-    const byProduct = new Map<string, StockProductSummaryDto>();
+    const byProduct = new Map<string, StockListProductAggregate>();
     for (const item of items) {
-      let summary = byProduct.get(item.productId);
-      if (!summary) {
-        summary = {
+      let agg = byProduct.get(item.productId);
+      if (!agg) {
+        agg = {
           productId: item.product.id,
           productName: item.product.name,
           defaultUnit: item.product.defaultUnit,
           category: item.product.category,
           isArchived: item.product.archivedAt !== null,
-          totalQuantity: '0.000',
+          brand: item.product.brand,
+          variantLabel: item.product.variantLabel,
+          groupId: item.product.groupId,
+          groupName: item.product.group?.name ?? null,
+          imageUrl: item.product.imageUrl,
+          totalQuantity: new Prisma.Decimal(0),
           batchCount: 0,
           expiringBatchCount: 0,
           nearestExpiry: null,
+          primaryLocation: item.location,
+          latestBatchAt: item.createdAt,
           batches: [],
         };
-        byProduct.set(item.productId, summary);
+        byProduct.set(item.productId, agg);
       }
       const batch = toStockBatchDetailDto(item, now);
-      summary.batches.push(batch);
-      summary.batchCount += 1;
+      agg.batches.push(batch);
+      agg.batchCount += 1;
+      agg.totalQuantity = agg.totalQuantity.add(item.quantity);
+      if (item.createdAt > agg.latestBatchAt) {
+        agg.latestBatchAt = item.createdAt;
+      }
       if (
         batch.expiresAt &&
         new Date(batch.expiresAt) <= new Date(now.getTime() + 7 * 86400000)
       ) {
-        summary.expiringBatchCount += 1;
+        agg.expiringBatchCount += 1;
       }
-      if (batch.expiresAt) {
-        if (!summary.nearestExpiry || batch.expiresAt < summary.nearestExpiry) {
-          summary.nearestExpiry = batch.expiresAt;
+      if (item.expiresAt) {
+        if (!agg.nearestExpiry || item.expiresAt < agg.nearestExpiry) {
+          agg.nearestExpiry = item.expiresAt;
         }
       }
-      const total = new Prisma.Decimal(summary.totalQuantity).add(
-        item.quantity,
-      );
-      summary.totalQuantity = formatQuantity(total);
     }
 
-    return Array.from(byProduct.values()).sort((a, b) =>
-      a.productName.localeCompare(b.productName, 'pl'),
+    const aggregates = Array.from(byProduct.values()).filter((agg) =>
+      matchesExpiryStatus(agg.nearestExpiry, now, filters.expiryStatus),
     );
+
+    const entries = sortStockListEntries(
+      buildStockListEntries(aggregates),
+      filters.sort,
+      now,
+    );
+
+    return paginateStockListEntries(entries, filters.page, filters.limit);
+  }
+
+  /** Spłaszcza stronę zapasów do listy produktów (dla mobile / lokalnych helperów). */
+  flattenStockSummaryPage(page: StockSummaryPageDto): StockProductSummaryDto[] {
+    const out: StockProductSummaryDto[] = [];
+    for (const item of page.items) {
+      if (item.kind === 'product') {
+        out.push(item.product);
+      } else {
+        out.push(...item.variants);
+      }
+    }
+    return out;
   }
 
   async previewConsumeStock(

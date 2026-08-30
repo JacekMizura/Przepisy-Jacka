@@ -9,14 +9,14 @@ import {
 } from "./stock-group-presentation.ts";
 
 describe("stock-group-presentation", () => {
-  it("formats Pomidory-style subtitle", () => {
+  it("formats Pomidory-style subtitle without qty", () => {
     assert.equal(
       formatGroupStockSubtitle({
         variantCount: 2,
         batchCount: 2,
         totalLabel: "2,4\u00A0kg",
       }),
-      "2 warianty · 2 partie · łącznie 2,4\u00A0kg",
+      "2 warianty · 2 partie",
     );
   });
 

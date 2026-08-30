@@ -3,36 +3,42 @@
 import type { components } from "@moja-kuchnia/api-client";
 import { ChevronDown, Package } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
-import { ProductCategoryBadge } from "@/components/product-entry/product-category-selector";
 import {
   ProductActionsMenu,
   type ProductActionItem,
 } from "@/components/stock/product-actions-menu";
-import { Input } from "@/components/ui/input";
-import { createWebApiClient } from "@/lib/api";
-import { UNIT_LABELS, readApiError } from "@/lib/errors";
-import {
-  formatQuantityNumber,
-  formatQuantityWithUnit,
-  unitLabel,
-} from "@/lib/format-quantity";
+import { StockListToolbar } from "@/components/stock/stock-filters";
+import { StockGroupThumb } from "@/components/stock/stock-group-thumb";
+import { formatDisplayQuantityWithUnit } from "@/lib/format-quantity";
 import { isDisplayableUrl, mediaDisplayUrl } from "@/lib/media-upload";
+import { pluralizeVariants, pluralizeBatches } from "@/lib/stock-group-presentation";
+import type {
+  CatalogGroupRow,
+  CatalogListEntry,
+} from "@/lib/stock-list-types";
+import type {
+  StockListUrlPatch,
+  StockListUrlState,
+} from "@/lib/stock-url-state";
 import { cn } from "@/lib/utils";
 
-type KitchenCatalog = components["schemas"]["KitchenCatalogDto"];
-type GroupSummary = components["schemas"]["ProductGroupSummaryDto"];
 type CatalogProduct = components["schemas"]["CatalogProductDto"];
-type ProductGroupDetail = components["schemas"]["ProductGroupDetailDto"];
-type MediaImage = components["schemas"]["MediaImageDto"];
-type Product = components["schemas"]["ProductDto"];
 
 type ProductCatalogPanelProps = {
   kitchenId: string;
   /** Gdy true — bez wewnętrznego CTA „Dodaj do katalogu” (CTA jest w nagłówku zakładki). */
   embedded?: boolean;
+  items: CatalogListEntry[];
+  page: number;
+  pageCount: number;
+  total: number;
+  isPending: boolean;
+  isError: boolean;
+  errorMessage?: string;
+  urlState: StockListUrlState;
+  onUrlPatch: (patch: StockListUrlPatch) => void;
   onPreview?: (src: string, alt: string) => void;
   onArchiveProduct?: (product: { id: string; name: string }) => void;
   onUndoAddition?: (product: { id: string; name: string }) => void;
@@ -50,6 +56,15 @@ type ProductCatalogPanelProps = {
 export function ProductCatalogPanel({
   kitchenId,
   embedded = false,
+  items,
+  page,
+  pageCount,
+  total,
+  isPending,
+  isError,
+  errorMessage,
+  urlState,
+  onUrlPatch,
   onPreview,
   onArchiveProduct,
   onUndoAddition,
@@ -58,46 +73,12 @@ export function ProductCatalogPanel({
   addToListPending = false,
   buildMenuItems,
 }: ProductCatalogPanelProps) {
-  const [search, setSearch] = useState("");
-  const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
+  const [expandedGroupIds, setExpandedGroupIds] = useState<Set<string>>(
     () => new Set(),
   );
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setDebouncedSearch(search.trim());
-    }, 300);
-    return () => window.clearTimeout(timer);
-  }, [search]);
-
-  const catalogQuery = useQuery({
-    queryKey: ["catalog", kitchenId, debouncedSearch],
-    queryFn: async () => {
-      const client = createWebApiClient();
-      const { data, error } = await client.GET(
-        "/api/kitchens/{kitchenId}/catalog",
-        {
-          params: {
-            path: { kitchenId },
-            query: debouncedSearch ? { search: debouncedSearch } : {},
-          },
-        },
-      );
-      if (error) {
-        throw new Error(readApiError(error, "Nie udało się pobrać katalogu."));
-      }
-      return data as KitchenCatalog;
-    },
-  });
-
-  const groups = catalogQuery.data?.groups ?? [];
-  const ungrouped = catalogQuery.data?.ungroupedProducts ?? [];
-  const empty =
-    catalogQuery.isSuccess && groups.length === 0 && ungrouped.length === 0;
-
   function toggleGroup(groupId: string) {
-    setExpandedGroups((current) => {
+    setExpandedGroupIds((current) => {
       const next = new Set(current);
       if (next.has(groupId)) {
         next.delete(groupId);
@@ -109,106 +90,70 @@ export function ProductCatalogPanel({
   }
 
   return (
-    <div className={cn("space-y-4", !embedded && "border-t border-gray-100 p-4")}>
-      <Input
-        value={search}
-        onChange={(event) => setSearch(event.target.value)}
-        placeholder="Szukaj rodzaju, produktu, marki, EAN…"
-        aria-label="Szukaj w katalogu"
-        className="sm:max-w-md"
+    <div className={cn("space-y-3", !embedded && "p-4")}>
+      <StockListToolbar
+        mode="catalog"
+        state={urlState}
+        onPatch={onUrlPatch}
+        resultTotal={total}
+        resultLabel={total === 1 ? "pozycja" : "pozycji"}
+        searchAriaLabel="Szukaj w katalogu"
+        searchPlaceholder="Szukaj rodzaju, produktu, marki, EAN…"
       />
 
-      {catalogQuery.isPending ? (
-        <p className="text-sm text-gray-500">Ładowanie katalogu…</p>
+      {isPending ? (
+        <p className="px-2 py-6 text-center text-sm text-gray-500">
+          Ładowanie katalogu…
+        </p>
       ) : null}
-      {catalogQuery.isError ? (
-        <p className="text-sm text-red-600" role="alert">
-          {readApiError(catalogQuery.error)}
+      {isError ? (
+        <p className="px-2 py-6 text-center text-sm text-red-600" role="alert">
+          {errorMessage ?? "Nie udało się pobrać katalogu."}
         </p>
       ) : null}
 
-      {empty ? (
+      {!isPending && !isError && items.length === 0 ? (
         <p className="py-6 text-center text-sm text-gray-500">
-          {debouncedSearch
+          {urlState.search
             ? "Brak wyników dla tego wyszukiwania."
             : "Katalog jest pusty — dodaj pierwszy produkt."}
         </p>
       ) : null}
 
-      {groups.length > 0 ? (
-        <ul className="divide-y divide-gray-50 overflow-hidden rounded-2xl border border-gray-100 bg-white">
-          {groups.map((group) => {
-            const expanded = expandedGroups.has(group.id);
-            return (
-              <li key={group.id}>
-                <button
-                  type="button"
-                  className="flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-gray-50/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-500"
-                  aria-expanded={expanded}
-                  onClick={() => toggleGroup(group.id)}
-                >
-                  <CoverThumbnails
-                    images={group.coverImages}
-                    alt={group.name}
-                    onPreview={onPreview}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-gray-900">{group.name}</p>
-                    <p className="mt-0.5 text-xs text-gray-500">
-                      {group.activeProductCount}{" "}
-                      {pluralize(
-                        group.activeProductCount,
-                        "produkt",
-                        "produkty",
-                        "produktów",
-                      )}
-                      {" · "}
-                      {formatGroupStock(group)}
-                    </p>
-                    <p className="mt-0.5 text-xs text-gray-400">
-                      Wartości odżywcze: {group.hasNutritionCount}/
-                      {group.activeProductCount}
-                    </p>
-                  </div>
-                  <ChevronDown
-                    size={18}
-                    className={cn(
-                      "mt-2 shrink-0 text-gray-400 transition-transform",
-                      expanded && "rotate-180",
-                    )}
-                    aria-hidden
-                  />
-                </button>
-                {expanded ? (
-                  <GroupProductsPanel
-                    kitchenId={kitchenId}
-                    groupId={group.id}
-                    onPreview={onPreview}
-                    onArchiveProduct={onArchiveProduct}
-                    onUndoAddition={onUndoAddition}
-                    onWriteOffAndArchive={onWriteOffAndArchive}
-                    onAddToList={onAddToList}
-                    addToListPending={addToListPending}
-                    buildMenuItems={buildMenuItems}
-                  />
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
-
-      {ungrouped.length > 0 ? (
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-gray-800">
-            Pozostałe produkty
-          </h3>
-          <ul className="divide-y divide-gray-100 overflow-hidden rounded-2xl border border-gray-100 bg-white">
-            {ungrouped.map((product) => (
-              <li key={product.id} className="px-3 py-3 sm:px-4">
-                <CatalogProductRow
+      {items.length > 0 ? (
+        <>
+          <ul
+            className="border border-gray-200 bg-white"
+            data-testid="catalog-compact-list"
+          >
+            {items.map((entry) => {
+              if (entry.kind === "product") {
+                const kindBadge = entry.groupName;
+                return (
+                  <li key={entry.product.id}>
+                    <CatalogProductCompactRow
+                      kitchenId={kitchenId}
+                      product={entry.product}
+                      kindBadge={kindBadge}
+                      nested={false}
+                      onPreview={onPreview}
+                      onArchiveProduct={onArchiveProduct}
+                      onUndoAddition={onUndoAddition}
+                      onWriteOffAndArchive={onWriteOffAndArchive}
+                      onAddToList={onAddToList}
+                      addToListPending={addToListPending}
+                      buildMenuItems={buildMenuItems}
+                    />
+                  </li>
+                );
+              }
+              return (
+                <CatalogGroupBlock
+                  key={`group:${entry.groupId}`}
                   kitchenId={kitchenId}
-                  product={product}
+                  group={entry}
+                  expanded={expandedGroupIds.has(entry.groupId)}
+                  onToggle={() => toggleGroup(entry.groupId)}
                   onPreview={onPreview}
                   onArchiveProduct={onArchiveProduct}
                   onUndoAddition={onUndoAddition}
@@ -217,18 +162,43 @@ export function ProductCatalogPanel({
                   addToListPending={addToListPending}
                   buildMenuItems={buildMenuItems}
                 />
-              </li>
-            ))}
+              );
+            })}
           </ul>
-        </div>
+          {pageCount > 1 ? (
+            <div className="flex items-center justify-between gap-3 text-sm text-gray-600">
+              <button
+                type="button"
+                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 disabled:opacity-40"
+                disabled={page <= 1}
+                onClick={() => onUrlPatch({ page: page - 1 })}
+              >
+                Poprzednia
+              </button>
+              <span className="tabular-nums">
+                Strona {page} / {pageCount}
+              </span>
+              <button
+                type="button"
+                className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 disabled:opacity-40"
+                disabled={page >= pageCount}
+                onClick={() => onUrlPatch({ page: page + 1 })}
+              >
+                Następna
+              </button>
+            </div>
+          ) : null}
+        </>
       ) : null}
     </div>
   );
 }
 
-function GroupProductsPanel({
+function CatalogGroupBlock({
   kitchenId,
-  groupId,
+  group,
+  expanded,
+  onToggle,
   onPreview,
   onArchiveProduct,
   onUndoAddition,
@@ -238,7 +208,9 @@ function GroupProductsPanel({
   buildMenuItems,
 }: {
   kitchenId: string;
-  groupId: string;
+  group: CatalogGroupRow;
+  expanded: boolean;
+  onToggle: () => void;
   onPreview?: (src: string, alt: string) => void;
   onArchiveProduct?: (product: { id: string; name: string }) => void;
   onUndoAddition?: (product: { id: string; name: string }) => void;
@@ -247,120 +219,74 @@ function GroupProductsPanel({
   addToListPending?: boolean;
   buildMenuItems?: ProductCatalogPanelProps["buildMenuItems"];
 }) {
-  const detailQuery = useQuery({
-    queryKey: ["product-groups", kitchenId, groupId],
-    queryFn: async () => {
-      const client = createWebApiClient();
-      const { data, error } = await client.GET(
-        "/api/kitchens/{kitchenId}/product-groups/{groupId}",
-        { params: { path: { kitchenId, groupId } } },
-      );
-      if (error) {
-        throw new Error(
-          readApiError(error, "Nie udało się pobrać produktów rodzaju."),
-        );
-      }
-      return data as ProductGroupDetail;
-    },
-  });
-
-  const stockQuery = useQuery({
-    queryKey: ["stock-summary", kitchenId],
-    queryFn: async () => {
-      const client = createWebApiClient();
-      const { data, error } = await client.GET(
-        "/api/kitchens/{kitchenId}/stock-summary",
-        { params: { path: { kitchenId }, query: {} } },
-      );
-      if (error) {
-        throw new Error(
-          readApiError(error, "Nie udało się pobrać zapasów."),
-        );
-      }
-      return data ?? [];
-    },
-    staleTime: 30_000,
-  });
-
-  if (detailQuery.isPending) {
-    return (
-      <p className="border-t border-gray-50 bg-gray-50/40 px-4 py-3 text-sm text-gray-500">
-        Ładowanie produktów…
-      </p>
-    );
-  }
-  if (detailQuery.isError) {
-    return (
-      <p
-        className="border-t border-gray-50 bg-gray-50/40 px-4 py-3 text-sm text-red-600"
-        role="alert"
-      >
-        {readApiError(detailQuery.error)}
-      </p>
-    );
-  }
-
-  const products = (detailQuery.data?.products ?? []).filter(
-    (product) => !product.isArchived,
+  const qty = formatDisplayQuantityWithUnit(
+    group.totalQuantity,
+    group.defaultUnit,
   );
-  const stockByProduct = new Map(
-    (stockQuery.data ?? []).map((entry) => [entry.productId, entry]),
-  );
-
-  if (products.length === 0) {
-    return (
-      <p className="border-t border-gray-50 bg-gray-50/40 px-4 py-3 text-sm text-gray-500">
-        Brak aktywnych produktów w tym rodzaju.{" "}
-        <Link
-          href={`/kitchens/${kitchenId}/product-groups/${groupId}`}
-          className="font-medium text-emerald-700 hover:underline"
-        >
-          Otwórz rodzaj
-        </Link>
-      </p>
-    );
-  }
+  const subtitle = `${pluralizeVariants(group.variantCount)} · ${pluralizeBatches(group.batchCount)}`;
 
   return (
-    <ul className="border-t border-gray-50 bg-gray-50/40">
-      {products.map((product) => {
-        const stock = stockByProduct.get(product.id);
-        const catalogLike: CatalogProduct = {
-          ...product,
-          batchCount: stock?.batchCount ?? 0,
-          totalQuantity: stock?.totalQuantity ?? "0.000",
-        };
-        return (
-          <li key={product.id} className="border-t border-gray-50 px-3 py-3 sm:px-4">
-            <CatalogProductRow
-              kitchenId={kitchenId}
-              product={catalogLike}
-              onPreview={onPreview}
-              onArchiveProduct={onArchiveProduct}
-              onUndoAddition={onUndoAddition}
-              onWriteOffAndArchive={onWriteOffAndArchive}
-              onAddToList={onAddToList}
-              addToListPending={addToListPending}
-              buildMenuItems={buildMenuItems}
-            />
+    <li>
+      <button
+        type="button"
+        className="flex min-h-14 w-full items-center gap-2 border-b border-gray-100 px-2 py-1.5 text-left hover:bg-gray-50"
+        aria-expanded={expanded}
+        onClick={onToggle}
+      >
+        <StockGroupThumb size="sm" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-gray-900">
+            {group.groupName}
+          </p>
+          <p className="text-[11px] text-gray-500">{subtitle}</p>
+        </div>
+        <p className="shrink-0 text-sm tabular-nums text-gray-800">{qty}</p>
+        <ChevronDown
+          size={15}
+          className={cn(
+            "shrink-0 text-gray-400 transition-transform",
+            expanded && "rotate-180",
+          )}
+          aria-hidden
+        />
+      </button>
+      {expanded ? (
+        <ul>
+          {group.variants.map((product) => (
+            <li key={product.id}>
+              <CatalogProductCompactRow
+                kitchenId={kitchenId}
+                product={product}
+                nested
+                onPreview={onPreview}
+                onArchiveProduct={onArchiveProduct}
+                onUndoAddition={onUndoAddition}
+                onWriteOffAndArchive={onWriteOffAndArchive}
+                onAddToList={onAddToList}
+                addToListPending={addToListPending}
+                buildMenuItems={buildMenuItems}
+              />
+            </li>
+          ))}
+          <li className="border-b border-gray-100 px-4 py-2 text-right">
+            <Link
+              href={`/kitchens/${kitchenId}/product-groups/${group.groupId}`}
+              className="text-xs font-medium text-emerald-700 hover:underline"
+            >
+              Zarządzaj rodzajem
+            </Link>
           </li>
-        );
-      })}
-      <li className="border-t border-gray-50 px-4 py-2 text-right">
-        <Link
-          href={`/kitchens/${kitchenId}/product-groups/${groupId}`}
-          className="text-xs font-medium text-emerald-700 hover:underline"
-        >
-          Zarządzaj rodzajem
-        </Link>
-      </li>
-    </ul>
+        </ul>
+      ) : null}
+    </li>
   );
 }
 
-function CatalogProductRow({
+function CatalogProductCompactRow({
   kitchenId,
   product,
+  kindBadge,
+  nested,
   onPreview,
   onArchiveProduct,
   onUndoAddition,
@@ -370,7 +296,9 @@ function CatalogProductRow({
   buildMenuItems,
 }: {
   kitchenId: string;
-  product: CatalogProduct | (Product & { batchCount: number; totalQuantity: string });
+  product: CatalogProduct;
+  kindBadge?: string | null;
+  nested: boolean;
   onPreview?: (src: string, alt: string) => void;
   onArchiveProduct?: (product: { id: string; name: string }) => void;
   onUndoAddition?: (product: { id: string; name: string }) => void;
@@ -386,11 +314,10 @@ function CatalogProductRow({
     mediaDisplayUrl(product.image) ??
     (isDisplayableUrl(product.imageUrl) ? product.imageUrl : null);
   const meta = [product.brand, product.variantLabel].filter(Boolean).join(" · ");
-  const packageLabel =
-    product.packageQuantity && product.packageUnit
-      ? `${formatQuantityNumber(product.packageQuantity)}\u00A0${unitLabel(product.packageUnit)}`
-      : null;
   const inStock = Number(product.totalQuantity) > 0;
+  const qty = inStock
+    ? formatDisplayQuantityWithUnit(product.totalQuantity, product.defaultUnit)
+    : "Brak w zapasach";
 
   const menuItems: ProductActionItem[] =
     buildMenuItems?.({
@@ -410,65 +337,63 @@ function CatalogProductRow({
     });
 
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex min-w-0 items-center gap-3">
-        <button
-          type="button"
-          className={cn(
-            "flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-emerald-50 bg-emerald-50/40",
-            full && "hover:shadow-md",
-          )}
-          disabled={!full || !thumb}
-          onClick={() => {
-            if (full) {
-              onPreview?.(full, product.name);
-            }
-          }}
-          aria-label={full ? `Powiększ zdjęcie: ${product.name}` : undefined}
-        >
-          {thumb ? (
-            // eslint-disable-next-line @next/next/no-img-element -- podpisane URL-e
-            <img src={thumb} alt="" className="h-full w-full object-contain" />
-          ) : (
-            <Package size={18} className="text-emerald-300" />
-          )}
-        </button>
-        <div className="min-w-0">
-          <p className="truncate font-medium text-gray-900">{product.name}</p>
-          {product.category ? (
-            <ProductCategoryBadge
-              category={product.category}
-              className="mt-0.5 text-xs"
-            />
-          ) : null}
-          {meta ? (
-            <p className="truncate text-xs text-gray-500">{meta}</p>
-          ) : null}
-          <p className="truncate text-xs text-gray-500">
-            {[
-              UNIT_LABELS[product.defaultUnit],
-              packageLabel ? `opak. ${packageLabel}` : null,
-              product.ean ? `EAN ${product.ean}` : null,
-              product.nutrition ? "Wartości odżywcze: tak" : "Wartości odżywcze: brak",
-            ]
-              .filter(Boolean)
-              .join(" · ")}
+    <div
+      className={cn(
+        "flex min-h-14 items-center gap-2 border-b border-gray-100 px-2 py-1.5",
+        nested && "bg-gray-50/40 pl-8",
+      )}
+    >
+      <button
+        type="button"
+        className={cn(
+          "flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-md border border-gray-200 bg-gray-50",
+          full && "hover:bg-gray-100",
+        )}
+        disabled={!full || !thumb}
+        onClick={() => {
+          if (full) {
+            onPreview?.(full, product.name);
+          }
+        }}
+        aria-label={full ? `Powiększ zdjęcie: ${product.name}` : undefined}
+      >
+        {thumb ? (
+          // eslint-disable-next-line @next/next/no-img-element -- podpisane URL-e
+          <img src={thumb} alt="" className="h-full w-full object-contain" />
+        ) : (
+          <Package size={14} className="text-gray-300" />
+        )}
+      </button>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <p className="truncate text-sm font-medium text-gray-900">
+            {product.name}
           </p>
-          <p className="text-xs text-emerald-800">
-            {inStock
-              ? formatQuantityWithUnit(product.totalQuantity, product.defaultUnit)
-              : "Brak w zapasach"}
-            {product.batchCount > 0
-              ? ` · ${product.batchCount} ${pluralize(product.batchCount, "partia", "partie", "partii")}`
-              : ""}
-          </p>
+          {kindBadge ? (
+            <span className="text-[10px] font-medium uppercase tracking-wide text-gray-500">
+              {kindBadge}
+            </span>
+          ) : null}
+          {product.isArchived ? (
+            <span className="text-[10px] font-medium text-amber-700">
+              Archiwum
+            </span>
+          ) : null}
         </div>
+        {meta ? (
+          <p className="truncate text-[11px] text-gray-500">{meta}</p>
+        ) : null}
       </div>
-      <div className="flex shrink-0 items-center justify-end gap-2 self-end sm:self-auto">
-        <ProductActionsMenu
-          label={`Akcje: ${product.name}`}
-          items={menuItems}
-        />
+      <p
+        className={cn(
+          "hidden shrink-0 text-sm tabular-nums sm:block",
+          inStock ? "text-gray-800" : "text-gray-400",
+        )}
+      >
+        {qty}
+      </p>
+      <div className="shrink-0">
+        <ProductActionsMenu label={`Akcje: ${product.name}`} items={menuItems} />
       </div>
     </div>
   );
@@ -476,7 +401,12 @@ function CatalogProductRow({
 
 function defaultCatalogMenuItems(args: {
   kitchenId: string;
-  product: { id: string; name: string; groupId?: string | null; totalQuantity?: string };
+  product: {
+    id: string;
+    name: string;
+    groupId?: string | null;
+    totalQuantity?: string;
+  };
   onArchiveProduct?: (product: { id: string; name: string }) => void;
   onUndoAddition?: (product: { id: string; name: string }) => void;
   onWriteOffAndArchive?: (product: { id: string; name: string }) => void;
@@ -500,7 +430,8 @@ function defaultCatalogMenuItems(args: {
     items.push({
       id: "list",
       label: "Dodaj do listy zakupów",
-      onSelect: () => args.onAddToList!({ id: product.id, name: product.name }),
+      onSelect: () =>
+        args.onAddToList!({ id: product.id, name: product.name }),
       disabled: args.addToListPending,
     });
   }
@@ -521,7 +452,8 @@ function defaultCatalogMenuItems(args: {
     items.push({
       id: "undo",
       label: "Cofnij dodanie",
-      onSelect: () => args.onUndoAddition!({ id: product.id, name: product.name }),
+      onSelect: () =>
+        args.onUndoAddition!({ id: product.id, name: product.name }),
       destructive: true,
     });
   } else if (args.onArchiveProduct) {
@@ -549,76 +481,16 @@ function defaultCatalogMenuItems(args: {
   return items;
 }
 
-function CoverThumbnails({
-  images,
-  alt,
-  onPreview,
-}: {
-  images: MediaImage[];
-  alt: string;
-  onPreview?: (src: string, alt: string) => void;
-}) {
-  const covers = images.slice(0, 4);
-  if (covers.length === 0) {
-    return (
-      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-50/60">
-        <Package size={18} className="text-emerald-300" />
-      </div>
-    );
-  }
-  return (
-    <div className="flex shrink-0 -space-x-2">
-      {covers.map((image, index) => {
-        const thumb = mediaDisplayUrl(image, "thumbnail");
-        const full = mediaDisplayUrl(image);
-        if (!thumb) {
-          return null;
-        }
-        return (
-          <button
-            key={`${image.mediaAssetId}-${index}`}
-            type="button"
-            className="relative h-12 w-12 overflow-hidden rounded-xl border-2 border-white bg-emerald-50/40"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              if (full) {
-                onPreview?.(full, alt);
-              }
-            }}
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element -- podpisane URL-e */}
-            <img src={thumb} alt="" className="h-full w-full object-contain" />
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-export function formatGroupStock(group: GroupSummary): string {
+/** Format zbiorczego stanu grupy (używane na stronie rodzaju). */
+export function formatGroupStock(
+  group: components["schemas"]["ProductGroupSummaryDto"],
+): string {
   if (group.stockByUnit.length === 0) {
     return "Brak w zapasach";
   }
   return group.stockByUnit
-    .map((entry) => formatQuantityWithUnit(entry.totalQuantity, entry.unit))
+    .map((entry) =>
+      formatDisplayQuantityWithUnit(entry.totalQuantity, entry.unit),
+    )
     .join(" · ");
-}
-
-function pluralize(
-  count: number,
-  one: string,
-  few: string,
-  many: string,
-): string {
-  const abs = Math.abs(count);
-  if (abs === 1) {
-    return one;
-  }
-  const mod10 = abs % 10;
-  const mod100 = abs % 100;
-  if (mod10 >= 2 && mod10 <= 4 && !(mod100 >= 12 && mod100 <= 14)) {
-    return few;
-  }
-  return many;
 }

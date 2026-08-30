@@ -276,7 +276,7 @@ export function AppShell({
               <Menu size={24} />
             </button>
           </header>
-          <div className="app-shell-content w-full max-w-[1360px]">{children}</div>
+          <div className="app-shell-content w-full max-w-[1400px]">{children}</div>
         </div>
       </main>
     </div>

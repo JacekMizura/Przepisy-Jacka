@@ -7,6 +7,7 @@ import {
   type RunningApi,
 } from './create-api-app';
 import { closeTestPool, queryTestDb } from './pg-client';
+import { flattenStockSummaryBody } from './stock-summary-helpers';
 
 jest.setTimeout(120_000);
 
@@ -494,9 +495,9 @@ describe('Product archive (e2e)', () => {
       `/api/kitchens/${kitchenId}/stock-summary`,
       { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
     );
-    const archivedStock = (summary.body as StockSummary[]).find(
-      (s) => s.productId === product.id,
-    );
+    const archivedStock = (
+      flattenStockSummaryBody(summary.body) as StockSummary[]
+    ).find((s) => s.productId === product.id);
     expect(archivedStock?.isArchived).toBe(true);
     expect(Number(archivedStock?.totalQuantity)).toBeGreaterThan(0);
 
@@ -650,7 +651,9 @@ describe('Product archive (e2e)', () => {
       { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
     );
     expect(
-      (summary.body as StockSummary[]).some((s) => s.productId === product.id),
+      (flattenStockSummaryBody(summary.body) as StockSummary[]).some(
+        (s) => s.productId === product.id,
+      ),
     ).toBe(false);
   });
 });

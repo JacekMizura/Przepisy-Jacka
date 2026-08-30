@@ -348,7 +348,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Katalog z grupami produktów i produktami bez grupy (z podsumowaniem zapasu) */
+        /** Katalog produktów i rodzajów z paginacją (stan opcjonalny) */
         get: operations["StockController_listCatalog"];
         put?: never;
         post?: never;
@@ -665,7 +665,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Zbiorczy widok zapasów pogrupowany po produkcie (z partiami) */
+        /** Zbiorczy widok zapasów (tylko dodatni stan) z filtrami, sortowaniem i paginacją */
         get: operations["StockController_listStockSummary"];
         put?: never;
         post?: never;
@@ -1259,23 +1259,87 @@ export interface components {
             suggested: components["schemas"]["UsdaCatalogSuggestedNutritionDto"];
             missingOptional: string[];
         };
-        ProductGroupStockByUnitDto: {
-            /** @enum {string} */
-            unit: "piece" | "gram" | "milliliter";
-            /** @example 1250.000 */
-            totalQuantity: string;
-        };
-        ProductGroupSummaryDto: {
+        StockBatchDetailDto: {
             id: string;
-            name: string;
-            productCount: number;
-            activeProductCount: number;
+            quantity: string;
+            initialQuantity: string;
+            /** @enum {string} */
+            location: "pantry" | "fridge" | "freezer" | "other";
+            /** Format: date-time */
+            expiresAt?: string | null;
+            /** Format: date-time */
+            purchasedAt?: string | null;
+            purchasePriceMinor?: number | null;
+            /** @example PLN */
+            currency: string;
+            unitPriceMinor?: number | null;
+            storeName?: string | null;
+            packageCount?: number | null;
+            /** @example 125.000 */
+            packageQuantitySnapshot?: string | null;
+            /** @enum {string|null} */
+            packageUnitSnapshot?: "piece" | "gram" | "kilogram" | "milliliter" | "liter" | null;
+            /** Format: uuid */
+            purchaseId?: string | null;
+            /** Format: uuid */
+            receiptMediaId?: string | null;
+            isExpired: boolean;
+            /** @description Czy fizyczne usunięcie jest dozwolone (tylko ręczna, niepowiązana, nigdy nieużyta partia). */
+            canDelete: boolean;
+            /** @description Powód blokady usunięcia; null gdy canDelete=true. */
+            deleteBlockReason?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        StockProductListItemDto: {
+            productId: string;
+            productName: string;
+            /** @enum {string} */
+            defaultUnit: "piece" | "gram" | "milliliter";
+            category?: string | null;
+            /** @description Produkt zarchiwizowany (historia i partie zachowane). */
+            isArchived: boolean;
+            totalQuantity: string;
             batchCount: number;
-            stockByUnit: components["schemas"]["ProductGroupStockByUnitDto"][];
-            /** @description Do 4 okładek z produktów w grupie. */
-            coverImages: components["schemas"]["MediaImageDto"][];
-            /** @description Liczba produktów w grupie mających wartości odżywcze. */
-            hasNutritionCount: number;
+            expiringBatchCount: number;
+            /** Format: date-time */
+            nearestExpiry?: string | null;
+            batches: components["schemas"]["StockBatchDetailDto"][];
+            brand?: string | null;
+            variantLabel?: string | null;
+            /** Format: uuid */
+            groupId?: string | null;
+            groupName?: string | null;
+            imageUrl?: string | null;
+            /** @enum {string|null} */
+            primaryLocation?: "pantry" | "fridge" | "freezer" | "other" | null;
+            /**
+             * Format: date-time
+             * @description Najpóźniejsza data utworzenia partii (do sortowania).
+             */
+            latestBatchAt: string;
+        };
+        StockProductRowDto: {
+            /** @enum {string} */
+            kind: "product";
+            product: components["schemas"]["StockProductListItemDto"];
+        };
+        StockGroupListItemDto: {
+            /** @enum {string} */
+            kind: "group";
+            groupId: string;
+            groupName: string;
+            variantCount: number;
+            batchCount: number;
+            totalQuantity: string;
+            /** @enum {string} */
+            defaultUnit: "piece" | "gram" | "milliliter";
+            /** Format: date-time */
+            nearestExpiry?: string | null;
+            expiringBatchCount: number;
+            /** @enum {string|null} */
+            primaryLocation?: "pantry" | "fridge" | "freezer" | "other" | null;
+            variants: components["schemas"]["StockProductListItemDto"][];
         };
         ProductNutritionDto: {
             productId: string;
@@ -1360,9 +1424,53 @@ export interface components {
             /** @description Suma ilości w defaultUnit produktu (aktywne partie). */
             totalQuantity: string;
         };
-        KitchenCatalogDto: {
-            groups: components["schemas"]["ProductGroupSummaryDto"][];
-            ungroupedProducts: components["schemas"]["CatalogProductDto"][];
+        CatalogProductRowDto: {
+            /** @enum {string} */
+            kind: "product";
+            product: components["schemas"]["CatalogProductDto"];
+            groupName?: string | null;
+        };
+        CatalogGroupRowDto: {
+            /** @enum {string} */
+            kind: "group";
+            groupId: string;
+            groupName: string;
+            variantCount: number;
+            batchCount: number;
+            totalQuantity: string;
+            /** @enum {string} */
+            defaultUnit: "piece" | "gram" | "milliliter";
+            variants: components["schemas"]["CatalogProductDto"][];
+        };
+        CatalogPageDto: {
+            /** @example 1 */
+            page: number;
+            /** @example 50 */
+            limit: number;
+            /** @example 250 */
+            total: number;
+            /** @example 5 */
+            pageCount: number;
+            /** @description Wiersze produktu lub grupy (discriminated by kind). */
+            items: (components["schemas"]["CatalogProductRowDto"] | components["schemas"]["CatalogGroupRowDto"])[];
+        };
+        ProductGroupStockByUnitDto: {
+            /** @enum {string} */
+            unit: "piece" | "gram" | "milliliter";
+            /** @example 1250.000 */
+            totalQuantity: string;
+        };
+        ProductGroupSummaryDto: {
+            id: string;
+            name: string;
+            productCount: number;
+            activeProductCount: number;
+            batchCount: number;
+            stockByUnit: components["schemas"]["ProductGroupStockByUnitDto"][];
+            /** @description Do 4 okładek z produktów w grupie. */
+            coverImages: components["schemas"]["MediaImageDto"][];
+            /** @description Liczba produktów w grupie mających wartości odżywcze. */
+            hasNutritionCount: number;
         };
         ProductGroupDto: {
             id: string;
@@ -1799,52 +1907,17 @@ export interface components {
             ean?: string | null;
             imageUrl?: string | null;
         };
-        StockBatchDetailDto: {
-            id: string;
-            quantity: string;
-            initialQuantity: string;
-            /** @enum {string} */
-            location: "pantry" | "fridge" | "freezer" | "other";
-            /** Format: date-time */
-            expiresAt?: string | null;
-            /** Format: date-time */
-            purchasedAt?: string | null;
-            purchasePriceMinor?: number | null;
-            /** @example PLN */
-            currency: string;
-            unitPriceMinor?: number | null;
-            storeName?: string | null;
-            packageCount?: number | null;
-            /** @example 125.000 */
-            packageQuantitySnapshot?: string | null;
-            /** @enum {string|null} */
-            packageUnitSnapshot?: "piece" | "gram" | "kilogram" | "milliliter" | "liter" | null;
-            /** Format: uuid */
-            purchaseId?: string | null;
-            /** Format: uuid */
-            receiptMediaId?: string | null;
-            isExpired: boolean;
-            /** @description Czy fizyczne usunięcie jest dozwolone (tylko ręczna, niepowiązana, nigdy nieużyta partia). */
-            canDelete: boolean;
-            /** @description Powód blokady usunięcia; null gdy canDelete=true. */
-            deleteBlockReason?: string | null;
-            /** Format: date-time */
-            createdAt: string;
-        };
-        StockProductSummaryDto: {
-            productId: string;
-            productName: string;
-            /** @enum {string} */
-            defaultUnit: "piece" | "gram" | "milliliter";
-            category?: string | null;
-            /** @description Produkt zarchiwizowany (historia i partie zachowane). */
-            isArchived: boolean;
-            totalQuantity: string;
-            batchCount: number;
-            expiringBatchCount: number;
-            /** Format: date-time */
-            nearestExpiry?: string | null;
-            batches: components["schemas"]["StockBatchDetailDto"][];
+        StockSummaryPageDto: {
+            /** @example 1 */
+            page: number;
+            /** @example 50 */
+            limit: number;
+            /** @example 250 */
+            total: number;
+            /** @example 5 */
+            pageCount: number;
+            /** @description Wiersze produktu lub grupy (discriminated by kind). */
+            items: (components["schemas"]["StockProductRowDto"] | components["schemas"]["StockGroupListItemDto"])[];
         };
         ManualConsumeLineDto: {
             stockItemId: string;
@@ -3165,7 +3238,17 @@ export interface operations {
     StockController_listCatalog: {
         parameters: {
             query?: {
+                page?: number;
+                limit?: number;
                 search?: string;
+                /** @description Filtr kategorii (string; brak osobnego categoryId w schemacie). */
+                category?: string;
+                place?: "pantry" | "fridge" | "freezer" | "other";
+                unit?: "piece" | "gram" | "milliliter";
+                archived?: "active" | "archived" | "all";
+                sort?: "name" | "newest" | "updated" | "has_stock";
+                /** @description Gdy true — tylko produkty z dodatnim stanem. */
+                hasStock?: string;
             };
             header?: never;
             path: {
@@ -3180,7 +3263,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["KitchenCatalogDto"];
+                    "application/json": components["schemas"]["CatalogPageDto"];
                 };
             };
         };
@@ -3860,8 +3943,20 @@ export interface operations {
     StockController_listStockSummary: {
         parameters: {
             query?: {
+                page?: number;
+                limit?: number;
                 productId?: string;
+                /** @description Szukaj po nazwie / marce / wariancie / EAN / kategorii. */
+                search?: string;
+                /** @description Filtr kategorii produktu (string; w schemacie nie ma categoryId). */
+                category?: string;
+                place?: "pantry" | "fridge" | "freezer" | "other";
                 location?: "pantry" | "fridge" | "freezer" | "other";
+                unit?: "piece" | "gram" | "milliliter";
+                expiryStatus?: "any" | "expired" | "expiring" | "ok" | "none";
+                /** @description Domyślnie all — zapasy pokazują też zarchiwizowane z dodatnim stanem. */
+                archived?: "active" | "archived" | "all";
+                sort?: "expiry" | "newest" | "name" | "qty_desc" | "qty_asc";
             };
             header?: never;
             path: {
@@ -3876,7 +3971,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["StockProductSummaryDto"][];
+                    "application/json": components["schemas"]["StockSummaryPageDto"];
                 };
             };
         };

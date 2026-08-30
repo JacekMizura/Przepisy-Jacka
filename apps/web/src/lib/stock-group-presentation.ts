@@ -18,12 +18,14 @@ export function pluralizeVariants(count: number): string {
   return `${count} wariantów`;
 }
 
+/** Compact group meta under the name (qty lives in Stan column). */
 export function formatGroupStockSubtitle(args: {
   variantCount: number;
   batchCount: number;
-  totalLabel: string;
+  /** @deprecated Ignored — quantity is shown in Stan, not in the subtitle. */
+  totalLabel?: string;
 }): string {
-  return `${pluralizeVariants(args.variantCount)} · ${pluralizeBatches(args.batchCount)} · łącznie ${args.totalLabel}`;
+  return `${pluralizeVariants(args.variantCount)} · ${pluralizeBatches(args.batchCount)}`;
 }
 
 /**

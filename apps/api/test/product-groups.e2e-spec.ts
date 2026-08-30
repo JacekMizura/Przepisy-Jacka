@@ -202,13 +202,24 @@ describe('Product groups (e2e)', () => {
     );
     expect(catalog.status).toBe(200);
     const catalogBody = catalog.body as {
-      groups: Array<{ id: string; batchCount: number }>;
-      ungroupedProducts: unknown[];
+      items: Array<
+        | { kind: 'group'; groupId: string; batchCount: number }
+        | { kind: 'product'; product: { groupId?: string | null } }
+      >;
+      total: number;
     };
-    expect(catalogBody.groups.some((g) => g.id === groupId)).toBe(true);
-    expect(catalogBody.groups.find((g) => g.id === groupId)?.batchCount).toBe(
-      3,
-    );
+    expect(
+      catalogBody.items.some(
+        (row) => row.kind === 'group' && row.groupId === groupId,
+      ),
+    ).toBe(true);
+    expect(
+      (
+        catalogBody.items.find(
+          (row) => row.kind === 'group' && row.groupId === groupId,
+        ) as { batchCount: number } | undefined
+      )?.batchCount,
+    ).toBe(3);
 
     const recipe = await apiFetch(
       api.origin,

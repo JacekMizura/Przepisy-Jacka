@@ -19,7 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 
 type Preview = components["schemas"]["ConsumeStockPreviewResultDto"];
-type Summary = components["schemas"]["StockProductSummaryDto"];
+type Summary = components["schemas"]["StockProductListItemDto"];
 type Batch = Summary["batches"][number];
 
 type Mode = "auto" | "manual";

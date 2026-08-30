@@ -1,7 +1,14 @@
 "use client";
 
 import type { components } from "@moja-kuchnia/api-client";
-import { Calendar, ChevronDown, MapPin, Package, Search } from "lucide-react";
+import {
+  AlertCircle,
+  Calendar,
+  MapPin,
+  Package,
+  ScanBarcode,
+  Store,
+} from "lucide-react";
 import Link from "next/link";
 import {
   type FormEvent,
@@ -19,6 +26,7 @@ import {
   ProductKindField,
   type ProductKindSelection,
 } from "@/components/product-entry/product-kind-field";
+import { ProductLivePreview } from "@/components/product-entry/product-live-preview";
 import {
   buildUpsertProductNutritionDto,
   createEmptyNutritionDraft,
@@ -39,7 +47,7 @@ import {
   formatQuantityWithUnit,
   formatMoneyMinor,
 } from "@/lib/format-quantity";
-import { deleteKitchenMedia } from "@/lib/media-upload";
+import { deleteKitchenMedia, MEDIA_FILE_HINT } from "@/lib/media-upload";
 import {
   PACKAGE_UNIT_OPTIONS,
   packageCountToBaseQuantity,
@@ -58,6 +66,12 @@ import {
   type InputUnit,
 } from "@/lib/quantity-input";
 import { cn } from "@/lib/utils";
+
+const FIELD_CLASS =
+  "w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm disabled:bg-gray-50 disabled:text-gray-500";
+
+const FIELD_ORANGE_CLASS =
+  "w-full px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 sm:text-sm";
 
 type Product = components["schemas"]["ProductDto"];
 type ProductMatch = components["schemas"]["ProductMatchResultDto"];
@@ -169,7 +183,9 @@ export function ProductEntryForm({
   const createIntent = resolveCreateIntent(createIntentProp, defaultPutInStock);
   const isPurchaseCreate = mode === "create" && createIntent === "purchase";
   const isCatalogCreate = mode === "create" && createIntent === "catalog";
-  const requiresStock = mode === "add-batch" || isPurchaseCreate;
+  /** Create: stock checkbox default ON; purchase / existing-match force stock. */
+  const [putInStock, setPutInStock] = useState(true);
+  const [photoPreviewUrl, setPhotoPreviewUrl] = useState<string | null>(null);
 
   const [name, setName] = useState(
     initialProduct?.name ?? initialName,
@@ -234,9 +250,6 @@ export function ProductEntryForm({
   const [formError, setFormError] = useState<string | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [catalogSuccess, setCatalogSuccess] = useState<Product | null>(null);
-  const [extrasOpen, setExtrasOpen] = useState(
-    () => Boolean(initialProduct?.category) || mode === "edit",
-  );
   const [debouncedName, setDebouncedName] = useState(name.trim());
   const [debouncedEan, setDebouncedEan] = useState(ean.trim());
   const successNavTimer = useRef<number | null>(null);
@@ -532,13 +545,19 @@ export function ProductEntryForm({
     }
   }
 
+  const stockForced =
+    isPurchaseCreate || Boolean(mode === "create" && existingProductId);
+  const effectivelyPutInStock =
+    mode === "add-batch" ||
+    (mode === "create" && (stockForced || putInStock));
+
   function buildStockPayload():
     | { ok: true; stock: CreateProductIntake["stock"] }
     | { ok: false; message: string } {
-    if (!requiresStock && mode === "create") {
+    if (mode === "edit") {
       return { ok: true, stock: undefined };
     }
-    if (mode === "edit") {
+    if (mode === "create" && !effectivelyPutInStock) {
       return { ok: true, stock: undefined };
     }
 
@@ -741,7 +760,7 @@ export function ProductEntryForm({
       if (!stockResult.ok) {
         throw new Error(stockResult.message);
       }
-      if (requiresStock && !stockResult.stock) {
+      if (effectivelyPutInStock && !stockResult.stock) {
         throw new Error("Podaj ilość do odłożenia.");
       }
 
@@ -826,14 +845,14 @@ export function ProductEntryForm({
         message,
       };
 
-      if (isCatalogCreate && !existingProductId) {
+      if (isCatalogCreate && !existingProductId && !putStock) {
         setCatalogSuccess(result.product);
         setToast({ message, durationMs: 4000 });
         return;
       }
 
       const canUndo = await resolveCanUndo(result);
-      if (canUndo && (isPurchaseCreate || mode === "add-batch" || putStock)) {
+      if (canUndo && (putStock || mode === "add-batch")) {
         setToast({
           message,
           actionLabel: "Cofnij dodanie",
@@ -1091,10 +1110,10 @@ export function ProductEntryForm({
     if (mode === "add-batch" || existingProductId) {
       return "Odłóż do zapasów";
     }
-    if (isPurchaseCreate) {
+    if (effectivelyPutInStock) {
       return "Dodaj produkt i odłóż";
     }
-    return "Dodaj do katalogu";
+    return "Dodaj produkt";
   })();
 
   const headerTitle =
@@ -1102,9 +1121,7 @@ export function ProductEntryForm({
       ? "Edycja produktu"
       : mode === "add-batch"
         ? "Dodaj kolejną partię"
-        : isPurchaseCreate
-          ? "Dodaj zakup"
-          : "Dodaj do katalogu";
+        : "Nowy produkt";
 
   const headerSubtitle =
     mode === "edit"
@@ -1113,9 +1130,14 @@ export function ProductEntryForm({
         ? `${resolvedProduct?.name ?? "Produkt"} — odłóż kupioną ilość do zapasów.`
         : existingProductId
           ? "Przyjmujesz partię dla istniejącego produktu."
-          : isPurchaseCreate
-            ? "Dodaj produkt do katalogu i od razu odłóż kupioną ilość."
-            : "Dodaj produkt do katalogu kuchni — bez odkładania do zapasów.";
+          : "Dodaj produkt do katalogu i od razu odłóż kupioną ilość.";
+
+  const kindLabel =
+    kind.mode === "existing"
+      ? kind.group.name || null
+      : kind.mode === "create"
+        ? kind.name
+        : null;
 
   if (catalogSuccess) {
     return (
@@ -1222,161 +1244,47 @@ export function ProductEntryForm({
     );
   }
 
-  return (
-    <form
-      onSubmit={onSubmit}
-      className="relative mx-auto max-w-[1100px] space-y-6 pb-28"
-    >
-      <header className="space-y-1">
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">
-          {headerTitle}
-        </h1>
-        <p className="text-sm text-gray-500">{headerSubtitle}</p>
-      </header>
+  if (mode === "create") {
+    const stockChecked = stockForced || putInStock;
 
-      {mode === "create" && existingProductId ? (
-        <div className="rounded-2xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-950">
-          <p>
-            Przyjmujesz partię dla istniejącego produktu
-            {restoreArchived ? " (z przywróceniem z archiwum)" : ""}.
-          </p>
-          <button
-            type="button"
-            className="mt-2 text-xs font-medium text-emerald-800 underline"
-            onClick={clearExistingSelection}
-          >
-            Wróć do tworzenia nowego
-          </button>
+    return (
+      <form
+        onSubmit={onSubmit}
+        className="mx-auto max-w-6xl px-0 sm:px-2 lg:px-0"
+      >
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">{headerTitle}</h1>
+          <p className="mt-1 text-gray-500">{headerSubtitle}</p>
         </div>
-      ) : null}
 
-      {showProductFields ? (
-        <section className="grid gap-6 lg:grid-cols-[minmax(220px,320px)_minmax(0,1fr)] lg:items-start">
-          <div>
-            {mode === "edit" && resolvedProduct ? (
-              <ProductPhotoField
-                kitchenId={kitchenId}
-                productId={resolvedProduct.id}
-                image={resolvedProduct.image}
-                label="Zdjęcie produktu"
-              />
-            ) : (
-              <MediaImageField
-                kitchenId={kitchenId}
-                purpose="product"
-                currentImage={null}
-                label="Zdjęcie produktu"
-                size="lg"
-                onUploaded={(id) => setMediaAssetId(id)}
-                onRemoved={async () => {
-                  await discardPendingMedia();
-                }}
-              />
-            )}
+        {existingProductId ? (
+          <div className="mb-8 rounded-xl border border-emerald-200 bg-emerald-50/70 px-4 py-3 text-sm text-emerald-950">
+            <p>
+              Przyjmujesz partię dla istniejącego produktu
+              {restoreArchived ? " (z przywróceniem z archiwum)" : ""}.
+            </p>
+            <button
+              type="button"
+              className="mt-2 text-xs font-medium text-emerald-800 underline"
+              onClick={clearExistingSelection}
+            >
+              Wróć do tworzenia nowego
+            </button>
           </div>
+        ) : null}
 
-          <div className="space-y-4">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-              <div className="min-w-0 flex-1">
-                <Label htmlFor="product-entry-ean">EAN</Label>
-                <Input
-                  id="product-entry-ean"
-                  inputMode="numeric"
-                  value={ean}
-                  onChange={(event) => setEan(event.target.value)}
-                  placeholder="np. 5901234123457"
-                  disabled={lockCatalogFields}
-                />
-                {fieldErrors.ean ? (
-                  <p className="mt-1 text-xs text-red-600">{fieldErrors.ean}</p>
-                ) : null}
-              </div>
-              {mode === "create" ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="shrink-0"
-                  disabled={ean.trim().length < 8 || matchQuery.isFetching}
-                  onClick={() => {
-                    setDebouncedEan(ean.trim());
-                    void matchQuery.refetch();
-                  }}
-                >
-                  <Search size={16} className="mr-1.5" />
-                  Szukaj
-                </Button>
-              ) : null}
-            </div>
-
-            <ProductKindField
-              kitchenId={kitchenId}
-              value={kind}
-              onChange={setKind}
-              suggestedGroups={
-                mode === "create" ? (match?.suggestedGroups ?? []) : []
-              }
-              disabled={lockCatalogFields}
-            />
-
-            <div>
-              <Label htmlFor="product-entry-name">Nazwa</Label>
-              <Input
-                id="product-entry-name"
-                value={name}
-                onChange={(event) => {
-                  setName(event.target.value);
-                  if (existingProductId && mode === "create") {
-                    clearExistingSelection();
-                  }
-                }}
-                placeholder="np. Mleko UHT 3,2%"
-                required
-                disabled={lockCatalogFields}
-              />
-              {fieldErrors.name ? (
-                <p className="mt-1 text-xs text-red-600">{fieldErrors.name}</p>
-              ) : null}
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="product-entry-brand">Marka</Label>
-                <Input
-                  id="product-entry-brand"
-                  value={brand}
-                  onChange={(event) => setBrand(event.target.value)}
-                  placeholder="np. Galbani"
-                  disabled={lockCatalogFields}
-                />
-              </div>
-              <div>
-                <Label htmlFor="product-entry-variant">Wariant</Label>
-                <Input
-                  id="product-entry-variant"
-                  value={variantLabel}
-                  onChange={(event) => setVariantLabel(event.target.value)}
-                  placeholder="np. kulka / light"
-                  disabled={lockCatalogFields}
-                />
-              </div>
-            </div>
-          </div>
-        </section>
-      ) : null}
-
-      {mode === "create" && bannerText && catalogHit && !existingProductId ? (
-        <div
-          className="rounded-2xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950"
-          role="status"
-        >
-          <p className="font-medium">{bannerText}</p>
-          <p className="mt-1 text-amber-900/80">
-            Dopasowanie: {catalogHit.name} ({UNIT_LABELS[catalogHit.defaultUnit]}
-            )
-            {catalogHit.isArchived ? " · w archiwum" : ""}
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {isPurchaseCreate ? (
+        {bannerText && catalogHit && !existingProductId ? (
+          <div
+            className="mb-8 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-sm text-amber-950"
+            role="status"
+          >
+            <p className="font-medium">{bannerText}</p>
+            <p className="mt-1 text-amber-900/80">
+              Dopasowanie: {catalogHit.name} (
+              {UNIT_LABELS[catalogHit.defaultUnit]})
+              {catalogHit.isArchived ? " · w archiwum" : ""}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
               <Button
                 type="button"
                 size="sm"
@@ -1387,236 +1295,854 @@ export function ProductEntryForm({
                   ? "Przywróć i odłóż partię"
                   : "Użyj istniejącego i odłóż partię"}
               </Button>
-            ) : (
-              <Link
-                href={`/kitchens/${kitchenId}/products/${catalogHit.id}/edit`}
-                className="inline-flex h-9 items-center rounded-xl border border-gray-200 bg-white px-3 text-xs font-medium text-gray-800 hover:bg-gray-50"
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={clearExistingSelection}
               >
-                Otwórz istniejący produkt
+                Kontynuuj jako nowy
+              </Button>
+            </div>
+          </div>
+        ) : null}
+
+        <div className="flex flex-col gap-8 lg:flex-row">
+          <div className="flex-1 space-y-10">
+            {showProductFields ? (
+              <section>
+                <h2 className="mb-5 text-sm font-bold tracking-wider text-emerald-700 uppercase">
+                  Produkt
+                </h2>
+                <div className="space-y-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+                  <ProductKindField
+                    kitchenId={kitchenId}
+                    value={kind}
+                    onChange={setKind}
+                    suggestedGroups={match?.suggestedGroups ?? []}
+                    disabled={lockCatalogFields}
+                  />
+
+                  <div>
+                    <label
+                      htmlFor="product-entry-name"
+                      className="mb-1 block text-sm font-medium text-gray-700"
+                    >
+                      Nazwa <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      id="product-entry-name"
+                      value={name}
+                      onChange={(event) => {
+                        setName(event.target.value);
+                        if (existingProductId) {
+                          clearExistingSelection();
+                        }
+                      }}
+                      placeholder="np. Mleko UHT 3,2%"
+                      required
+                      disabled={lockCatalogFields}
+                      className={FIELD_CLASS}
+                    />
+                    {fieldErrors.name ? (
+                      <p className="mt-1 text-xs text-red-600">
+                        {fieldErrors.name}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <MediaImageField
+                    kitchenId={kitchenId}
+                    purpose="product"
+                    currentImage={null}
+                    label="Zdjęcie produktu (opcjonalnie)"
+                    hint={MEDIA_FILE_HINT}
+                    layout="inline"
+                    onUploaded={(id) => setMediaAssetId(id)}
+                    onRemoved={async () => {
+                      await discardPendingMedia();
+                    }}
+                    onPreviewUrlChange={setPhotoPreviewUrl}
+                  />
+
+                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    <div>
+                      <label
+                        htmlFor="product-entry-brand"
+                        className="mb-1 block text-sm font-medium text-gray-700"
+                      >
+                        Marka (opcjonalnie)
+                      </label>
+                      <input
+                        id="product-entry-brand"
+                        value={brand}
+                        onChange={(event) => setBrand(event.target.value)}
+                        placeholder="np. Galbani"
+                        disabled={lockCatalogFields}
+                        className={FIELD_CLASS}
+                      />
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="product-entry-variant"
+                        className="mb-1 block text-sm font-medium text-gray-700"
+                      >
+                        Wariant (opcjonalnie)
+                      </label>
+                      <input
+                        id="product-entry-variant"
+                        value={variantLabel}
+                        onChange={(event) => setVariantLabel(event.target.value)}
+                        placeholder="np. kulka / light"
+                        disabled={lockCatalogFields}
+                        className={FIELD_CLASS}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                    <div>
+                      <label
+                        htmlFor="product-entry-ean"
+                        className="mb-1 block text-sm font-medium text-gray-700"
+                      >
+                        EAN (opcjonalnie)
+                      </label>
+                      <div className="relative">
+                        <input
+                          id="product-entry-ean"
+                          inputMode="numeric"
+                          value={ean}
+                          onChange={(event) => setEan(event.target.value)}
+                          placeholder="np. 5901234123457"
+                          disabled={lockCatalogFields}
+                          className={cn(FIELD_CLASS, "pr-10")}
+                        />
+                        <button
+                          type="button"
+                          className="absolute top-1/2 right-2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 disabled:opacity-40"
+                          disabled={
+                            ean.trim().length < 8 || matchQuery.isFetching
+                          }
+                          aria-label="Szukaj po EAN"
+                          onClick={() => {
+                            setDebouncedEan(ean.trim());
+                            void matchQuery.refetch();
+                          }}
+                        >
+                          <ScanBarcode className="h-5 w-5" />
+                        </button>
+                      </div>
+                      {fieldErrors.ean ? (
+                        <p className="mt-1 text-xs text-red-600">
+                          {fieldErrors.ean}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div>
+                      <label
+                        htmlFor="product-entry-unit"
+                        className="mb-1 block text-sm font-medium text-gray-700"
+                      >
+                        Jednostka bazowa
+                      </label>
+                      <select
+                        id="product-entry-unit"
+                        value={defaultUnit}
+                        onChange={(event) =>
+                          applyDefaultUnit(event.target.value as BaseUnit)
+                        }
+                        disabled={lockCatalogFields}
+                        className={cn(FIELD_CLASS, "bg-white")}
+                      >
+                        {(Object.keys(UNIT_OPTION_LABELS) as BaseUnit[]).map(
+                          (unit) => (
+                            <option key={unit} value={unit}>
+                              {UNIT_OPTION_LABELS[unit]}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="product-entry-package-qty"
+                      className="mb-1 block text-sm font-medium text-gray-700"
+                    >
+                      Ilość w opakowaniu
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        id="product-entry-package-qty"
+                        inputMode="decimal"
+                        value={packageQuantity}
+                        onChange={(event) => {
+                          setPackageQuantity(event.target.value);
+                          if (!event.target.value.trim()) {
+                            setStockByPackages(false);
+                          }
+                        }}
+                        placeholder="np. 125"
+                        disabled={lockCatalogFields}
+                        className="w-32 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm disabled:bg-gray-50"
+                      />
+                      <select
+                        aria-label="Jednostka opakowania"
+                        value={packageUnit}
+                        onChange={(event) =>
+                          setPackageUnit(
+                            event.target.value as PackageUnit | "",
+                          )
+                        }
+                        disabled={lockCatalogFields}
+                        className="w-24 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm bg-gray-50"
+                      >
+                        <option value="">—</option>
+                        {PACKAGE_UNIT_OPTIONS.filter((option) =>
+                          suggestedPackageUnitsFor(defaultUnit).includes(
+                            option.value,
+                          ),
+                        ).map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <p className="mt-1.5 text-xs text-gray-500">
+                      Opcjonalnie — ułatwia odkładanie zapasu w opakowaniach.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="product-entry-category"
+                      className="mb-1 block text-sm font-medium text-gray-700"
+                    >
+                      Kategoria
+                    </label>
+                    <select
+                      id="product-entry-category"
+                      value={category}
+                      onChange={(event) => setCategory(event.target.value)}
+                      disabled={lockCatalogFields}
+                      className={cn(FIELD_CLASS, "bg-white")}
+                    >
+                      <option value="">Bez kategorii</option>
+                      {categoryOptions.map((entry) => (
+                        <option key={entry} value={entry}>
+                          {entry}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </section>
+            ) : null}
+
+            {showProductFields ? (
+              <section>
+                <ProductNutritionEditor
+                  kitchenId={kitchenId}
+                  productUnit={defaultUnit}
+                  ean={ean}
+                  value={nutrition}
+                  onChange={setNutrition}
+                />
+              </section>
+            ) : null}
+
+            <section>
+              <h2 className="mb-5 text-sm font-bold tracking-wider text-orange-600 uppercase">
+                Zakup i Zapasy
+              </h2>
+              <div
+                className={cn(
+                  "rounded-xl border p-6 shadow-sm transition-colors",
+                  stockChecked
+                    ? "border-orange-200 bg-orange-50/30"
+                    : "border-gray-200 bg-white",
+                )}
+              >
+                <div className="mb-6 flex items-center">
+                  <input
+                    id="addToInventory"
+                    name="addToInventory"
+                    type="checkbox"
+                    checked={stockChecked}
+                    disabled={stockForced}
+                    onChange={(event) => setPutInStock(event.target.checked)}
+                    className="h-5 w-5 cursor-pointer rounded border-gray-300 text-orange-600 focus:ring-orange-500 disabled:cursor-not-allowed disabled:opacity-70"
+                  />
+                  <label
+                    htmlFor="addToInventory"
+                    className="ml-3 block cursor-pointer text-base font-medium text-gray-900 select-none"
+                  >
+                    Odłóż od razu do zapasów
+                  </label>
+                </div>
+
+                {stockChecked ? (
+                  <div className="space-y-6">
+                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                      <div>
+                        <label
+                          htmlFor="entry-qty"
+                          className="mb-1 block text-sm font-medium text-gray-700"
+                        >
+                          Ilość
+                        </label>
+                        <div className="flex gap-2">
+                          {stockByPackages && packageConfigured ? (
+                            <input
+                              id="entry-qty"
+                              inputMode="decimal"
+                              value={packageCount}
+                              onChange={(event) =>
+                                setPackageCount(event.target.value)
+                              }
+                              placeholder="0"
+                              required
+                              className={FIELD_ORANGE_CLASS}
+                            />
+                          ) : (
+                            <input
+                              id="entry-qty"
+                              inputMode="decimal"
+                              value={quantity}
+                              onChange={(event) =>
+                                setQuantity(event.target.value)
+                              }
+                              placeholder="0"
+                              required
+                              className={FIELD_ORANGE_CLASS}
+                            />
+                          )}
+                          <select
+                            aria-label="Jednostka ilości"
+                            value={
+                              stockByPackages && packageConfigured
+                                ? "__pkg__"
+                                : inputUnit
+                            }
+                            onChange={(event) => {
+                              if (event.target.value === "__pkg__") {
+                                setStockByPackages(true);
+                                return;
+                              }
+                              setStockByPackages(false);
+                              setInputUnit(event.target.value as InputUnit);
+                            }}
+                            className="w-32 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 sm:text-sm bg-white"
+                          >
+                            {inputUnitsFor(stockUnit).map((unit) => (
+                              <option key={unit.value} value={unit.value}>
+                                {unit.label}
+                              </option>
+                            ))}
+                            {packageConfigured ? (
+                              <option value="__pkg__">opak.</option>
+                            ) : null}
+                          </select>
+                        </div>
+                        {stockByPackages &&
+                        packageConfigured &&
+                        computedPackageStock?.ok ? (
+                          <p className="mt-1 text-xs text-orange-800">
+                            Razem:{" "}
+                            {formatQuantityWithUnit(
+                              computedPackageStock.quantity,
+                              stockUnit,
+                            )}
+                          </p>
+                        ) : null}
+                        {stockByPackages &&
+                        packageConfigured &&
+                        computedPackageStock &&
+                        !computedPackageStock.ok ? (
+                          <p className="mt-1 text-xs text-red-600">
+                            {computedPackageStock.message}
+                          </p>
+                        ) : null}
+                      </div>
+
+                      <div>
+                        <label
+                          htmlFor="entry-price"
+                          className="mb-1 block text-sm font-medium text-gray-700"
+                        >
+                          Cena (zł, opcjonalnie)
+                        </label>
+                        <div className="relative">
+                          <input
+                            id="entry-price"
+                            inputMode="decimal"
+                            value={price}
+                            onChange={(event) => setPrice(event.target.value)}
+                            placeholder="0,00"
+                            className={cn(
+                              FIELD_ORANGE_CLASS,
+                              "pr-10 text-right",
+                            )}
+                          />
+                          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-3">
+                            <span className="text-gray-500 sm:text-sm">zł</span>
+                          </div>
+                        </div>
+                        <p className="mt-1 flex items-center gap-1 text-xs text-gray-500">
+                          <AlertCircle className="h-3 w-3" /> Cena to łączna
+                          kwota za tę partię.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                      <div>
+                        <label
+                          htmlFor="entry-store"
+                          className="mb-1 flex items-center gap-1 text-sm font-medium text-gray-700"
+                        >
+                          <Store className="h-4 w-4 text-gray-400" /> Sklep
+                          (opcjonalnie)
+                        </label>
+                        <input
+                          id="entry-store"
+                          value={storeName}
+                          onChange={(event) => setStoreName(event.target.value)}
+                          placeholder="np. Lidl"
+                          className={FIELD_ORANGE_CLASS}
+                        />
+                      </div>
+                      <div>
+                        <label
+                          htmlFor="entry-location"
+                          className="mb-1 flex items-center gap-1 text-sm font-medium text-gray-700"
+                        >
+                          <MapPin className="h-4 w-4 text-gray-400" /> Miejsce{" "}
+                          <span className="text-red-500">*</span>
+                        </label>
+                        <select
+                          id="entry-location"
+                          value={location}
+                          onChange={(event) =>
+                            setLocation(
+                              event.target.value as keyof typeof LOCATION_LABELS,
+                            )
+                          }
+                          className={cn(FIELD_ORANGE_CLASS, "bg-white")}
+                        >
+                          {Object.entries(LOCATION_LABELS).map(
+                            ([value, label]) => (
+                              <option key={value} value={value}>
+                                {label}
+                              </option>
+                            ),
+                          )}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                      <div>
+                        <label
+                          htmlFor="entry-purchased"
+                          className="mb-1 flex items-center gap-1 text-sm font-medium text-gray-700"
+                        >
+                          <Calendar className="h-4 w-4 text-gray-400" /> Data
+                          zakupu
+                        </label>
+                        <input
+                          id="entry-purchased"
+                          type="date"
+                          value={purchasedAt}
+                          onChange={(event) =>
+                            setPurchasedAt(event.target.value)
+                          }
+                          className={FIELD_ORANGE_CLASS}
+                        />
+                      </div>
+                      <div>
+                        <label
+                          htmlFor="entry-expires"
+                          className="mb-1 flex items-center gap-1 text-sm font-medium text-gray-700"
+                        >
+                          <Calendar className="h-4 w-4 text-gray-400" /> Data
+                          ważności
+                        </label>
+                        <input
+                          id="entry-expires"
+                          type="date"
+                          value={expiresAt}
+                          onChange={(event) => setExpiresAt(event.target.value)}
+                          className={cn(FIELD_ORANGE_CLASS, "text-gray-500")}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+
+            {formError ? (
+              <p className="text-sm text-red-600" role="alert">
+                {formError}
+              </p>
+            ) : null}
+
+            <div className="lg:hidden">
+              <details className="rounded-xl border border-gray-200 bg-white shadow-sm">
+                <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold text-gray-900 marker:content-none [&::-webkit-details-marker]:hidden">
+                  Podgląd produktu
+                </summary>
+                <div className="border-t border-gray-100">
+                  <ProductLivePreview
+                    name={name}
+                    brand={brand}
+                    variantLabel={variantLabel}
+                    category={category}
+                    kindLabel={kindLabel}
+                    defaultUnit={defaultUnit}
+                    packageQuantity={packageQuantity}
+                    packageUnit={packageUnit}
+                    photoUrl={photoPreviewUrl}
+                    putInStock={stockChecked}
+                    quantity={quantity}
+                    packageCount={packageCount}
+                    stockByPackages={stockByPackages && packageConfigured}
+                    inputUnit={inputUnit}
+                    location={location}
+                    expiresAt={expiresAt}
+                    embedded
+                  />
+                </div>
+              </details>
+            </div>
+
+            <div className="flex items-center gap-4 border-t border-gray-200 pt-4">
+              <button
+                type="submit"
+                disabled={pending}
+                className="rounded-lg border border-transparent bg-orange-500 px-6 py-3 text-base font-medium text-white shadow-sm transition-colors hover:bg-orange-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {submitLabel}
+              </button>
+              <Link
+                href={cancelHref}
+                className="rounded-lg border border-gray-300 bg-white px-6 py-3 text-base font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 focus:outline-none"
+              >
+                Anuluj
               </Link>
-            )}
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={clearExistingSelection}
-            >
-              Kontynuuj jako nowy
-            </Button>
+            </div>
+          </div>
+
+          <div className="hidden w-80 flex-shrink-0 lg:block">
+            <ProductLivePreview
+              name={name}
+              brand={brand}
+              variantLabel={variantLabel}
+              category={category}
+              kindLabel={kindLabel}
+              defaultUnit={defaultUnit}
+              packageQuantity={packageQuantity}
+              packageUnit={packageUnit}
+              photoUrl={photoPreviewUrl}
+              putInStock={stockChecked}
+              quantity={quantity}
+              packageCount={packageCount}
+              stockByPackages={stockByPackages && packageConfigured}
+              inputUnit={inputUnit}
+              location={location}
+              expiresAt={expiresAt}
+            />
           </div>
         </div>
-      ) : null}
 
-      {showProductFields ? (
-        <section className="space-y-2">
-          <Label>Opakowanie</Label>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-            <Input
-              id="product-entry-package-qty"
-              inputMode="decimal"
-              value={packageQuantity}
-              onChange={(event) => {
-                setPackageQuantity(event.target.value);
-                if (!event.target.value.trim()) {
-                  setStockByPackages(false);
-                }
-              }}
-              placeholder="Ilość w opakowaniu"
-              disabled={lockCatalogFields}
-              className="sm:max-w-[9rem]"
-            />
-            <select
-              aria-label="Jednostka opakowania"
-              className="field-input sm:max-w-[8rem]"
-              value={packageUnit}
-              onChange={(event) =>
-                setPackageUnit(event.target.value as PackageUnit | "")
-              }
-              disabled={lockCatalogFields}
-            >
-              <option value="">Jednostka</option>
-              {PACKAGE_UNIT_OPTIONS.filter((option) =>
-                suggestedPackageUnitsFor(defaultUnit).includes(option.value),
-              ).map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <span className="hidden text-sm text-gray-400 sm:inline">·</span>
-            <select
-              id="product-entry-unit"
-              aria-label="Jednostka bazowa"
-              className="field-input sm:max-w-[12rem]"
-              value={defaultUnit}
-              onChange={(event) =>
-                applyDefaultUnit(event.target.value as BaseUnit)
-              }
-              disabled={lockCatalogFields}
-            >
-              {(Object.keys(UNIT_OPTION_LABELS) as BaseUnit[]).map((unit) => (
-                <option key={unit} value={unit}>
-                  {UNIT_OPTION_LABELS[unit]}
-                </option>
-              ))}
-            </select>
-          </div>
-          {stockByPackages || packageConfigured ? (
-            <p className="text-xs text-gray-400">
-              Ilość w opakowaniu × liczba opakowań przelicza się na jednostkę
-              bazową przy odkładaniu.
-            </p>
-          ) : null}
-        </section>
-      ) : null}
-
-      {(isPurchaseCreate || (mode === "create" && existingProductId)) ? (
-        <PurchaseCard
-          packageConfigured={packageConfigured}
-          stockByPackages={stockByPackages}
-          setStockByPackages={setStockByPackages}
-          packageCount={packageCount}
-          setPackageCount={setPackageCount}
-          packageQuantity={packageQuantity}
-          packageUnit={packageUnit}
-          computedPackageStock={computedPackageStock}
-          stockUnit={stockUnit}
-          quantity={quantity}
-          setQuantity={setQuantity}
-          inputUnit={inputUnit}
-          setInputUnit={setInputUnit}
-          price={price}
-          setPrice={setPrice}
-          storeName={storeName}
-          setStoreName={setStoreName}
-          purchasedAt={purchasedAt}
-          setPurchasedAt={setPurchasedAt}
-          expiresAt={expiresAt}
-          setExpiresAt={setExpiresAt}
-          location={location}
-          setLocation={setLocation}
+        <Toast
+          message={toast?.message ?? null}
+          onDismiss={() => setToast(null)}
+          durationMs={toast?.durationMs}
+          actionLabel={toast?.actionLabel}
+          onAction={toast?.onAction}
         />
-      ) : null}
+      </form>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={onSubmit}
+      className="relative mx-auto max-w-6xl space-y-6 pb-28"
+    >
+      <header className="mb-2 space-y-1">
+        <h1 className="text-3xl font-bold text-gray-900">{headerTitle}</h1>
+        <p className="mt-1 text-gray-500">{headerSubtitle}</p>
+      </header>
 
       {showProductFields ? (
-        <ProductNutritionEditor
-          kitchenId={kitchenId}
-          productUnit={defaultUnit}
-          ean={ean}
-          value={nutrition}
-          onChange={setNutrition}
-          defaultOpen={mode === "edit" && hadNutritionInitially}
-        />
-      ) : null}
+        <section>
+          <h2 className="mb-5 text-sm font-bold tracking-wider text-emerald-700 uppercase">
+            Produkt
+          </h2>
+          <div className="space-y-6 rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            {resolvedProduct ? (
+              <ProductPhotoField
+                kitchenId={kitchenId}
+                productId={resolvedProduct.id}
+                image={resolvedProduct.image}
+                label="Zdjęcie produktu (opcjonalnie)"
+              />
+            ) : null}
 
-      {showProductFields ? (
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white">
-          <button
-            type="button"
-            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-gray-50/80"
-            aria-expanded={extrasOpen}
-            onClick={() => setExtrasOpen((current) => !current)}
-          >
-            <span className="text-sm font-semibold text-gray-900">
-              Dodatkowe informacje
-              {category.trim() ? ` · ${category.trim()}` : ""}
-            </span>
-            <ChevronDown
-              size={18}
-              className={cn(
-                "shrink-0 text-gray-400 transition-transform",
-                extrasOpen && "rotate-180",
-              )}
+            <ProductKindField
+              kitchenId={kitchenId}
+              value={kind}
+              onChange={setKind}
+              disabled={lockCatalogFields}
             />
-          </button>
-          {extrasOpen ? (
-            <div className="space-y-4 border-t border-gray-100 px-4 py-4">
+
+            <div>
+              <label
+                htmlFor="product-entry-name"
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
+                Nazwa <span className="text-red-500">*</span>
+              </label>
+              <input
+                id="product-entry-name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="np. Mleko UHT 3,2%"
+                required
+                className={FIELD_CLASS}
+              />
+              {fieldErrors.name ? (
+                <p className="mt-1 text-xs text-red-600">{fieldErrors.name}</p>
+              ) : null}
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
               <div>
-                <Label htmlFor="product-entry-category">Kategoria</Label>
-                <select
-                  id="product-entry-category"
-                  className="field-input"
-                  value={category}
-                  onChange={(event) => setCategory(event.target.value)}
-                  disabled={lockCatalogFields}
+                <label
+                  htmlFor="product-entry-brand"
+                  className="mb-1 block text-sm font-medium text-gray-700"
                 >
-                  <option value="">Bez kategorii</option>
-                  {categoryOptions.map((entry) => (
-                    <option key={entry} value={entry}>
-                      {entry}
+                  Marka (opcjonalnie)
+                </label>
+                <input
+                  id="product-entry-brand"
+                  value={brand}
+                  onChange={(event) => setBrand(event.target.value)}
+                  placeholder="np. Galbani"
+                  className={FIELD_CLASS}
+                />
+              </div>
+              <div>
+                <label
+                  htmlFor="product-entry-variant"
+                  className="mb-1 block text-sm font-medium text-gray-700"
+                >
+                  Wariant (opcjonalnie)
+                </label>
+                <input
+                  id="product-entry-variant"
+                  value={variantLabel}
+                  onChange={(event) => setVariantLabel(event.target.value)}
+                  placeholder="np. kulka / light"
+                  className={FIELD_CLASS}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              <div>
+                <label
+                  htmlFor="product-entry-ean"
+                  className="mb-1 block text-sm font-medium text-gray-700"
+                >
+                  EAN (opcjonalnie)
+                </label>
+                <input
+                  id="product-entry-ean"
+                  inputMode="numeric"
+                  value={ean}
+                  onChange={(event) => setEan(event.target.value)}
+                  placeholder="np. 5901234123457"
+                  className={FIELD_CLASS}
+                />
+                {fieldErrors.ean ? (
+                  <p className="mt-1 text-xs text-red-600">{fieldErrors.ean}</p>
+                ) : null}
+              </div>
+              <div>
+                <label
+                  htmlFor="product-entry-unit"
+                  className="mb-1 block text-sm font-medium text-gray-700"
+                >
+                  Jednostka bazowa
+                </label>
+                <select
+                  id="product-entry-unit"
+                  value={defaultUnit}
+                  onChange={(event) =>
+                    applyDefaultUnit(event.target.value as BaseUnit)
+                  }
+                  className={cn(FIELD_CLASS, "bg-white")}
+                >
+                  {(Object.keys(UNIT_OPTION_LABELS) as BaseUnit[]).map(
+                    (unit) => (
+                      <option key={unit} value={unit}>
+                        {UNIT_OPTION_LABELS[unit]}
+                      </option>
+                    ),
+                  )}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label
+                htmlFor="product-entry-package-qty"
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
+                Ilość w opakowaniu
+              </label>
+              <div className="flex gap-2">
+                <input
+                  id="product-entry-package-qty"
+                  inputMode="decimal"
+                  value={packageQuantity}
+                  onChange={(event) =>
+                    setPackageQuantity(event.target.value)
+                  }
+                  placeholder="np. 125"
+                  className="w-32 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm"
+                />
+                <select
+                  aria-label="Jednostka opakowania"
+                  value={packageUnit}
+                  onChange={(event) =>
+                    setPackageUnit(event.target.value as PackageUnit | "")
+                  }
+                  className="w-24 px-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm bg-gray-50"
+                >
+                  <option value="">—</option>
+                  {PACKAGE_UNIT_OPTIONS.filter((option) =>
+                    suggestedPackageUnitsFor(defaultUnit).includes(
+                      option.value,
+                    ),
+                  ).map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
                     </option>
                   ))}
                 </select>
               </div>
-              {mode === "edit" ? (
-                <div>
-                  <Label htmlFor="product-entry-purchase-mode">
-                    Sposób zakupu
-                  </Label>
-                  <select
-                    id="product-entry-purchase-mode"
-                    className="field-input"
-                    value={purchaseMode}
-                    onChange={(event) =>
-                      setPurchaseMode(
-                        event.target.value as UpdateProduct["purchaseMode"],
-                      )
-                    }
-                  >
-                    <option value="unconfigured">Nieustawiony</option>
-                    <option value="packaged">Opakowania</option>
-                    <option value="exact">Dokładna ilość</option>
-                  </select>
-                </div>
-              ) : null}
             </div>
-          ) : null}
-        </div>
-      ) : null}
 
-      {mode === "edit" ? (
-        <section className="space-y-3 rounded-2xl border border-gray-200 bg-white px-4 py-4">
-          <h2 className="text-sm font-semibold text-gray-900">Zapasy</h2>
-          {stockSummaryQuery.isPending ? (
-            <p className="text-sm text-gray-500">Ładowanie zapasów…</p>
-          ) : productStock ? (
-            <div className="rounded-xl border border-gray-100 bg-gray-50/70 px-4 py-3 text-sm">
-              <p className="font-medium text-gray-900">
-                {formatQuantityWithUnit(
-                  productStock.totalQuantity,
-                  productStock.defaultUnit,
-                )}{" "}
-                · {productStock.batchCount}{" "}
-                {productStock.batchCount === 1 ? "partia" : "partie"}
-              </p>
-              {productStock.nearestExpiry ? (
-                <p className="mt-1 text-xs text-amber-700">
-                  Najbliższa ważność:{" "}
-                  {new Date(productStock.nearestExpiry).toLocaleDateString(
-                    "pl-PL",
-                  )}
-                </p>
-              ) : null}
+            <div>
+              <label
+                htmlFor="product-entry-category"
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
+                Kategoria
+              </label>
+              <select
+                id="product-entry-category"
+                value={category}
+                onChange={(event) => setCategory(event.target.value)}
+                className={cn(FIELD_CLASS, "bg-white")}
+              >
+                <option value="">Bez kategorii</option>
+                {categoryOptions.map((entry) => (
+                  <option key={entry} value={entry}>
+                    {entry}
+                  </option>
+                ))}
+              </select>
             </div>
-          ) : (
-            <p className="text-sm text-gray-500">Brak partii w zapasach.</p>
-          )}
-          <Link
-            href={`/kitchens/${kitchenId}/products/${productId ?? resolvedProduct?.id}/add-batch`}
-            className="inline-flex text-sm font-medium text-emerald-800 hover:underline"
-          >
-            Dodaj kolejną partię
-          </Link>
-          {resolvedProduct ? (
-            <ProductPurchaseOptions
-              kitchenId={kitchenId}
-              productId={resolvedProduct.id}
-              defaultUnit={resolvedProduct.defaultUnit as BaseUnit}
-              purchaseMode={resolvedProduct.purchaseMode}
-            />
-          ) : null}
+
+            <div>
+              <label
+                htmlFor="product-entry-purchase-mode"
+                className="mb-1 block text-sm font-medium text-gray-700"
+              >
+                Sposób zakupu
+              </label>
+              <select
+                id="product-entry-purchase-mode"
+                value={purchaseMode}
+                onChange={(event) =>
+                  setPurchaseMode(
+                    event.target.value as UpdateProduct["purchaseMode"],
+                  )
+                }
+                className={cn(FIELD_CLASS, "bg-white")}
+              >
+                <option value="unconfigured">Nieustawiony</option>
+                <option value="packaged">Opakowania</option>
+                <option value="exact">Dokładna ilość</option>
+              </select>
+            </div>
+          </div>
         </section>
       ) : null}
+
+      {showProductFields ? (
+        <section>
+          <ProductNutritionEditor
+            kitchenId={kitchenId}
+            productUnit={defaultUnit}
+            ean={ean}
+            value={nutrition}
+            onChange={setNutrition}
+            defaultOpen={hadNutritionInitially}
+          />
+        </section>
+      ) : null}
+
+      <section className="space-y-3 rounded-xl border border-gray-200 bg-white px-6 py-5 shadow-sm">
+        <h2 className="text-sm font-semibold text-gray-900">Zapasy</h2>
+        {stockSummaryQuery.isPending ? (
+          <p className="text-sm text-gray-500">Ładowanie zapasów…</p>
+        ) : productStock ? (
+          <div className="rounded-xl border border-gray-100 bg-gray-50/70 px-4 py-3 text-sm">
+            <p className="font-medium text-gray-900">
+              {formatQuantityWithUnit(
+                productStock.totalQuantity,
+                productStock.defaultUnit,
+              )}{" "}
+              · {productStock.batchCount}{" "}
+              {productStock.batchCount === 1 ? "partia" : "partie"}
+            </p>
+            {productStock.nearestExpiry ? (
+              <p className="mt-1 text-xs text-amber-700">
+                Najbliższa ważność:{" "}
+                {new Date(productStock.nearestExpiry).toLocaleDateString(
+                  "pl-PL",
+                )}
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <p className="text-sm text-gray-500">Brak partii w zapasach.</p>
+        )}
+        <Link
+          href={`/kitchens/${kitchenId}/products/${productId ?? resolvedProduct?.id}/add-batch`}
+          className="inline-flex text-sm font-medium text-emerald-800 hover:underline"
+        >
+          Dodaj kolejną partię
+        </Link>
+        {resolvedProduct ? (
+          <ProductPurchaseOptions
+            kitchenId={kitchenId}
+            productId={resolvedProduct.id}
+            defaultUnit={resolvedProduct.defaultUnit as BaseUnit}
+            purchaseMode={resolvedProduct.purchaseMode}
+          />
+        ) : null}
+      </section>
 
       {formError ? (
         <p className="text-sm text-red-600" role="alert">
@@ -1629,9 +2155,7 @@ export function ProductEntryForm({
         dirty={isDirty}
         submitLabel={submitLabel}
         cancelHref={cancelHref}
-        disableSubmit={
-          pending || (mode === "edit" && !isDirty)
-        }
+        disableSubmit={pending || !isDirty}
       />
 
       <Toast

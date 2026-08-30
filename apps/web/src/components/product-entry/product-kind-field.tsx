@@ -2,12 +2,10 @@
 
 import type { components } from "@moja-kuchnia/api-client";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronsUpDown, X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { createWebApiClient } from "@/lib/api";
 import { readApiError } from "@/lib/errors";
 import { cn } from "@/lib/utils";
@@ -27,6 +25,9 @@ type ProductKindFieldProps = {
   disabled?: boolean;
   className?: string;
 };
+
+const KIND_INPUT_CLASS =
+  "w-full pl-10 pr-3 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 sm:text-sm disabled:bg-gray-50 disabled:text-gray-500";
 
 export function ProductKindField({
   kitchenId,
@@ -128,11 +129,16 @@ export function ProductKindField({
   }
 
   return (
-    <div ref={rootRef} className={cn("relative space-y-2", className)}>
-      <Label htmlFor={inputId}>Rodzaj produktu</Label>
+    <div ref={rootRef} className={cn("relative", className)}>
+      <label
+        htmlFor={inputId}
+        className="mb-1 block text-sm font-medium text-gray-700"
+      >
+        Rodzaj produktu
+      </label>
 
       {selected ? (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
           <span
             className={cn(
               "inline-flex max-w-full items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium",
@@ -174,7 +180,8 @@ export function ProductKindField({
       {!selected || open ? (
         <div className="relative">
           <div className="relative">
-            <Input
+            <Search className="pointer-events-none absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2 text-gray-400" />
+            <input
               ref={inputRef}
               id={inputId}
               role="combobox"
@@ -183,22 +190,20 @@ export function ProductKindField({
               aria-autocomplete="list"
               disabled={disabled}
               value={draft}
-              placeholder="Szukaj lub utwórz rodzaj…"
+              placeholder="np. Mozzarella — wyszukaj lub utwórz"
               onChange={(event) => {
                 setDraft(event.target.value);
                 setOpen(true);
               }}
               onFocus={() => setOpen(true)}
               autoComplete="off"
-              className="pr-10"
-            />
-            <ChevronsUpDown
-              size={16}
-              className="pointer-events-none absolute top-1/2 right-3 -translate-y-1/2 text-gray-400"
+              className={KIND_INPUT_CLASS}
             />
           </div>
 
-          {suggestedGroups.length > 0 && !selected && draft.trim().length === 0 ? (
+          {suggestedGroups.length > 0 &&
+          !selected &&
+          draft.trim().length === 0 ? (
             <div className="mt-2 flex flex-wrap gap-2">
               {suggestedGroups.slice(0, 4).map((group) => (
                 <Button
@@ -272,6 +277,11 @@ export function ProductKindField({
           ) : null}
         </div>
       ) : null}
+
+      <p className="mt-1.5 text-xs text-gray-500">
+        Wspólna nazwa rodzaju (np. Mozzarella). Konkretną markę i wariant
+        podasz poniżej. Możesz też zostawić bez rodzaju.
+      </p>
     </div>
   );
 }

@@ -1,16 +1,9 @@
 "use client";
 
 import type { components } from "@moja-kuchnia/api-client";
-import {
-  BookOpen,
-  MoreVertical,
-  Pencil,
-  ShoppingCart,
-  Trash2,
-} from "lucide-react";
-import Link from "next/link";
+import { BookOpen } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { AddRecipeGapsDialog } from "@/components/add-recipe-gaps-dialog";
@@ -23,11 +16,16 @@ import { RecipeEstimatePanel } from "@/components/recipe-estimate-panel";
 import { RecipeIngredientsPanel } from "@/components/recipe-ingredients-panel";
 import { RecipeStepsEditorial } from "@/components/recipe-steps-editorial";
 import { Toast } from "@/components/toast";
-import { Button } from "@/components/ui/button";
 import { createWebApiClient } from "@/lib/api";
 import { readApiError } from "@/lib/errors";
 import { mediaDisplayUrl } from "@/lib/media-upload";
-import { RECIPE_VISIBILITY_LABELS } from "@/lib/recipe-labels";
+import {
+  loadCookIdSet,
+  nextServings,
+  saveCookIdSet,
+  shareOrCopyRecipeUrl,
+  toggleIdInSet,
+} from "@/lib/recipe-detail-state";
 
 export default function RecipeDetailPage() {
   const params = useParams<{ id: string; recipeId: string }>();
@@ -35,20 +33,39 @@ export default function RecipeDetailPage() {
   const recipeId = params.recipeId;
   const router = useRouter();
   const queryClient = useQueryClient();
-  const menuRef = useRef<HTMLDivElement>(null);
 
   const [servings, setServings] = useState<number | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [gapsOpen, setGapsOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(
-    () => new Set(),
+  const [toastVariant, setToastVariant] = useState<"success" | "error">(
+    "success",
   );
-  const [doneSteps, setDoneSteps] = useState<Set<string>>(() => new Set());
+  const [checkedIngredients, setCheckedIngredients] = useState<Set<string>>(
+    () => loadCookIdSet(recipeId, "ingredients"),
+  );
+  const [doneSteps, setDoneSteps] = useState<Set<string>>(() =>
+    loadCookIdSet(recipeId, "steps"),
+  );
+  const [cookRecipeId, setCookRecipeId] = useState(recipeId);
   const [preview, setPreview] = useState<{ src: string; alt: string } | null>(
     null,
   );
+
+  if (cookRecipeId !== recipeId) {
+    setCookRecipeId(recipeId);
+    setCheckedIngredients(loadCookIdSet(recipeId, "ingredients"));
+    setDoneSteps(loadCookIdSet(recipeId, "steps"));
+    setServings(null);
+  }
+
+  useEffect(() => {
+    saveCookIdSet(recipeId, "ingredients", checkedIngredients);
+  }, [checkedIngredients, recipeId]);
+
+  useEffect(() => {
+    saveCookIdSet(recipeId, "steps", doneSteps);
+  }, [doneSteps, recipeId]);
 
   const meQuery = useQuery({
     queryKey: ["me"],
@@ -71,7 +88,9 @@ export default function RecipeDetailPage() {
         { params: { path: { kitchenId, recipeId } } },
       );
       if (response.status === 404) {
-        throw new Error("Nie znaleziono przepisu albo nie masz do niego dostępu.");
+        throw new Error(
+          "Nie znaleziono przepisu albo nie masz do niego dostępu.",
+        );
       }
       if (error) {
         throw new Error(readApiError(error, "Nie udało się pobrać przepisu."));
@@ -152,6 +171,7 @@ export default function RecipeDetailPage() {
       setGapsOpen(false);
       queryClient.invalidateQueries({ queryKey: ["shopping-list", kitchenId] });
       const addedCount = result?.added.length ?? 0;
+      setToastVariant("success");
       if (addedCount > 0) {
         setToast(
           `Dodano ${addedCount} ${addedCount === 1 ? "pozycję" : "pozycje"} do listy zakupów.`,
@@ -167,6 +187,7 @@ export default function RecipeDetailPage() {
     recipe && meQuery.data && recipe.author.id === meQuery.data.id,
   );
   const coverUrl = recipe ? mediaDisplayUrl(recipe.coverImage) : null;
+  const editHref = `/kitchens/${kitchenId}/recipes/${recipeId}/edit`;
 
   const availabilityByIngredientId = useMemo(() => {
     const map = new Map<
@@ -192,44 +213,64 @@ export default function RecipeDetailPage() {
 
   function adjustServings(delta: number) {
     const base = recipe?.servings ?? 1;
-    setServings((current) => Math.max(1, (current ?? base) + delta));
+    setServings((current) => nextServings(current, base, delta));
   }
 
   function toggleIngredient(id: string) {
-    setCheckedIngredients((current) => {
-      const next = new Set(current);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
+    setCheckedIngredients((current) => toggleIdInSet(current, id));
   }
 
   function toggleStep(id: string) {
-    setDoneSteps((current) => {
-      const next = new Set(current);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
+    setDoneSteps((current) => toggleIdInSet(current, id));
+  }
+
+  function handleBuyGaps() {
+    if (availabilityQuery.isPending) {
+      return;
+    }
+    if (!hasGaps) {
+      setToastVariant("success");
+      setToast("Brak braków — wszystko masz w zapasie.");
+      return;
+    }
+    setGapsOpen(true);
+  }
+
+  async function handleShare() {
+    if (!recipe) {
+      return;
+    }
+    try {
+      const result = await shareOrCopyRecipeUrl(
+        window.location.href,
+        recipe.name,
+      );
+      setToastVariant("success");
+      setToast(
+        result === "shared"
+          ? "Udostępniono przepis."
+          : "Skopiowano link do schowka.",
+      );
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") {
+        return;
       }
-      return next;
-    });
+      setToastVariant("error");
+      setToast("Nie udało się udostępnić przepisu.");
+    }
   }
 
   return (
     <AppShell kitchenId={kitchenId}>
-      <article className="recipe-detail w-full">
+      <article className="recipe-detail w-full bg-stone-50/50">
         {recipeQuery.isPending ? (
-          <p className="text-center text-sm text-stone-500">
+          <p className="py-16 text-center text-sm text-stone-500">
             Ładowanie przepisu…
           </p>
         ) : null}
 
         {recipeQuery.isError ? (
-          <p className="text-center text-sm text-red-600" role="alert">
+          <p className="py-16 text-center text-sm text-red-600" role="alert">
             {readApiError(recipeQuery.error)}
           </p>
         ) : null}
@@ -237,182 +278,75 @@ export default function RecipeDetailPage() {
         {recipe ? (
           <>
             <RecipeDetailHero
+              kitchenId={kitchenId}
               coverUrl={coverUrl}
               recipeName={recipe.name}
-              onPreview={(src, alt) => setPreview({ src, alt })}
+              description={recipe.description}
+              categories={recipe.categories ?? []}
+              visibility={recipe.visibility}
+              author={recipe.author}
+              createdAt={recipe.createdAt}
+              sourceUrl={recipe.sourceUrl}
+              sourceAuthor={recipe.sourceAuthor}
+              isAuthor={isAuthor}
+              editHref={editHref}
+              onBack={() => router.push(`/kitchens/${kitchenId}/recipes`)}
+              onShare={() => void handleShare()}
+              onDelete={() => setDeleteOpen(true)}
+              onPreviewCover={(src, alt) => setPreview({ src, alt })}
             />
-
-            <header className="mb-2">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <h1 className="font-serif text-3xl leading-tight tracking-tight text-stone-900 sm:text-4xl lg:text-[2.75rem]">
-                    {recipe.name}
-                  </h1>
-                </div>
-                <div className="recipe-print-hide relative shrink-0" ref={menuRef}>
-                  {isAuthor ? (
-                    <>
-                      <button
-                        type="button"
-                        aria-label="Więcej akcji"
-                        aria-expanded={menuOpen}
-                        className="rounded-lg p-2 text-stone-500 hover:bg-stone-100"
-                        onClick={() => setMenuOpen((open) => !open)}
-                      >
-                        <MoreVertical size={20} />
-                      </button>
-                      {menuOpen ? (
-                        <div className="absolute right-0 z-10 mt-1 w-48 rounded-xl border border-stone-100 bg-white py-1 shadow-lg">
-                          <Link
-                            href={`/kitchens/${kitchenId}/recipes/${recipeId}/edit`}
-                            className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-stone-700 hover:bg-stone-50 md:hidden"
-                            onClick={() => setMenuOpen(false)}
-                          >
-                            <Pencil size={14} />
-                            Edytuj
-                          </Link>
-                          <button
-                            type="button"
-                            className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-red-700 hover:bg-red-50"
-                            onClick={() => {
-                              setMenuOpen(false);
-                              setDeleteOpen(true);
-                            }}
-                          >
-                            <Trash2 size={14} />
-                            Usuń przepis
-                          </button>
-                        </div>
-                      ) : null}
-                    </>
-                  ) : null}
-                </div>
-              </div>
-
-              {recipe.description ? (
-                <p className="mt-4 max-w-3xl text-base leading-relaxed text-stone-600 sm:text-lg sm:leading-8">
-                  {recipe.description}
-                </p>
-              ) : null}
-
-              <div className="mt-4 flex flex-wrap gap-1.5">
-                <span className="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
-                  {RECIPE_VISIBILITY_LABELS[recipe.visibility]}
-                </span>
-                {(recipe.categories ?? []).map((category) => (
-                  <span
-                    key={category.id}
-                    className="rounded-full bg-emerald-50/80 px-2.5 py-0.5 text-xs font-medium text-emerald-900"
-                  >
-                    {category.name}
-                  </span>
-                ))}
-                {recipe.tags.map((tag) => (
-                  <span
-                    key={tag}
-                    className="rounded-full bg-stone-100 px-2.5 py-0.5 text-xs text-stone-600"
-                  >
-                    {tag}
-                  </span>
-                ))}
-              </div>
-
-              <p className="mt-3 text-sm text-stone-500">
-                {recipe.author.name},{" "}
-                {new Date(recipe.createdAt).toLocaleDateString("pl-PL")}
-                {recipe.sourceAuthor ? (
-                  <>
-                    <span className="mx-1.5 text-stone-300" aria-hidden>
-                      ·
-                    </span>
-                    Autor źródła: {recipe.sourceAuthor}
-                  </>
-                ) : null}
-              </p>
-              {recipe.sourceUrl ? (
-                <p className="mt-2 text-sm">
-                  <a
-                    href={recipe.sourceUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="font-medium text-emerald-800 underline decoration-emerald-300 underline-offset-2 hover:text-emerald-950"
-                  >
-                    Źródło przepisu
-                  </a>
-                  {recipe.importedAt ? (
-                    <span className="ml-2 text-stone-500">
-                      (import{" "}
-                      {new Date(recipe.importedAt).toLocaleDateString("pl-PL")})
-                    </span>
-                  ) : null}
-                </p>
-              ) : null}
-
-              <div className="recipe-print-hide mt-6 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
-                {hasGaps ? (
-                  <Button
-                    className="w-full sm:w-auto"
-                    onClick={() => setGapsOpen(true)}
-                  >
-                    <ShoppingCart size={16} className="mr-1.5" />
-                    Dodaj braki do listy
-                  </Button>
-                ) : null}
-                {isAuthor ? (
-                  <Link
-                    href={`/kitchens/${kitchenId}/recipes/${recipeId}/edit`}
-                    className="hidden sm:inline-flex"
-                  >
-                    <Button variant="outline">
-                      <Pencil size={16} className="mr-1.5" />
-                      Edytuj
-                    </Button>
-                  </Link>
-                ) : null}
-              </div>
-            </header>
 
             <RecipeDetailMeta
               servings={activeServings}
               prepTimeMinutes={recipe.prepTimeMinutes}
               cookTimeMinutes={recipe.cookTimeMinutes}
               difficulty={recipe.difficulty}
+              hasGaps={hasGaps}
+              gapsPending={availabilityQuery.isPending}
+              isAuthor={isAuthor}
+              editHref={editHref}
               onServingsDelta={adjustServings}
+              onBuyGaps={handleBuyGaps}
             />
 
-            <RecipeEstimatePanel
-              kitchenId={kitchenId}
-              recipeId={recipeId}
-              servings={activeServings}
-            />
+            <div className="mx-auto w-full max-w-7xl px-4 py-6 pb-24 lg:px-8 lg:py-8">
+              <RecipeEstimatePanel
+                kitchenId={kitchenId}
+                recipeId={recipeId}
+                servings={activeServings}
+              />
 
-            <div className="grid gap-10 lg:grid-cols-[minmax(16rem,22rem)_minmax(0,1fr)] lg:items-start lg:gap-12 xl:grid-cols-[minmax(18rem,24rem)_minmax(0,1fr)]">
-              <RecipeIngredientsPanel
-                ingredients={recipe.ingredients}
-                ingredientGroups={recipe.ingredientGroups}
-                steps={recipe.steps}
-                availabilityByIngredientId={availabilityByIngredientId}
-                checkedIngredientIds={checkedIngredients}
-                availabilityPending={availabilityQuery.isPending}
-                availabilityError={
-                  availabilityQuery.isError
-                    ? readApiError(availabilityQuery.error)
-                    : null
-                }
-                onToggleIngredient={toggleIngredient}
-              />
-              <RecipeStepsEditorial
-                steps={recipe.steps}
-                doneStepIds={doneSteps}
-                onToggleStep={toggleStep}
-                onPreview={(src, alt) => setPreview({ src, alt })}
-              />
+              <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12 lg:gap-12">
+                <div className="lg:col-span-4">
+                  <RecipeIngredientsPanel
+                    ingredients={recipe.ingredients}
+                    ingredientGroups={recipe.ingredientGroups}
+                    availabilityByIngredientId={availabilityByIngredientId}
+                    checkedIngredientIds={checkedIngredients}
+                    availabilityPending={availabilityQuery.isPending}
+                    availabilityError={
+                      availabilityQuery.isError
+                        ? readApiError(availabilityQuery.error)
+                        : null
+                    }
+                    onToggleIngredient={toggleIngredient}
+                  />
+                </div>
+                <div className="lg:col-span-8">
+                  <RecipeStepsEditorial
+                    steps={recipe.steps}
+                    doneStepIds={doneSteps}
+                    onToggleStep={toggleStep}
+                    onPreview={(src, alt) => setPreview({ src, alt })}
+                  />
+                </div>
+              </div>
             </div>
           </>
         ) : null}
 
         {!recipe && !recipeQuery.isPending && !recipeQuery.isError ? (
-          <div className="text-center">
+          <div className="py-16 text-center">
             <BookOpen size={32} className="mx-auto mb-3 text-stone-300" />
             <p className="text-sm text-stone-500">Nie znaleziono przepisu.</p>
           </div>
@@ -468,7 +402,7 @@ export default function RecipeDetailPage() {
       <Toast
         message={toast}
         onDismiss={() => setToast(null)}
-        variant="success"
+        variant={toastVariant}
       />
 
       {deleteRecipe.isError ? (

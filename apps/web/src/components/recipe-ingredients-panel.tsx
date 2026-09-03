@@ -4,30 +4,22 @@ import type { components } from "@moja-kuchnia/api-client";
 import { Check, Copy } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { availabilityBadgeClass } from "@/components/add-recipe-gaps-dialog";
-import { Button } from "@/components/ui/button";
-import { formatQuantityWithUnit } from "@/lib/format-quantity";
 import {
   buildIngredientClipboardSections,
-  formatRecipeClipboardText,
+  formatIngredientsClipboardText,
   type RecipeClipboardIngredient,
 } from "@/lib/recipe-clipboard";
-import {
-  AVAILABILITY_STATUS_LABELS,
-  formatRecipeIngredientQuantity,
-} from "@/lib/recipe-labels";
+import { formatRecipeIngredientQuantity } from "@/lib/recipe-labels";
 import { cn } from "@/lib/utils";
 
 type Ingredient = components["schemas"]["RecipeIngredientDto"];
 type IngredientGroup = components["schemas"]["RecipeIngredientGroupDto"];
-type Step = components["schemas"]["RecipeStepDto"];
 type Availability =
   components["schemas"]["RecipeIngredientAvailabilityDto"];
 
 type RecipeIngredientsPanelProps = {
   ingredients: Ingredient[];
   ingredientGroups?: IngredientGroup[];
-  steps?: Step[];
   availabilityByIngredientId: Map<string, Availability>;
   checkedIngredientIds: Set<string>;
   availabilityPending: boolean;
@@ -38,7 +30,6 @@ type RecipeIngredientsPanelProps = {
 export function RecipeIngredientsPanel({
   ingredients,
   ingredientGroups = [],
-  steps = [],
   availabilityByIngredientId,
   checkedIngredientIds,
   availabilityPending,
@@ -61,7 +52,7 @@ export function RecipeIngredientsPanel({
     [ingredientGroups, sortedIngredients],
   );
 
-  async function copyRecipe() {
+  async function copyIngredients() {
     const clipboardIngredients: RecipeClipboardIngredient[] =
       sortedIngredients.map((ingredient) => {
         const availability = availabilityByIngredientId.get(ingredient.id);
@@ -73,11 +64,10 @@ export function RecipeIngredientsPanel({
           displayName: ingredientDisplayName(ingredient, availability),
         };
       });
-    const text = formatRecipeClipboardText({
-      ingredients: clipboardIngredients,
+    const text = formatIngredientsClipboardText(
+      clipboardIngredients,
       ingredientGroups,
-      steps,
-    });
+    );
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);
@@ -88,27 +78,23 @@ export function RecipeIngredientsPanel({
   }
 
   return (
-    <section className="recipe-ingredients-panel lg:sticky lg:top-6 lg:self-start">
+    <section
+      className="recipe-ingredients-panel lg:sticky lg:top-[7.5rem] lg:self-start"
+      data-testid="recipe-ingredients-panel"
+    >
       <div className="mb-4 flex items-end justify-between gap-3">
-        <div>
-          <h2 className="font-serif text-2xl tracking-tight text-stone-900">
-            Składniki
-          </h2>
-          <p className="mt-1 text-sm text-stone-500">
-            Ilości przeliczone na wybrane porcje.
-          </p>
-        </div>
-        <Button
+        <h2 className="font-serif text-2xl font-semibold text-stone-900">
+          Składniki
+        </h2>
+        <button
           type="button"
-          size="sm"
-          variant="outline"
-          className="recipe-print-hide shrink-0"
-          onClick={() => void copyRecipe()}
-          aria-label="Kopiuj przepis (składniki i kroki)"
+          className="recipe-print-hide inline-flex items-center gap-1 text-sm font-medium text-emerald-600 transition-colors hover:text-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
+          onClick={() => void copyIngredients()}
+          aria-label="Kopiuj listę składników"
         >
-          {copied ? <Check size={14} className="mr-1.5" /> : <Copy size={14} className="mr-1.5" />}
+          {copied ? <Check size={14} aria-hidden /> : <Copy size={14} aria-hidden />}
           {copied ? "Skopiowano" : "Kopiuj"}
-        </Button>
+        </button>
       </div>
 
       {availabilityPending ? (
@@ -121,15 +107,15 @@ export function RecipeIngredientsPanel({
       ) : null}
 
       {!availabilityPending && !availabilityError ? (
-        <div className="border-t border-stone-200/80">
+        <div className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)]">
           {sections.map((section) => (
             <div key={section.key}>
               {section.title ? (
-                <h3 className="pt-4 pb-1 text-xs font-semibold tracking-wide text-stone-500 uppercase">
+                <h3 className="border-b border-stone-100 bg-stone-50 px-5 py-2.5 text-xs font-semibold tracking-wide text-stone-500 uppercase">
                   {section.title}
                 </h3>
               ) : null}
-              <ul className="divide-y divide-stone-200/80">
+              <ul className="divide-y divide-stone-100">
                 {section.ingredients.map((ingredient) => {
                   const availability = availabilityByIngredientId.get(
                     ingredient.id,
@@ -137,72 +123,52 @@ export function RecipeIngredientsPanel({
                   const displayQuantity =
                     availability?.scaledQuantity ?? ingredient.quantity;
                   const displayUnit = availability?.unit ?? ingredient.unit;
-                  const hint = availability
-                    ? availabilityHint(availability)
-                    : null;
                   const checked = checkedIngredientIds.has(ingredient.id);
+                  const inputId = `ing-${ingredient.id}`;
 
                   return (
                     <li
                       key={ingredient.id}
-                      className={cn(
-                        "flex gap-3 py-3.5",
-                        checked && "opacity-70",
-                      )}
+                      className="flex items-center gap-3 px-5 py-4 transition-colors hover:bg-stone-50/50"
                     >
                       <input
+                        id={inputId}
                         type="checkbox"
-                        className="recipe-print-hide mt-1 h-5 w-5 shrink-0 rounded border-stone-300 text-emerald-700 focus:ring-emerald-600"
+                        className="recipe-ingredient-checkbox recipe-print-hide h-[22px] w-[22px] shrink-0 cursor-pointer appearance-none rounded-[6px] border-2 border-stone-300 bg-white transition-all checked:border-emerald-500 checked:bg-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
                         checked={checked}
                         onChange={() => onToggleIngredient(ingredient.id)}
-                        aria-label={`Oznacz ${ingredient.name} jako przygotowane`}
                       />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <p
-                              className={cn(
-                                "text-[15px] leading-snug text-stone-900",
-                                checked && "text-stone-500 line-through",
-                              )}
-                            >
-                              <span className="font-medium">
-                                {ingredientDisplayName(ingredient, availability)}
-                              </span>{" "}
-                              <span
-                                className={cn(
-                                  "text-stone-600",
-                                  checked && "text-stone-400",
-                                )}
-                              >
-                                {formatRecipeIngredientQuantity(
-                                  displayQuantity,
-                                  displayUnit,
-                                )}
-                              </span>
-                            </p>
-                            {ingredient.note ? (
-                              <p className="mt-0.5 text-xs text-stone-500">
-                                {ingredient.note}
-                              </p>
-                            ) : null}
-                            {hint ? (
-                              <p className="recipe-print-hide mt-1 text-xs leading-snug text-stone-500">
-                                {hint}
-                              </p>
-                            ) : null}
-                          </div>
-                          {availability ? (
-                            <span
-                              className={cn(
-                                "recipe-print-hide shrink-0 whitespace-nowrap",
-                                availabilityBadgeClass(availability.status),
-                              )}
-                            >
-                              {AVAILABILITY_STATUS_LABELS[availability.status]}
-                            </span>
-                          ) : null}
-                        </div>
+                      <label
+                        htmlFor={inputId}
+                        className="flex min-w-0 flex-1 cursor-pointer flex-col justify-center"
+                      >
+                        <span
+                          className={cn(
+                            "text-base text-stone-800 transition-colors",
+                            checked && "text-stone-400 line-through",
+                          )}
+                        >
+                          {ingredientDisplayName(ingredient, availability)}
+                        </span>
+                        {ingredient.note ? (
+                          <span className="text-xs text-stone-400">
+                            {ingredient.note}
+                          </span>
+                        ) : null}
+                      </label>
+                      <div className="shrink-0 text-right">
+                        <span
+                          className={cn(
+                            "font-bold text-stone-800",
+                            checked && "text-stone-400",
+                          )}
+                          data-testid={`ingredient-qty-${ingredient.id}`}
+                        >
+                          {formatRecipeIngredientQuantity(
+                            displayQuantity,
+                            displayUnit,
+                          )}
+                        </span>
                       </div>
                     </li>
                   );
@@ -210,6 +176,11 @@ export function RecipeIngredientsPanel({
               </ul>
             </div>
           ))}
+          <div className="border-t border-stone-100 bg-stone-50 px-5 py-3">
+            <p className="text-xs text-stone-500">
+              Zaznaczaj składniki podczas przygotowania.
+            </p>
+          </div>
         </div>
       ) : null}
     </section>
@@ -228,27 +199,4 @@ function ingredientDisplayName(
     return `${ingredient.name} (${productName})`;
   }
   return ingredient.name;
-}
-
-function availabilityHint(availability: Availability): string | null {
-  const have = availability.availableQuantity
-    ? formatQuantityWithUnit(
-        availability.availableQuantity,
-        availability.availableUnit,
-      )
-    : "0";
-  const need = formatRecipeIngredientQuantity(
-    availability.scaledQuantity,
-    availability.unit,
-  );
-  if (availability.status === "available") {
-    return `Masz ${have} / potrzeba ${need}`;
-  }
-  if (availability.status === "partial" || availability.status === "missing") {
-    const gap = availability.gapQuantity
-      ? formatQuantityWithUnit(availability.gapQuantity, availability.gapUnit)
-      : need;
-    return `Masz ${have} / potrzeba ${need}, brakuje ${gap}`;
-  }
-  return null;
 }

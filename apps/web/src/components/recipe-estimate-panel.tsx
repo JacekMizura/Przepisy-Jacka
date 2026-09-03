@@ -1,6 +1,8 @@
 "use client";
 
 import type { components } from "@moja-kuchnia/api-client";
+import { ArrowRight, AlertCircle } from "lucide-react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
 import { createWebApiClient } from "@/lib/api";
@@ -16,8 +18,6 @@ type RecipeEstimatePanelProps = {
   servings: number;
   enabled?: boolean;
 };
-
-const MISSING = "Brak danych";
 
 export function RecipeEstimatePanel({
   kitchenId,
@@ -45,132 +45,173 @@ export function RecipeEstimatePanel({
     },
   });
 
-  const estimate: RecipeEstimate | undefined = estimateQuery.data;
+  if (estimateQuery.isPending) {
+    return (
+      <p className="mb-8 text-sm text-stone-500" data-testid="recipe-estimate-loading">
+        Liczenie kosztu i wartości odżywczych…
+      </p>
+    );
+  }
+
+  if (estimateQuery.isError) {
+    return (
+      <p className="mb-8 text-sm text-red-600" role="alert">
+        {readApiError(estimateQuery.error)}
+      </p>
+    );
+  }
+
+  const estimate = estimateQuery.data;
+  if (!estimate) {
+    return null;
+  }
+
+  const costIncomplete = !estimate.cost.isComplete;
+  const nutritionIncomplete = !estimate.nutrition.isComplete;
+  const showWarning = costIncomplete || nutritionIncomplete;
+
+  if (showWarning) {
+    return (
+      <WarningBanner
+        kitchenId={kitchenId}
+        estimate={estimate}
+        costIncomplete={costIncomplete}
+        nutritionIncomplete={nutritionIncomplete}
+      />
+    );
+  }
 
   return (
-    <section className="mb-10 border-b border-stone-200/80 pb-8">
-      <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-serif text-2xl tracking-tight text-stone-900">
+    <div
+      className="mb-8 rounded-2xl border border-stone-200 bg-white p-4 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)] sm:p-5"
+      data-testid="recipe-estimate-summary"
+    >
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="font-serif text-lg font-semibold text-stone-900">
           Koszt i wartości odżywcze
         </h2>
         <p className="text-xs text-stone-500">
-          {formatServings(servings)} ·{" "}
-          {estimate?.cost.note ?? "Szacunkowo na podstawie ostatnich zakupów"}
+          {formatServings(servings)}
+          {estimate.cost.note ? ` · ${estimate.cost.note}` : ""}
         </p>
       </div>
-
-      {estimateQuery.isPending ? (
-        <p className="py-3 text-sm text-stone-500">Liczenie…</p>
-      ) : null}
-
-      {estimateQuery.isError ? (
-        <p className="py-3 text-sm text-red-600" role="alert">
-          {readApiError(estimateQuery.error)}
-        </p>
-      ) : null}
-
-      {estimate ? (
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-4">
-            <EstimateStat
-              label="Koszt przepisu"
-              value={
-                estimate.cost.recipeTotalMinor !== null
-                  ? formatMoneyMinor(estimate.cost.recipeTotalMinor)
-                  : MISSING
-              }
-            />
-            <EstimateStat
-              label="Koszt / porcja"
-              value={
-                estimate.cost.perServingMinor !== null
-                  ? formatMoneyMinor(estimate.cost.perServingMinor)
-                  : MISSING
-              }
-            />
-            <EstimateStat
-              label="kcal / porcja"
-              value={
-                estimate.nutrition.perServing
-                  ? `${formatNutritionNumber(estimate.nutrition.perServing.kcal, 0)} kcal`
-                  : MISSING
-              }
-            />
-            <EstimateStat
-              label="B / T / W na porcję"
-              value={
-                estimate.nutrition.perServing
-                  ? `${formatNutritionNumber(
-                      estimate.nutrition.perServing.proteinGrams,
-                    )} / ${formatNutritionNumber(
-                      estimate.nutrition.perServing.fatGrams,
-                    )} / ${formatNutritionNumber(
-                      estimate.nutrition.perServing.carbsGrams,
-                    )} g`
-                  : MISSING
-              }
-            />
-          </div>
-
-          <div className="space-y-1 text-xs leading-snug text-stone-500">
-            <Completeness
-              title="Koszt"
-              counted={estimate.cost.countedIngredients}
-              total={estimate.cost.totalIngredients}
-              missingNames={estimate.cost.missingIngredientNames}
-            />
-            <Completeness
-              title="Makro"
-              counted={estimate.nutrition.countedIngredients}
-              total={estimate.nutrition.totalIngredients}
-              missingNames={estimate.nutrition.missingIngredientNames}
-            />
-          </div>
-        </div>
-      ) : null}
-    </section>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <Stat
+          label="Koszt przepisu"
+          value={
+            estimate.cost.recipeTotalMinor != null
+              ? formatMoneyMinor(estimate.cost.recipeTotalMinor)
+              : "—"
+          }
+        />
+        <Stat
+          label="Koszt / porcja"
+          value={
+            estimate.cost.perServingMinor != null
+              ? formatMoneyMinor(estimate.cost.perServingMinor)
+              : "—"
+          }
+        />
+        <Stat
+          label="kcal / porcja"
+          value={
+            estimate.nutrition.perServing
+              ? `${formatNutritionNumber(estimate.nutrition.perServing.kcal, 0)} kcal`
+              : "—"
+          }
+        />
+        <Stat
+          label="B / T / W"
+          value={
+            estimate.nutrition.perServing
+              ? `${formatNutritionNumber(estimate.nutrition.perServing.proteinGrams)} / ${formatNutritionNumber(estimate.nutrition.perServing.fatGrams)} / ${formatNutritionNumber(estimate.nutrition.perServing.carbsGrams)} g`
+              : "—"
+          }
+        />
+      </div>
+    </div>
   );
 }
 
-function EstimateStat({ label, value }: { label: string; value: string }) {
-  const isMissing = value === MISSING;
+function WarningBanner({
+  kitchenId,
+  estimate,
+  costIncomplete,
+  nutritionIncomplete,
+}: {
+  kitchenId: string;
+  estimate: RecipeEstimate;
+  costIncomplete: boolean;
+  nutritionIncomplete: boolean;
+}) {
+  const primary = costIncomplete ? estimate.cost : estimate.nutrition;
+  const missing = Array.from(
+    new Set([
+      ...estimate.cost.missingIngredientNames,
+      ...estimate.nutrition.missingIngredientNames,
+    ]),
+  );
+  const preview = missing.slice(0, 6);
+  const topics: string[] = [];
+  if (costIncomplete) {
+    topics.push("kosztorysu");
+  }
+  if (nutritionIncomplete) {
+    topics.push("kalorii i makroskładników");
+  }
+
+  return (
+    <div
+      className="mb-8 flex flex-col items-start gap-4 rounded-2xl border border-amber-200 bg-amber-50/80 p-4 shadow-sm lg:flex-row lg:p-5"
+      data-testid="recipe-estimate-warning"
+      role="status"
+    >
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100">
+        <AlertCircle className="text-amber-600" size={20} aria-hidden />
+      </div>
+      <div className="min-w-0 flex-1">
+        <h4 className="mb-1 font-semibold text-amber-900">
+          Brakuje danych do pełnego {topics.join(" oraz ")}
+        </h4>
+        <p className="text-sm leading-relaxed text-amber-800/80">
+          Wyliczono wartości dla{" "}
+          <strong>
+            {primary.countedIngredients} z {primary.totalIngredients}
+          </strong>{" "}
+          składników
+          {preview.length > 0 ? (
+            <>
+              . Brak danych m.in. dla:{" "}
+              <span className="italic">{preview.join(", ")}</span>
+              {missing.length > preview.length
+                ? ` (+${missing.length - preview.length})`
+                : ""}
+            </>
+          ) : (
+            "."
+          )}{" "}
+          Uzupełnij dane produktów w spiżarni, aby poznać dokładny koszt oraz
+          wartości odżywcze.
+        </p>
+        <Link
+          href={`/kitchens/${kitchenId}/stock?view=catalog`}
+          className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-amber-700 transition-colors hover:text-amber-900"
+        >
+          Uzupełnij braki w spiżarni
+          <ArrowRight size={14} aria-hidden />
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <p className="text-[11px] font-medium tracking-[0.14em] text-stone-500 uppercase">
         {label}
       </p>
-      <p
-        className={
-          isMissing
-            ? "mt-1.5 text-base font-medium text-stone-400"
-            : "mt-1.5 text-base font-semibold text-stone-900"
-        }
-      >
-        {value}
-      </p>
+      <p className="mt-1.5 text-base font-semibold text-stone-900">{value}</p>
     </div>
-  );
-}
-
-function Completeness({
-  title,
-  counted,
-  total,
-  missingNames,
-}: {
-  title: string;
-  counted: number;
-  total: number;
-  missingNames: string[];
-}) {
-  return (
-    <p>
-      <span className="font-medium text-stone-600">{title}:</span> wyliczono dla{" "}
-      {counted} z {total} składników
-      {missingNames.length > 0
-        ? `. Brak danych dla: ${missingNames.join(", ")}`
-        : ""}
-      {counted === 0 ? " — uzupełnij dane produktów w spiżarni." : ""}
-    </p>
   );
 }

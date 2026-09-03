@@ -9,10 +9,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { AppShell } from "@/components/app-shell";
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { RecipeForm, type RecipeFormValues } from "@/components/recipe-form";
+import {
+  RecipeForm,
+  type RecipeFormMedia,
+  type RecipeFormValues,
+} from "@/components/recipe-form";
 import { Toast } from "@/components/toast";
 import { createWebApiClient } from "@/lib/api";
 import { readApiError } from "@/lib/errors";
+import { uploadKitchenMedia } from "@/lib/media-upload";
 
 type UpdateRecipeBody = components["schemas"]["UpdateRecipeDto"];
 type RecipeDetail = components["schemas"]["RecipeDetailDto"];
@@ -198,7 +203,13 @@ export default function EditRecipePage() {
   });
 
   const updateRecipe = useMutation({
-    mutationFn: async (body: RecipeFormValues) => {
+    mutationFn: async ({
+      body,
+      media,
+    }: {
+      body: RecipeFormValues;
+      media: RecipeFormMedia;
+    }) => {
       if (!recipeQuery.data) {
         throw new Error("Brak przepisu do edycji.");
       }
@@ -216,9 +227,44 @@ export default function EditRecipePage() {
       if (response.status === 404) {
         throw new Error("Nie znaleziono przepisu.");
       }
-      if (error) {
+      if (error || !data) {
         throw new Error(readApiError(error, "Nie udało się zapisać przepisu."));
       }
+
+      const sortedSteps = data.steps
+        .slice()
+        .sort((left, right) => left.sortOrder - right.sortOrder);
+      for (let index = 0; index < sortedSteps.length; index++) {
+        const step = sortedSteps[index];
+        const file = media.stepFiles[index];
+        if (!step || !file) {
+          continue;
+        }
+        const asset = await uploadKitchenMedia({
+          kitchenId,
+          file,
+          purpose: "recipe_step",
+          target: { recipeStepId: step.id },
+        });
+        const { error: stepAttachError } = await client.POST(
+          "/api/kitchens/{kitchenId}/recipes/{recipeId}/steps/{stepId}/image",
+          {
+            params: {
+              path: { kitchenId, recipeId: data.id, stepId: step.id },
+            },
+            body: { mediaAssetId: asset.id },
+          },
+        );
+        if (stepAttachError) {
+          throw new Error(
+            readApiError(
+              stepAttachError,
+              `Zapisano przepis, ale nie udało się dodać zdjęcia kroku ${index + 1}.`,
+            ),
+          );
+        }
+      }
+
       return data;
     },
     onSuccess: (recipe) => {
@@ -348,7 +394,9 @@ export default function EditRecipePage() {
                 submitLabel="Zapisz zmiany"
                 pending={updateRecipe.isPending}
                 onDirtyChange={setDirty}
-                onSubmit={(body) => updateRecipe.mutate(body)}
+                onSubmit={(body, media) =>
+                  updateRecipe.mutate({ body, media })
+                }
               />
               {updateRecipe.isError ? (
                 <p className="mx-auto mt-4 max-w-4xl text-sm text-red-600" role="alert">

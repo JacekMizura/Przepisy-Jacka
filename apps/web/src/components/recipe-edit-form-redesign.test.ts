@@ -21,6 +21,8 @@ describe("recipe edit form redesign", () => {
     assert.match(page, /onDirtyChange/);
     assert.match(page, /form="recipe-edit-form"/);
     assert.match(page, /hideSubmit/);
+    assert.match(page, /stepFiles/);
+    assert.match(page, /uploadKitchenMedia/);
   });
 
   it("recipe form has sections, tags, source fields and dirty tracking", () => {
@@ -36,13 +38,35 @@ describe("recipe edit form redesign", () => {
     assert.match(form, /formId/);
     assert.match(form, /isHttpUrl/);
     assert.match(form, /Dodaj wskaz/);
+    assert.match(form, /Dodaj kolejny sk/);
+    assert.match(form, /Dodaj kolejny krok/);
+    assert.match(form, /Przenieś składnik wyżej/);
+    assert.match(form, /Przenieś krok wyżej/);
+    assert.match(form, /reorderByIndex/);
+    assert.match(form, /RecipeIngredientProductLink/);
+    assert.match(form, /requestRemoveIngredient/);
+    assert.match(form, /focusFirstError/);
+    assert.match(form, /ConfirmDialog/);
   });
 
-  it("cover dropzone uses full-width cover size", () => {
+  it("product link searches name brand ean and distinguishes states", () => {
+    const link = read("components/recipe-ingredient-product-link.tsx");
+    assert.match(link, /variantLabel/);
+    assert.match(link, /ean/);
+    assert.match(link, /isArchived/);
+    assert.match(link, /niedostępny|usunięty/);
+    assert.match(link, /Odłącz/);
+    assert.match(link, /z-50/);
+  });
+
+  it("cover dropzone uses full-width cover size with confirm remove", () => {
     const media = read("components/media-image-field.tsx");
     const cover = read("components/recipe-media-fields.tsx");
     assert.match(media, /cover:/);
+    assert.match(media, /ABORT_REMOVE/);
     assert.match(cover, /size="cover"/);
+    assert.match(cover, /Usunąć okładkę/);
+    assert.match(cover, /size="wide"/);
   });
 
   it("does not hardcode HTML sample data", () => {

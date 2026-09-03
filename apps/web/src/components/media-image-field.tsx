@@ -22,7 +22,7 @@ type FieldLayout = "default" | "inline";
 const FRAME_CLASSES: Record<FrameSize, string> = {
   sm: "h-20 w-20",
   md: "h-28 w-28",
-  wide: "h-32 w-full max-w-xs sm:h-36",
+  wide: "h-32 w-full max-w-[10rem] sm:h-32 sm:w-40",
   lg: "aspect-square h-auto w-full max-w-sm min-h-44",
   /** Dropzone okładki przepisu — pełna szerokość sekcji. */
   cover: "h-56 w-full sm:h-64",
@@ -131,6 +131,12 @@ export function MediaImageField({
       await onRemoved();
       replacePreview(null);
     } catch (removeError) {
+      if (
+        removeError instanceof Error &&
+        removeError.message === "ABORT_REMOVE"
+      ) {
+        return;
+      }
       setError(
         removeError instanceof Error
           ? removeError.message
@@ -423,9 +429,9 @@ function ImageFieldShell({
         )}
       >
         <div
-          className={cn(
-            "relative flex shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed bg-stone-50 transition-all",
-            FRAME_CLASSES[size],
+              className={cn(
+                "relative flex shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed bg-stone-50 transition-all group",
+                FRAME_CLASSES[size],
             dragOver
               ? "border-emerald-400 bg-emerald-50/30"
               : isCoverDropzone
@@ -608,7 +614,9 @@ function ImageFieldShell({
               />
             </div>
           ) : null}
-          {hint ? <p className="text-xs text-gray-400">{hint}</p> : null}
+          {hint && !isCoverDropzone ? (
+            <p className="text-xs text-gray-400">{hint}</p>
+          ) : null}
           {note ? <div className="text-xs text-gray-500">{note}</div> : null}
           {error ? (
             <p className="text-xs text-red-600" role="alert">

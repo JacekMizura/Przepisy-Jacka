@@ -32,9 +32,11 @@ import { cn } from "@/lib/utils";
 export function AppShell({
   children,
   kitchenId,
+  immersive = false,
 }: {
   children: ReactNode;
   kitchenId?: string;
+  immersive?: boolean;
 }) {
   return (
     <Suspense
@@ -44,7 +46,9 @@ export function AppShell({
         </div>
       }
     >
-      <AppShellInner kitchenId={kitchenId}>{children}</AppShellInner>
+      <AppShellInner kitchenId={kitchenId} immersive={immersive}>
+        {children}
+      </AppShellInner>
     </Suspense>
   );
 }
@@ -52,9 +56,11 @@ export function AppShell({
 function AppShellInner({
   children,
   kitchenId,
+  immersive = false,
 }: {
   children: ReactNode;
   kitchenId?: string;
+  immersive?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -238,6 +244,7 @@ function AppShellInner({
 
   return (
     <div className="flex min-h-screen overflow-x-hidden bg-[#F9FAFB] font-sans antialiased selection:bg-emerald-100 selection:text-emerald-900">
+      {immersive ? null : (
       <aside
         className="app-shell-chrome fixed inset-y-0 left-0 z-30 hidden w-72 flex-col border-r border-gray-100 bg-white text-gray-900 md:flex"
         aria-label="Nawigacja"
@@ -256,8 +263,9 @@ function AppShellInner({
           onClose={closeSidebar}
         />
       </aside>
+      )}
 
-      {showMobileDrawer ? (
+      {immersive || !showMobileDrawer ? null : (
         <>
           <button
             type="button"
@@ -284,10 +292,21 @@ function AppShellInner({
             />
           </aside>
         </>
-      ) : null}
+      )}
 
-      <main className="app-shell-main min-w-0 flex-1 overflow-x-hidden md:ml-72">
-        <div className="app-shell-main-inner w-full px-4 py-4 md:px-8 md:py-8 lg:px-10 lg:py-10">
+      <main
+        className={cn(
+          "app-shell-main min-w-0 flex-1 overflow-x-hidden",
+          immersive ? "" : "md:ml-72",
+        )}
+      >
+        <div
+          className={cn(
+            "app-shell-main-inner w-full",
+            immersive ? "p-0" : "px-4 py-4 md:px-8 md:py-8 lg:px-10 lg:py-10",
+          )}
+        >
+          {immersive ? null : (
           <header className="app-shell-chrome mb-6 flex w-full items-center justify-between md:hidden">
             <div className="flex min-w-0 items-center gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-sm font-black text-white">
@@ -306,7 +325,13 @@ function AppShellInner({
               <Menu size={24} />
             </button>
           </header>
-          <div className="app-shell-content w-full max-w-[1600px]">
+          )}
+          <div
+            className={cn(
+              "app-shell-content w-full",
+              immersive ? "max-w-none" : "max-w-[1600px]",
+            )}
+          >
             {children}
           </div>
         </div>

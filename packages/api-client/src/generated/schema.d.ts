@@ -2042,11 +2042,17 @@ export interface components {
             purchaseOptionId: string | null;
             packageCount: number | null;
             purchaseOption?: components["schemas"]["PurchaseOptionSummaryDto"] | null;
-            /** Szacunek w groszach na podstawie ostatniej ceny zakupu produktu. */
+            /** @description Szacunek w groszach na podstawie ostatniej ceny zakupu produktu (skalowany do pozycji). */
             estimatedPriceMinor?: number | null;
-            /** Suma aktywnego zapasu produktu w defaultUnit. */
+            /**
+             * @description Suma aktywnego zapasu produktu w defaultUnit (null gdy brak produktu lub zero).
+             * @example 250.000
+             */
             stockQuantity?: string | null;
-            /** Jednostka stockQuantity (defaultUnit produktu). */
+            /**
+             * @description Jednostka stockQuantity (defaultUnit produktu).
+             * @enum {string|null}
+             */
             stockUnit?: "piece" | "gram" | "milliliter" | null;
         };
         CreateShoppingListItemDto: {
@@ -2280,6 +2286,8 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            /** @description Czy przepis ma włączony nowoczesny tryb przygotowania. */
+            preparationPlanEnabled: boolean;
         };
         RecipeIngredientGroupInputDto: {
             /**
@@ -2334,6 +2342,16 @@ export interface components {
             durationMinutes?: number | null;
             /** @example 0 */
             sortOrder: number;
+            /** @description Identyfikatory składników tego przepisu potrzebne w kroku. Pusta tablica usuwa przypisania. Brak pola przy edycji zachowuje dotychczasowe powiązania istniejącego kroku. */
+            ingredientIds?: string[];
+            /** @description Szacowany czas aktywnej pracy w minucie (plan przygotowania). */
+            activeWorkMinutes?: number | null;
+            /** @description Czas oczekiwania w minucie (np. pieczenie). */
+            waitMinutes?: number | null;
+            /** @description Czy krok ma timer w trybie przygotowania. */
+            timerEnabled?: boolean;
+            /** @description Kroki tego przepisu, które muszą się skończyć przed startem. Pusta tablica usuwa zależności. Brak pola przy edycji zachowuje dotychczasowe powiązania istniejącego kroku. */
+            dependsOnStepIds?: string[];
         };
         CreateRecipeDto: {
             /** @example Makaron z sosem pomidorowym */
@@ -2375,6 +2393,8 @@ export interface components {
             /** @description Opcjonalne grupy składników. Pusty przepis nie wymaga grup. */
             ingredientGroups?: components["schemas"]["RecipeIngredientGroupInputDto"][];
             ingredients: components["schemas"]["RecipeIngredientInputDto"][];
+            /** @description Włącza nowoczesny tryb przygotowania (/cook). Nie wynika z samego faktu posiadania zależności. */
+            preparationPlanEnabled?: boolean;
             steps: components["schemas"]["RecipeStepInputDto"][];
         };
         RecipeIngredientGroupDto: {
@@ -2403,6 +2423,13 @@ export interface components {
             durationMinutes: number | null;
             sortOrder: number;
             image: components["schemas"]["MediaImageDto"] | null;
+            /** @description Składniki jawnie przypisane do tego kroku (kolejność zachowana). */
+            ingredientIds: string[];
+            activeWorkMinutes: number | null;
+            waitMinutes: number | null;
+            timerEnabled: boolean;
+            /** @description Kroki, które muszą się skończyć przed startem tego kroku. */
+            dependsOnStepIds: string[];
         };
         RecipeDetailDto: {
             id: string;
@@ -2425,6 +2452,8 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            /** @description Czy przepis ma włączony nowoczesny tryb przygotowania. */
+            preparationPlanEnabled: boolean;
             sourceUrl: string | null;
             /** @description Autor ze źródła zewnętrznego (nie użytkownik Mojej Kuchni). */
             sourceAuthor: string | null;
@@ -2457,6 +2486,8 @@ export interface components {
             ingredientGroups?: components["schemas"]["RecipeIngredientGroupInputDto"][];
             ingredients?: components["schemas"]["RecipeIngredientInputDto"][];
             steps?: components["schemas"]["RecipeStepInputDto"][];
+            /** @description Włącza nowoczesny tryb przygotowania (/cook). */
+            preparationPlanEnabled?: boolean;
         };
         PurchaseProposalAlternativeDto: {
             purchaseOptionId: string;

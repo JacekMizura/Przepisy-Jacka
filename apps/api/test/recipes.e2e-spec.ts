@@ -172,7 +172,9 @@ describe('Recipes (e2e)', () => {
         body,
       },
     );
-    expect(response.status).toBe(201);
+    expect({ status: response.status, body: response.body }).toEqual(
+      expect.objectContaining({ status: 201 }),
+    );
     return response.body as RecipeRef;
   }
 
@@ -1346,5 +1348,236 @@ describe('Recipes (e2e)', () => {
     };
     expect(body.nutrition.countedIngredients).toBe(2);
     expect(body.nutrition.recipe?.kcal).toBe('100.00');
+  });
+
+  it('assigns ingredients to steps and drops links when the ingredient is removed', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+    const kitchen = await createKitchen(owner, 'Przypisania kroków');
+    const eggId = crypto.randomUUID();
+    const oilId = crypto.randomUUID();
+    const mixStepId = crypto.randomUUID();
+    const fryStepId = crypto.randomUUID();
+
+    const recipe = await createRecipe(
+      owner,
+      kitchen.id,
+      sampleRecipeBody({
+        ingredients: [
+          {
+            id: eggId,
+            name: 'Jajka',
+            quantity: '2.000',
+            unit: 'piece',
+            sortOrder: 0,
+          },
+          {
+            id: oilId,
+            name: 'Oliwa',
+            quantity: '1.000',
+            unit: 'tablespoon',
+            sortOrder: 1,
+          },
+        ],
+        steps: [
+          {
+            id: mixStepId,
+            instruction: 'Ubij jajka.',
+            sortOrder: 0,
+            ingredientIds: [eggId],
+          },
+          {
+            id: fryStepId,
+            instruction: 'Usmaż na patelni.',
+            sortOrder: 1,
+            ingredientIds: [eggId, oilId],
+          },
+        ],
+      }),
+    );
+
+    const created = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/${recipe.id}`,
+      { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
+    );
+    expect(created.status).toBe(200);
+    const createdBody = created.body as {
+      steps: Array<{ id: string; ingredientIds: string[] }>;
+    };
+    expect(
+      createdBody.steps.find((step) => step.id === mixStepId)?.ingredientIds,
+    ).toEqual([eggId]);
+    expect(
+      createdBody.steps.find((step) => step.id === fryStepId)?.ingredientIds,
+    ).toEqual([eggId, oilId]);
+
+    const foreignDenied = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/${recipe.id}`,
+      {
+        method: 'PATCH',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          ingredients: [
+            {
+              id: eggId,
+              name: 'Jajka',
+              quantity: '2.000',
+              unit: 'piece',
+              sortOrder: 0,
+            },
+          ],
+          steps: [
+            {
+              id: mixStepId,
+              instruction: 'Ubij jajka.',
+              sortOrder: 0,
+              ingredientIds: [eggId, oilId],
+            },
+          ],
+        },
+      },
+    );
+    expect(foreignDenied.status).toBe(400);
+
+    const removed = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/${recipe.id}`,
+      {
+        method: 'PATCH',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          ingredients: [
+            {
+              id: eggId,
+              name: 'Jajka',
+              quantity: '2.000',
+              unit: 'piece',
+              sortOrder: 0,
+            },
+          ],
+          steps: [
+            {
+              id: mixStepId,
+              instruction: 'Ubij jajka.',
+              sortOrder: 0,
+              ingredientIds: [eggId],
+            },
+          ],
+        },
+      },
+    );
+    expect(removed.status).toBe(200);
+    const after = removed.body as {
+      ingredients: Array<{ id: string }>;
+      steps: Array<{ id: string; ingredientIds: string[] }>;
+    };
+    expect(after.ingredients.map((item) => item.id)).toEqual([eggId]);
+    expect(after.steps).toHaveLength(1);
+    expect(after.steps[0]?.ingredientIds).toEqual([eggId]);
+  });
+
+  it('stores parallel prep-plan dependencies and rejects cycles', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+    const kitchen = await createKitchen(owner, 'Plan przygotowania');
+    const ovenId = crypto.randomUUID();
+    const mixId = crypto.randomUUID();
+    const bakeId = crypto.randomUUID();
+
+    const recipe = await createRecipe(
+      owner,
+      kitchen.id,
+      sampleRecipeBody({
+        preparationPlanEnabled: true,
+        ingredients: [
+          {
+            name: 'Mąka',
+            quantity: '200.000',
+            unit: 'gram',
+            sortOrder: 0,
+          },
+        ],
+        steps: [
+          {
+            id: ovenId,
+            instruction: 'Rozgrzej piekarnik.',
+            sortOrder: 0,
+            waitMinutes: 15,
+            timerEnabled: true,
+          },
+          {
+            id: mixId,
+            instruction: 'Wymieszaj ciasto.',
+            sortOrder: 1,
+            activeWorkMinutes: 10,
+          },
+          {
+            id: bakeId,
+            instruction: 'Piecz.',
+            sortOrder: 2,
+            dependsOnStepIds: [ovenId, mixId],
+            waitMinutes: 40,
+            timerEnabled: true,
+          },
+        ],
+      }),
+    );
+
+    const created = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/${recipe.id}`,
+      { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
+    );
+    expect(created.status).toBe(200);
+    const body = created.body as {
+      preparationPlanEnabled: boolean;
+      steps: Array<{
+        id: string;
+        dependsOnStepIds: string[];
+        timerEnabled: boolean;
+        waitMinutes: number | null;
+      }>;
+    };
+    expect(body.preparationPlanEnabled).toBe(true);
+    expect(
+      body.steps.find((step) => step.id === bakeId)?.dependsOnStepIds.sort(),
+    ).toEqual([ovenId, mixId].sort());
+    expect(body.steps.find((step) => step.id === ovenId)?.timerEnabled).toBe(
+      true,
+    );
+
+    const cycle = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/${recipe.id}`,
+      {
+        method: 'PATCH',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          steps: [
+            {
+              id: ovenId,
+              instruction: 'Rozgrzej piekarnik.',
+              sortOrder: 0,
+              dependsOnStepIds: [bakeId],
+            },
+            {
+              id: mixId,
+              instruction: 'Wymieszaj ciasto.',
+              sortOrder: 1,
+            },
+            {
+              id: bakeId,
+              instruction: 'Piecz.',
+              sortOrder: 2,
+              dependsOnStepIds: [ovenId],
+            },
+          ],
+        },
+      },
+    );
+    expect(cycle.status).toBe(400);
   });
 });

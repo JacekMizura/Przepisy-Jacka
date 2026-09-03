@@ -16,6 +16,7 @@ import {
   type RecipeIngredient,
   type RecipeIngredientGroup,
   type RecipeStep,
+  type RecipeStepIngredient,
   type User,
 } from '../generated/prisma/client';
 
@@ -44,6 +45,7 @@ import {
   RecipeSummaryDto,
   UpdateRecipeDto,
 } from './dto/recipe.dto';
+import { findDependencyCycle } from './step-dependency-graph';
 import {
   computeRecipeAvailability,
   convertRecipeQuantityToProductBase,
@@ -63,6 +65,10 @@ import {
 
 type RecipeStepWithMedia = RecipeStep & {
   imageMedia?: MediaAsset | null;
+  ingredientLinks?: Array<
+    Pick<RecipeStepIngredient, 'recipeIngredientId' | 'sortOrder'>
+  >;
+  dependsOnLinks?: Array<{ dependsOnStepId: string }>;
 };
 
 type RecipeWithRelations = Recipe & {
@@ -219,6 +225,7 @@ export class RecipeService {
           sourceAuthor: normalizeOptionalText(dto.sourceAuthor),
           importedAt,
           importIdempotencyKey: dto.importIdempotencyKey ?? null,
+          preparationPlanEnabled: dto.preparationPlanEnabled ?? false,
           ingredientGroups: {
             create: groups.map((group) => toGroupCreateData(group)),
           },
@@ -240,7 +247,18 @@ export class RecipeService {
         },
         include: recipeInclude,
       });
-      return created;
+      await writeStepIngredientLinks(
+        tx,
+        dto.steps,
+        dto.ingredients,
+        created.steps,
+        created.ingredients,
+      );
+      await writeStepDependencies(tx, dto.steps, created.steps);
+      return tx.recipe.findUniqueOrThrow({
+        where: { id: created.id },
+        include: recipeInclude,
+      });
     });
 
     return this.toRecipeDetailDtoWithMedia(recipe);
@@ -361,6 +379,29 @@ export class RecipeService {
         });
 
         await tx.recipeStep.createMany({ data: stepCreates });
+
+        const persistedSteps = await tx.recipeStep.findMany({
+          where: { recipeId },
+          select: { id: true, sortOrder: true },
+        });
+        const persistedIngredients = await tx.recipeIngredient.findMany({
+          where: { recipeId },
+          select: { id: true },
+        });
+        await writeStepIngredientLinks(
+          tx,
+          nextSteps,
+          nextIngredients,
+          persistedSteps,
+          persistedIngredients,
+          existing.steps,
+        );
+        await writeStepDependencies(
+          tx,
+          nextSteps,
+          persistedSteps,
+          existing.steps,
+        );
       }
 
       if (nextCategoryIds !== undefined) {
@@ -399,6 +440,10 @@ export class RecipeService {
             dto.sourceAuthor === undefined
               ? undefined
               : normalizeOptionalText(dto.sourceAuthor),
+          preparationPlanEnabled:
+            dto.preparationPlanEnabled === undefined
+              ? undefined
+              : dto.preparationPlanEnabled,
         },
         include: recipeInclude,
       });
@@ -865,7 +910,11 @@ const recipeInclude = {
   ingredients: { orderBy: { sortOrder: 'asc' as const } },
   steps: {
     orderBy: { sortOrder: 'asc' as const },
-    include: { imageMedia: true },
+    include: {
+      imageMedia: true,
+      ingredientLinks: { orderBy: { sortOrder: 'asc' as const } },
+      dependsOnLinks: true,
+    },
   },
   coverMedia: true,
   categoryLinks: {
@@ -991,6 +1040,26 @@ function validateRecipeStructure(
       );
     }
   }
+
+  const providedIngredientIds = ingredients
+    .map((ingredient) => ingredient.id)
+    .filter((id): id is string => Boolean(id));
+  assertUniqueIds(providedIngredientIds, 'składników');
+  const ingredientIds = new Set(providedIngredientIds);
+  for (const step of steps) {
+    if (!step.ingredientIds || step.ingredientIds.length === 0) {
+      continue;
+    }
+    assertUniqueIds(step.ingredientIds, 'składników w kroku');
+    for (const ingredientId of step.ingredientIds) {
+      if (!ingredientIds.has(ingredientId)) {
+        throw new BadRequestException(
+          'Składnik przypisany do kroku nie należy do tego przepisu.',
+        );
+      }
+    }
+  }
+  validateStepDependencies(steps);
 }
 
 function assertUniqueIds(values: string[], label: string): void {
@@ -1353,6 +1422,7 @@ function toGroupCreateData(group: RecipeIngredientGroupInputDto) {
 
 function toIngredientCreateData(ingredient: RecipeIngredientInputDto) {
   return {
+    ...(ingredient.id ? { id: ingredient.id } : {}),
     name: ingredient.name.trim(),
     quantity:
       ingredient.quantity === undefined || ingredient.quantity === null
@@ -1368,10 +1438,14 @@ function toIngredientCreateData(ingredient: RecipeIngredientInputDto) {
 
 function toStepCreateData(step: RecipeStepInputDto) {
   return {
+    ...(step.id ? { id: step.id } : {}),
     title: normalizeOptionalText(step.title),
     instruction: step.instruction.trim(),
     tip: normalizeOptionalText(step.tip),
     durationMinutes: step.durationMinutes ?? null,
+    activeWorkMinutes: step.activeWorkMinutes ?? null,
+    waitMinutes: step.waitMinutes ?? null,
+    timerEnabled: step.timerEnabled ?? false,
     sortOrder: step.sortOrder,
   };
 }
@@ -1422,7 +1496,7 @@ function toIngredientInputFromEntity(
   };
 }
 
-function toStepInputFromEntity(step: RecipeStep): RecipeStepInputDto {
+function toStepInputFromEntity(step: RecipeStepWithMedia): RecipeStepInputDto {
   return {
     id: step.id,
     title: step.title,
@@ -1430,6 +1504,11 @@ function toStepInputFromEntity(step: RecipeStep): RecipeStepInputDto {
     tip: step.tip,
     durationMinutes: step.durationMinutes,
     sortOrder: step.sortOrder,
+    ingredientIds: stepIngredientIds(step),
+    activeWorkMinutes: step.activeWorkMinutes,
+    waitMinutes: step.waitMinutes,
+    timerEnabled: step.timerEnabled,
+    dependsOnStepIds: stepDependsOnIds(step),
   };
 }
 
@@ -1466,6 +1545,7 @@ function toRecipeSummaryDto(
     },
     createdAt: recipe.createdAt.toISOString(),
     updatedAt: recipe.updatedAt.toISOString(),
+    preparationPlanEnabled: recipe.preparationPlanEnabled,
   };
 }
 
@@ -1505,8 +1585,184 @@ function toRecipeDetailDto(
       durationMinutes: step.durationMinutes,
       sortOrder: step.sortOrder,
       image: stepImages.get(step.id) ?? null,
+      ingredientIds: stepIngredientIds(step),
+      activeWorkMinutes: step.activeWorkMinutes,
+      waitMinutes: step.waitMinutes,
+      timerEnabled: step.timerEnabled,
+      dependsOnStepIds: stepDependsOnIds(step),
     })),
   };
+}
+
+function stepIngredientIds(step: RecipeStepWithMedia): string[] {
+  return [...(step.ingredientLinks ?? [])]
+    .sort((left, right) => left.sortOrder - right.sortOrder)
+    .map((link) => link.recipeIngredientId);
+}
+
+async function writeStepIngredientLinks(
+  tx: Prisma.TransactionClient,
+  stepsInput: RecipeStepInputDto[],
+  ingredientsInput: RecipeIngredientInputDto[],
+  persistedSteps: Array<{ id: string; sortOrder: number }>,
+  persistedIngredients: Array<{ id: string }>,
+  previousSteps: RecipeStepWithMedia[] = [],
+): Promise<void> {
+  const knownIngredientIds = new Set(
+    persistedIngredients.map((item) => item.id),
+  );
+  for (const ingredient of ingredientsInput) {
+    if (ingredient.id) {
+      knownIngredientIds.add(ingredient.id);
+    }
+  }
+  const previousById = new Map(previousSteps.map((step) => [step.id, step]));
+  const rows: Array<{
+    recipeStepId: string;
+    recipeIngredientId: string;
+    sortOrder: number;
+  }> = [];
+
+  for (const input of stepsInput) {
+    const persisted =
+      (input.id
+        ? persistedSteps.find((step) => step.id === input.id)
+        : undefined) ??
+      persistedSteps.find((step) => step.sortOrder === input.sortOrder);
+    if (!persisted) {
+      continue;
+    }
+    const previous = previousById.get(persisted.id);
+    const ingredientIds =
+      input.ingredientIds !== undefined
+        ? uniqueIds(input.ingredientIds)
+        : previous
+          ? stepIngredientIds(previous)
+          : [];
+    for (const [index, ingredientId] of ingredientIds.entries()) {
+      if (!knownIngredientIds.has(ingredientId)) {
+        throw new BadRequestException(
+          'Składnik przypisany do kroku nie należy do tego przepisu.',
+        );
+      }
+      rows.push({
+        recipeStepId: persisted.id,
+        recipeIngredientId: ingredientId,
+        sortOrder: index,
+      });
+    }
+  }
+
+  if (rows.length === 0) {
+    return;
+  }
+  await tx.recipeStepIngredient.createMany({ data: rows });
+}
+
+function stepDependsOnIds(step: RecipeStepWithMedia): string[] {
+  return uniqueIds(
+    (step.dependsOnLinks ?? []).map((link) => link.dependsOnStepId),
+  );
+}
+
+async function writeStepDependencies(
+  tx: Prisma.TransactionClient,
+  stepsInput: RecipeStepInputDto[],
+  persistedSteps: Array<{ id: string; sortOrder: number }>,
+  previousSteps: RecipeStepWithMedia[] = [],
+): Promise<void> {
+  const knownStepIds = new Set(persistedSteps.map((item) => item.id));
+  const previousById = new Map(previousSteps.map((step) => [step.id, step]));
+  const rows: Array<{ stepId: string; dependsOnStepId: string }> = [];
+
+  for (const input of stepsInput) {
+    const persisted =
+      (input.id
+        ? persistedSteps.find((step) => step.id === input.id)
+        : undefined) ??
+      persistedSteps.find((step) => step.sortOrder === input.sortOrder);
+    if (!persisted) {
+      continue;
+    }
+    const previous = previousById.get(persisted.id);
+    const dependsOnStepIds =
+      input.dependsOnStepIds !== undefined
+        ? uniqueIds(input.dependsOnStepIds)
+        : previous
+          ? stepDependsOnIds(previous)
+          : [];
+    for (const dependsOnStepId of dependsOnStepIds) {
+      if (!knownStepIds.has(dependsOnStepId)) {
+        throw new BadRequestException(
+          'Zależność kroku wskazuje krok spoza tego przepisu.',
+        );
+      }
+      if (dependsOnStepId === persisted.id) {
+        throw new BadRequestException(
+          'Krok nie może zależeć od samego siebie.',
+        );
+      }
+      rows.push({ stepId: persisted.id, dependsOnStepId });
+    }
+  }
+
+  if (rows.length === 0) {
+    return;
+  }
+  await tx.recipeStepDependency.createMany({ data: rows });
+}
+
+function validateStepDependencies(steps: RecipeStepInputDto[]): void {
+  const providedStepIds = steps
+    .map((step) => step.id)
+    .filter((id): id is string => Boolean(id));
+  const knownIds = new Set(providedStepIds);
+  const edges: Array<{ stepId: string; dependsOnStepId: string }> = [];
+
+  for (const step of steps) {
+    if (!step.dependsOnStepIds || step.dependsOnStepIds.length === 0) {
+      continue;
+    }
+    if (!step.id) {
+      throw new BadRequestException(
+        'Zależności kroku wymagają identyfikatora kroku.',
+      );
+    }
+    assertUniqueIds(step.dependsOnStepIds, 'zależności kroku');
+    for (const dependsOnStepId of step.dependsOnStepIds) {
+      if (dependsOnStepId === step.id) {
+        throw new BadRequestException(
+          'Krok nie może zależeć od samego siebie.',
+        );
+      }
+      if (!knownIds.has(dependsOnStepId)) {
+        throw new BadRequestException(
+          'Zależność kroku wskazuje krok spoza tego przepisu.',
+        );
+      }
+      edges.push({ stepId: step.id, dependsOnStepId });
+    }
+  }
+
+  const cycle = findDependencyCycle(edges);
+  if (cycle) {
+    throw new BadRequestException(
+      'Plan przygotowania zawiera cykl zależności pomiędzy krokami.',
+    );
+  }
+}
+
+function uniqueIds(values: string[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const value of values) {
+    if (seen.has(value)) {
+      continue;
+    }
+    seen.add(value);
+    result.push(value);
+  }
+  return result;
 }
 
 function parseOptionalDate(value: string | null | undefined): Date | null {

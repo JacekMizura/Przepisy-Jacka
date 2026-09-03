@@ -1,30 +1,49 @@
 "use client";
 
 import type { components } from "@moja-kuchnia/api-client";
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
-import { type FormEvent, useMemo, useState } from "react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Clock,
+  Flame,
+  GripVertical,
+  ImagePlus,
+  Info,
+  Lightbulb,
+  ListOrdered,
+  Plus,
+  ShoppingBasket,
+  Trash2,
+  Users,
+  Utensils,
+  X,
+} from "lucide-react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { PendingImageField } from "@/components/media-image-field";
-import { ProductThumb } from "@/components/product-thumb";
 import { RecipeCategoryPicker } from "@/components/recipe-category-picker";
+import { RecipeIngredientProductLink } from "@/components/recipe-ingredient-product-link";
 import {
   RecipeCoverField,
   RecipeStepImageField,
 } from "@/components/recipe-media-fields";
+import { RecipeStepIngredientPicker } from "@/components/recipe-step-ingredient-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { createWebApiClient } from "@/lib/api";
-import { UNIT_LABELS, readApiError } from "@/lib/errors";
+import { readApiError } from "@/lib/errors";
 import { formatQuantityNumber, toApiQuantityString } from "@/lib/format-quantity";
 import type { MediaImage } from "@/lib/media-upload";
-import { productImageUrls } from "@/lib/product-image";
 import {
   RECIPE_DIFFICULTY_LABELS,
   RECIPE_INGREDIENT_UNIT_LABELS,
   RECIPE_VISIBILITY_LABELS,
 } from "@/lib/recipe-labels";
+import { findDependencyCycle, formatDependsOnPreview } from "@/lib/prep-plan";
+import { cn } from "@/lib/utils";
 
 type Product = components["schemas"]["ProductDto"];
 type RecipeDetail = components["schemas"]["RecipeDetailDto"];
@@ -57,6 +76,12 @@ type StepDraft = {
   tip: string;
   showTip: boolean;
   durationMinutes: string;
+  /** Klucze składników formularza przypisane do kroku. */
+  ingredientIds: string[];
+  activeWorkMinutes: string;
+  waitMinutes: string;
+  timerEnabled: boolean;
+  dependsOnKeys: string[];
   /** Ustawione tylko dla kroków już zapisanych w API — warunek wysyłki zdjęcia. */
   stepId?: string;
   image?: MediaImage | null;
@@ -78,15 +103,35 @@ type RecipeFormProps = {
   forceCreateMode?: boolean;
   submitLabel: string;
   pending?: boolean;
+  formId?: string;
+  hideSubmit?: boolean;
+  onDirtyChange?: (dirty: boolean) => void;
   onSubmit: (body: RecipeFormValues, media: RecipeFormMedia) => void;
 };
+
+const FORM_INPUT_CLASS =
+  "w-full rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm text-stone-800 shadow-[0_1px_2px_0_rgba(0,0,0,0.05)] transition-all placeholder:text-stone-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 focus:outline-none";
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function normalizeTag(raw: string): string {
+  return raw.trim().replace(/\s+/g, " ");
+}
 
 function createIngredientDraft(
   partial?: Partial<IngredientDraft> & { key?: string },
 ): IngredientDraft {
+  const id = partial?.id;
   return {
-    key: partial?.key ?? crypto.randomUUID(),
-    ...(partial?.id ? { id: partial.id } : {}),
+    key: partial?.key ?? id ?? crypto.randomUUID(),
+    ...(id ? { id } : {}),
     name: partial?.name ?? "",
     quantity: partial?.quantity ?? "",
     unit: partial?.unit ?? "piece",
@@ -116,6 +161,11 @@ function createStepDraft(partial?: Partial<StepDraft> & { key?: string }): StepD
     tip,
     showTip: partial?.showTip ?? tip.trim().length > 0,
     durationMinutes: partial?.durationMinutes ?? "",
+    ingredientIds: partial?.ingredientIds ? [...partial.ingredientIds] : [],
+    activeWorkMinutes: partial?.activeWorkMinutes ?? "",
+    waitMinutes: partial?.waitMinutes ?? "",
+    timerEnabled: partial?.timerEnabled ?? false,
+    dependsOnKeys: partial?.dependsOnKeys ? [...partial.dependsOnKeys] : [],
     ...(partial?.stepId ? { stepId: partial.stepId } : {}),
     ...(partial?.image !== undefined ? { image: partial.image } : {}),
   };
@@ -128,12 +178,15 @@ function recipeToDraft(recipe: RecipeDetail): {
   prepTimeMinutes: string;
   cookTimeMinutes: string;
   difficulty: CreateRecipeDto["difficulty"];
-  tags: string;
+  tags: string[];
   visibility: CreateRecipeDto["visibility"];
+  sourceUrl: string;
+  sourceAuthor: string;
   categoryIds: string[];
   ingredientGroups: IngredientGroupDraft[];
   ingredients: IngredientDraft[];
   steps: StepDraft[];
+  preparationPlanEnabled: boolean;
 } {
   const detail = recipe;
   const groups = [...detail.ingredientGroups].sort(
@@ -149,9 +202,12 @@ function recipeToDraft(recipe: RecipeDetail): {
     cookTimeMinutes:
       recipe.cookTimeMinutes !== null ? String(recipe.cookTimeMinutes) : "",
     difficulty: recipe.difficulty,
-    tags: recipe.tags.join(", "),
+    tags: [...recipe.tags],
     visibility: recipe.visibility,
+    sourceUrl: recipe.sourceUrl ?? "",
+    sourceAuthor: recipe.sourceAuthor ?? "",
     categoryIds: (recipe.categories ?? []).map((category) => category.id),
+    preparationPlanEnabled: Boolean(recipe.preparationPlanEnabled),
     ingredientGroups: groups.map((group) =>
       createGroupDraft({ id: group.id, name: group.name }),
     ),
@@ -162,6 +218,7 @@ function recipeToDraft(recipe: RecipeDetail): {
             .sort((left, right) => left.sortOrder - right.sortOrder)
             .map((ingredient) =>
               createIngredientDraft({
+                key: ingredient.id,
                 id: ingredient.id,
                 name: ingredient.name,
                 quantity: formatQuantityNumber(ingredient.quantity ?? ""),
@@ -179,6 +236,7 @@ function recipeToDraft(recipe: RecipeDetail): {
             .sort((left, right) => left.sortOrder - right.sortOrder)
             .map((step) =>
               createStepDraft({
+                key: step.id,
                 title: step.title ?? "",
                 instruction: step.instruction,
                 tip: step.tip ?? "",
@@ -186,12 +244,39 @@ function recipeToDraft(recipe: RecipeDetail): {
                   step.durationMinutes !== null
                     ? String(step.durationMinutes)
                     : "",
+                ingredientIds: [...(step.ingredientIds ?? [])],
+                activeWorkMinutes:
+                  step.activeWorkMinutes !== null
+                    ? String(step.activeWorkMinutes)
+                    : "",
+                waitMinutes:
+                  step.waitMinutes !== null ? String(step.waitMinutes) : "",
+                timerEnabled: Boolean(step.timerEnabled),
+                dependsOnKeys: [...(step.dependsOnStepIds ?? [])],
                 stepId: step.id,
                 image: step.image,
               }),
             )
         : [createStepDraft()],
   };
+}
+
+function parsePlanMinutes(
+  raw: string,
+  fieldId: string,
+  label: string,
+  fieldErrors: Record<string, string>,
+): number | null {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const parsed = Number(trimmed.replace(",", "."));
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    fieldErrors[fieldId] = `${label} musi być dodatnią liczbą całkowitą (minuty).`;
+    return null;
+  }
+  return parsed;
 }
 
 function moveItem<T>(items: T[], index: number, direction: -1 | 1): T[] {
@@ -210,13 +295,53 @@ function moveItem<T>(items: T[], index: number, direction: -1 | 1): T[] {
   return next;
 }
 
+function reorderByIndex<T>(items: T[], from: number, to: number): T[] {
+  if (from === to || from < 0 || to < 0 || from >= items.length || to >= items.length) {
+    return items;
+  }
+  const next = [...items];
+  const [removed] = next.splice(from, 1);
+  if (removed === undefined) {
+    return items;
+  }
+  next.splice(to, 0, removed);
+  return next;
+}
+
+const QUANTITY_OPTIONAL_UNITS = new Set<IngredientUnit>(["pinch", "to_taste"]);
+
+function ingredientHasContent(ingredient: IngredientDraft): boolean {
+  return Boolean(
+    ingredient.id ||
+      ingredient.name.trim() ||
+      ingredient.quantity.trim() ||
+      ingredient.note.trim() ||
+      ingredient.productId,
+  );
+}
+
+function stepHasContent(step: StepDraft): boolean {
+  return Boolean(
+    step.stepId ||
+      step.title.trim() ||
+      step.instruction.trim() ||
+      step.tip.trim() ||
+      step.durationMinutes.trim() ||
+      step.pendingImageFile ||
+      step.image,
+  );
+}
+
 export function RecipeForm({
   kitchenId,
   products,
   initialRecipe,
   forceCreateMode = false,
   submitLabel,
-  pending,
+  pending: pendingSubmit,
+  formId = "recipe-form",
+  hideSubmit = false,
+  onDirtyChange,
   onSubmit,
 }: RecipeFormProps) {
   const initial = useMemo(
@@ -230,12 +355,15 @@ export function RecipeForm({
             prepTimeMinutes: "",
             cookTimeMinutes: "",
             difficulty: "easy" as const,
-            tags: "",
+            tags: [] as string[],
             visibility: "private" as const,
+            sourceUrl: "",
+            sourceAuthor: "",
             categoryIds: [] as string[],
             ingredientGroups: [] as IngredientGroupDraft[],
             ingredients: [createIngredientDraft()],
             steps: [createStepDraft()],
+            preparationPlanEnabled: false,
           },
     [initialRecipe],
   );
@@ -247,20 +375,159 @@ export function RecipeForm({
   const [cookTimeMinutes, setCookTimeMinutes] = useState(initial.cookTimeMinutes);
   const [difficulty, setDifficulty] =
     useState<CreateRecipeDto["difficulty"]>(initial.difficulty);
-  const [tags, setTags] = useState(initial.tags);
+  const [tags, setTags] = useState<string[]>(initial.tags);
+  const [tagDraft, setTagDraft] = useState("");
   const [visibility, setVisibility] =
     useState<NonNullable<CreateRecipeDto["visibility"]>>(initial.visibility);
+  const [sourceUrl, setSourceUrl] = useState(initial.sourceUrl);
+  const [sourceAuthor, setSourceAuthor] = useState(initial.sourceAuthor);
   const [categoryIds, setCategoryIds] = useState(initial.categoryIds);
   const [ingredientGroups, setIngredientGroups] = useState(
     initial.ingredientGroups,
   );
   const [ingredients, setIngredients] = useState(initial.ingredients);
   const [steps, setSteps] = useState(initial.steps);
+  const [preparationPlanEnabled, setPreparationPlanEnabled] = useState(
+    initial.preparationPlanEnabled,
+  );
+  const [planOpen, setPlanOpen] = useState(initial.preparationPlanEnabled);
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [deleteTarget, setDeleteTarget] = useState<
+    | { kind: "ingredient"; key: string }
+    | { kind: "step"; key: string }
+    | { kind: "group"; id: string; name: string }
+    | null
+  >(null);
+  const [dragIngredientKey, setDragIngredientKey] = useState<string | null>(null);
+  const [dragStepKey, setDragStepKey] = useState<string | null>(null);
+  const [assigningStepKey, setAssigningStepKey] = useState<string | null>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   const recipeId = forceCreateMode ? undefined : initialRecipe?.id;
   const hasStepImages = steps.some((step) => step.image);
+
+  const isDirty = useMemo(() => {
+    return (
+      JSON.stringify({
+        name,
+        description,
+        servings,
+        prepTimeMinutes,
+        cookTimeMinutes,
+        difficulty,
+        tags,
+        visibility,
+        sourceUrl,
+        sourceAuthor,
+        categoryIds,
+        ingredientGroups,
+        ingredients,
+        steps: steps.map((step) => ({
+          key: step.key,
+          title: step.title,
+          instruction: step.instruction,
+          tip: step.tip,
+          showTip: step.showTip,
+          durationMinutes: step.durationMinutes,
+          ingredientIds: step.ingredientIds,
+          activeWorkMinutes: step.activeWorkMinutes,
+          waitMinutes: step.waitMinutes,
+          timerEnabled: step.timerEnabled,
+          dependsOnKeys: step.dependsOnKeys,
+          stepId: step.stepId,
+          image: step.image,
+          hasPending: Boolean(step.pendingImageFile),
+        })),
+        coverFile: coverFile?.name ?? null,
+        preparationPlanEnabled,
+      }) !==
+      JSON.stringify({
+        name: initial.name,
+        description: initial.description,
+        servings: initial.servings,
+        prepTimeMinutes: initial.prepTimeMinutes,
+        cookTimeMinutes: initial.cookTimeMinutes,
+        difficulty: initial.difficulty,
+        tags: initial.tags,
+        visibility: initial.visibility,
+        sourceUrl: initial.sourceUrl,
+        sourceAuthor: initial.sourceAuthor,
+        categoryIds: initial.categoryIds,
+        ingredientGroups: initial.ingredientGroups,
+        ingredients: initial.ingredients,
+        steps: initial.steps.map((step) => ({
+          key: step.key,
+          title: step.title,
+          instruction: step.instruction,
+          tip: step.tip,
+          showTip: step.showTip,
+          durationMinutes: step.durationMinutes,
+          ingredientIds: step.ingredientIds,
+          activeWorkMinutes: step.activeWorkMinutes,
+          waitMinutes: step.waitMinutes,
+          timerEnabled: step.timerEnabled,
+          dependsOnKeys: step.dependsOnKeys,
+          stepId: step.stepId,
+          image: step.image,
+          hasPending: false,
+        })),
+        coverFile: null,
+        preparationPlanEnabled: initial.preparationPlanEnabled,
+      })
+    );
+  }, [
+    name,
+    description,
+    servings,
+    prepTimeMinutes,
+    cookTimeMinutes,
+    difficulty,
+    tags,
+    visibility,
+    sourceUrl,
+    sourceAuthor,
+    categoryIds,
+    ingredientGroups,
+    ingredients,
+    steps,
+    coverFile,
+    initial,
+    preparationPlanEnabled,
+  ]);
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
+
+  useEffect(() => {
+    if (!isDirty) {
+      return;
+    }
+    function onBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isDirty]);
+
+  function commitTagDraft() {
+    const next = normalizeTag(tagDraft);
+    if (!next) {
+      setTagDraft("");
+      return;
+    }
+    setTags((current) =>
+      current.some(
+        (tag) => tag.toLocaleLowerCase("pl") === next.toLocaleLowerCase("pl"),
+      )
+        ? current
+        : [...current, next],
+    );
+    setTagDraft("");
+  }
 
   const categoriesQuery = useQuery({
     queryKey: ["recipe-categories", kitchenId],
@@ -289,35 +556,144 @@ export function RecipeForm({
   }
 
   function deleteGroup(group: IngredientGroupDraft): void {
-    const confirmed = window.confirm(
-      `Usunąć grupę „${group.name.trim() || "bez nazwy"}”? Składniki nie zostaną usunięte — trafią do listy bez grupy.`,
-    );
-    if (!confirmed) {
+    setDeleteTarget({ kind: "group", id: group.id, name: group.name });
+  }
+
+  function confirmDelete(): void {
+    if (!deleteTarget) {
       return;
     }
-    setIngredientGroups((current) =>
-      current.filter((entry) => entry.id !== group.id),
-    );
-    setIngredients((current) =>
-      current.map((entry) =>
-        entry.groupId === group.id ? { ...entry, groupId: null } : entry,
-      ),
-    );
+    if (deleteTarget.kind === "ingredient") {
+      setIngredients((current) => {
+        const next = current.filter((entry) => entry.key !== deleteTarget.key);
+        return next.length > 0 ? next : [createIngredientDraft()];
+      });
+      setSteps((current) =>
+        current.map((step) => ({
+          ...step,
+          ingredientIds: step.ingredientIds.filter(
+            (id) => id !== deleteTarget.key,
+          ),
+        })),
+      );
+    } else if (deleteTarget.kind === "step") {
+      setSteps((current) => {
+        const next = current.filter((entry) => entry.key !== deleteTarget.key);
+        return (next.length > 0 ? next : [createStepDraft()]).map((step) => ({
+          ...step,
+          dependsOnKeys: step.dependsOnKeys.filter(
+            (key) => key !== deleteTarget.key,
+          ),
+        }));
+      });
+    } else {
+      setIngredientGroups((current) =>
+        current.filter((entry) => entry.id !== deleteTarget.id),
+      );
+      setIngredients((current) =>
+        current.map((entry) =>
+          entry.groupId === deleteTarget.id
+            ? { ...entry, groupId: null }
+            : entry,
+        ),
+      );
+    }
+    setDeleteTarget(null);
+  }
+
+  function requestRemoveIngredient(ingredient: IngredientDraft): void {
+    if (!ingredientHasContent(ingredient)) {
+      setIngredients((current) => {
+        const next = current.filter((entry) => entry.key !== ingredient.key);
+        return next.length > 0 ? next : [createIngredientDraft()];
+      });
+      setSteps((current) =>
+        current.map((step) => ({
+          ...step,
+          ingredientIds: step.ingredientIds.filter(
+            (id) => id !== ingredient.key,
+          ),
+        })),
+      );
+      return;
+    }
+    setDeleteTarget({ kind: "ingredient", key: ingredient.key });
+  }
+
+  function requestRemoveStep(step: StepDraft): void {
+    if (!stepHasContent(step)) {
+      setSteps((current) => {
+        const next = current.filter((entry) => entry.key !== step.key);
+        return next.length > 0 ? next : [createStepDraft()];
+      });
+      return;
+    }
+    setDeleteTarget({ kind: "step", key: step.key });
+  }
+
+  function focusFirstError(nextErrors: Record<string, string>): void {
+    const firstKey = Object.keys(nextErrors)[0];
+    if (!firstKey || !formRef.current) {
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      const byId = formRef.current?.querySelector<HTMLElement>(`#${firstKey}`);
+      if (byId) {
+        byId.focus();
+        byId.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      }
+      const byName = formRef.current?.querySelector<HTMLElement>(
+        `[name="${firstKey}"]`,
+      );
+      byName?.focus();
+      byName?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
   }
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setFormError(null);
+    const nextFieldErrors: Record<string, string> = {};
 
     if (!name.trim()) {
-      setFormError("Podaj nazwę przepisu.");
-      return;
+      nextFieldErrors["recipe-name"] = "Podaj nazwę przepisu.";
     }
 
-    const servingsValue = Number(servings.trim());
+    const servingsValue = Number(servings.trim().replace(",", "."));
     if (!Number.isInteger(servingsValue) || servingsValue <= 0) {
-      setFormError("Liczba porcji musi być dodatnią liczbą całkowitą.");
-      return;
+      nextFieldErrors["recipe-servings"] =
+        "Liczba porcji musi być dodatnią liczbą całkowitą.";
+    }
+
+    const parseOptionalMinutes = (value: string): number | null | undefined => {
+      const trimmed = value.trim();
+      if (!trimmed) {
+        return null;
+      }
+      const parsed = Number(trimmed.replace(",", "."));
+      if (!Number.isInteger(parsed) || parsed < 0) {
+        return undefined;
+      }
+      return parsed;
+    };
+
+    const prep = parseOptionalMinutes(prepTimeMinutes);
+    if (prep === undefined) {
+      nextFieldErrors["recipe-prep"] =
+        "Czas przygotowania musi być nieujemną liczbą całkowitą.";
+    }
+
+    const cook = parseOptionalMinutes(cookTimeMinutes);
+    if (cook === undefined) {
+      nextFieldErrors["recipe-cook"] =
+        "Czas gotowania musi być nieujemną liczbą całkowitą.";
+    }
+
+    const sourceUrlTrimmed = sourceUrl.trim();
+    if (sourceUrlTrimmed && !isHttpUrl(sourceUrlTrimmed)) {
+      nextFieldErrors["recipe-source-url"] =
+        "Adres źródła musi zaczynać się od http:// lub https://.";
     }
 
     const normalizedGroups: NonNullable<CreateRecipeDto["ingredientGroups"]> =
@@ -329,8 +705,9 @@ export function RecipeForm({
       }
       const trimmedName = group.name.trim();
       if (!trimmedName) {
-        setFormError(`Podaj nazwę grupy składników nr ${index + 1}.`);
-        return;
+        nextFieldErrors[`group-name-${group.key}`] =
+          `Podaj nazwę grupy składników nr ${index + 1}.`;
+        continue;
       }
       normalizedGroups.push({
         id: group.id,
@@ -351,39 +728,50 @@ export function RecipeForm({
         ingredient.groupId && groupIdSet.has(ingredient.groupId)
           ? ingredient.groupId
           : null;
-      normalizedIngredients.push({
-        ...(ingredient.id && !forceCreateMode ? { id: ingredient.id } : {}),
-        groupId,
-        name: ingredient.name.trim(),
-        quantity: ingredient.quantity.trim()
-          ? toApiQuantityString(ingredient.quantity)
-          : undefined,
-        unit: ingredient.unit,
-        note: ingredient.note.trim() ? ingredient.note.trim() : null,
-        productId: ingredient.productId || undefined,
-        sortOrder: normalizedIngredients.length,
-      });
+      const quantityTrimmed = ingredient.quantity.trim();
+      const ingredientId = ingredient.id ?? ingredient.key;
+      if (quantityTrimmed) {
+        const apiQty = toApiQuantityString(quantityTrimmed);
+        if (!/^(?:0|[1-9]\d*)(?:\.\d{1,3})?$/.test(apiQty)) {
+          nextFieldErrors[`ingredient-qty-${ingredient.key}`] =
+            `Nieprawidłowa ilość dla składnika „${ingredient.name.trim()}”.`;
+          continue;
+        }
+        normalizedIngredients.push({
+          id: ingredientId,
+          groupId,
+          name: ingredient.name.trim(),
+          quantity: apiQty,
+          unit: ingredient.unit,
+          note: ingredient.note.trim() ? ingredient.note.trim() : null,
+          productId: ingredient.productId || undefined,
+          sortOrder: normalizedIngredients.length,
+        });
+      } else {
+        normalizedIngredients.push({
+          id: ingredientId,
+          groupId,
+          name: ingredient.name.trim(),
+          quantity: undefined,
+          unit: ingredient.unit,
+          note: ingredient.note.trim() ? ingredient.note.trim() : null,
+          productId: ingredient.productId || undefined,
+          sortOrder: normalizedIngredients.length,
+        });
+      }
     }
 
     if (normalizedIngredients.length === 0) {
       setFormError("Dodaj co najmniej jeden składnik.");
-      return;
-    }
-
-    for (const ingredient of normalizedIngredients) {
-      if (
-        ingredient.quantity &&
-        !/^(?:0|[1-9]\d*)(?:\.\d{1,3})?$/.test(ingredient.quantity)
-      ) {
-        setFormError(
-          `Nieprawidłowa ilość dla składnika „${ingredient.name}”.`,
-        );
-        return;
-      }
     }
 
     const normalizedSteps: CreateRecipeDto["steps"] = [];
     const stepFiles: Array<File | null> = [];
+    const validIngredientKeys = new Set(
+      normalizedIngredients
+        .map((ingredient) => ingredient.id)
+        .filter((id): id is string => Boolean(id)),
+    );
     for (let index = 0; index < steps.length; index++) {
       const step = steps[index];
       if (!step || !step.instruction.trim()) {
@@ -392,87 +780,126 @@ export function RecipeForm({
       const durationTrimmed = step.durationMinutes.trim();
       let durationMinutes: number | null | undefined = null;
       if (durationTrimmed) {
-        const parsed = Number(durationTrimmed);
+        const parsed = Number(durationTrimmed.replace(",", "."));
         if (!Number.isInteger(parsed) || parsed < 1) {
-          setFormError(
-            `Czas kroku ${index + 1} musi być dodatnią liczbą całkowitą (minuty).`,
-          );
-          return;
+          nextFieldErrors[`step-duration-${step.key}`] =
+            `Czas kroku ${index + 1} musi być dodatnią liczbą całkowitą (minuty).`;
+          continue;
         }
         durationMinutes = parsed;
       }
       const tipTrimmed = step.showTip ? step.tip.trim() : "";
+      const stepId = step.stepId ?? step.key;
       normalizedSteps.push({
-        ...(step.stepId && !forceCreateMode ? { id: step.stepId } : {}),
+        id: stepId,
         title: step.title.trim() || undefined,
         instruction: step.instruction.trim(),
         tip: tipTrimmed ? tipTrimmed : null,
         durationMinutes,
         sortOrder: normalizedSteps.length,
+        ingredientIds: step.ingredientIds.filter((id) =>
+          validIngredientKeys.has(id),
+        ),
+        activeWorkMinutes: parsePlanMinutes(
+          step.activeWorkMinutes,
+          `step-work-${step.key}`,
+          `Czas pracy kroku ${index + 1}`,
+          nextFieldErrors,
+        ),
+        waitMinutes: parsePlanMinutes(
+          step.waitMinutes,
+          `step-wait-${step.key}`,
+          `Czas oczekiwania kroku ${index + 1}`,
+          nextFieldErrors,
+        ),
+        timerEnabled: step.timerEnabled,
+        dependsOnStepIds: step.dependsOnKeys.filter((key) =>
+          steps.some((entry) => entry.key === key && entry.instruction.trim()),
+        ),
       });
       stepFiles.push(step.pendingImageFile ?? null);
     }
 
     if (normalizedSteps.length === 0) {
       setFormError("Dodaj co najmniej jeden krok przygotowania.");
+    }
+
+    const cycle = findDependencyCycle(
+      normalizedSteps.flatMap((step) =>
+        (step.dependsOnStepIds ?? []).map((dependsOnStepId) => ({
+          stepId: step.id ?? "",
+          dependsOnStepId,
+        })),
+      ),
+    );
+    if (cycle) {
+      setFormError(
+        "Plan przygotowania zawiera cykl zależności pomiędzy krokami.",
+      );
       return;
     }
 
-    const tagList = tags
-      .split(",")
-      .map((tag) => tag.trim())
-      .filter(Boolean);
-
-    const parseOptionalMinutes = (value: string): number | null | undefined => {
-      const trimmed = value.trim();
-      if (!trimmed) {
-        return null;
-      }
-      const parsed = Number(trimmed);
-      if (!Number.isInteger(parsed) || parsed < 0) {
-        return undefined;
-      }
-      return parsed;
-    };
-
-    const prep = parseOptionalMinutes(prepTimeMinutes);
-    if (prep === undefined) {
-      setFormError("Czas przygotowania musi być nieujemną liczbą całkowitą.");
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setFieldErrors(nextFieldErrors);
+      const firstMessage = Object.values(nextFieldErrors)[0] ?? "Popraw błędy formularza.";
+      setFormError(firstMessage);
+      focusFirstError(nextFieldErrors);
       return;
     }
 
-    const cook = parseOptionalMinutes(cookTimeMinutes);
-    if (cook === undefined) {
-      setFormError("Czas gotowania musi być nieujemną liczbą całkowitą.");
+    if (normalizedIngredients.length === 0 || normalizedSteps.length === 0) {
+      setFieldErrors({});
       return;
     }
 
+    setFieldErrors({});
     onSubmit(
       {
         name: name.trim(),
         description: description.trim() ? description.trim() : null,
         servings: servingsValue,
-        prepTimeMinutes: prep,
-        cookTimeMinutes: cook,
+        prepTimeMinutes: prep ?? null,
+        cookTimeMinutes: cook ?? null,
         difficulty,
-        tags: tagList,
+        tags,
         visibility,
+        sourceUrl: sourceUrlTrimmed ? sourceUrlTrimmed : null,
+        sourceAuthor: sourceAuthor.trim() ? sourceAuthor.trim() : null,
         categoryIds,
         ingredientGroups: normalizedGroups,
         ingredients: normalizedIngredients,
         steps: normalizedSteps,
+        preparationPlanEnabled,
       },
       { coverFile, stepFiles },
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
-      <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
-        <div className="border-b border-gray-100 px-5 py-4">
-          <h2 className="text-lg font-bold text-gray-900">Podstawowe informacje</h2>
+    <>
+    <form
+      ref={formRef}
+      id={formId}
+      onSubmit={handleSubmit}
+      className="mx-auto max-w-4xl space-y-8"
+      noValidate
+    >
+      <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)]">
+        <div className="flex items-center gap-3 border-b border-stone-100 bg-stone-50/50 px-5 py-4">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+            <Info size={20} aria-hidden />
+          </div>
+          <div>
+            <h2 className="font-[family-name:var(--font-serif)] text-xl font-semibold text-stone-900">
+              Podstawowe informacje
+            </h2>
+            <p className="mt-0.5 text-xs text-stone-500">
+              Opisz przepis i ustaw jego najważniejsze parametry.
+            </p>
+          </div>
         </div>
-        <div className="space-y-4 p-5">
+
+        <div className="space-y-6 p-5 lg:p-8">
           {recipeId ? (
             <RecipeCoverField
               kitchenId={kitchenId}
@@ -484,68 +911,156 @@ export function RecipeForm({
               file={coverFile}
               onFileSelected={setCoverFile}
               label="Okładka przepisu (opcjonalnie)"
-              size="wide"
+              size="cover"
+              pickLabel={coverFile ? "Zmień okładkę" : "Dodaj okładkę"}
               note="Zdjęcie wyślemy po utworzeniu przepisu."
             />
           )}
+
           <div className="space-y-2">
-            <Label htmlFor="recipe-name">Nazwa</Label>
+            <Label htmlFor="recipe-name">
+              Nazwa przepisu <span className="text-red-500">*</span>
+            </Label>
             <Input
               id="recipe-name"
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="np. Omlet z warzywami"
+              className={cn(
+                FORM_INPUT_CLASS,
+                fieldErrors["recipe-name"] && "border-red-400",
+              )}
+              aria-invalid={Boolean(fieldErrors["recipe-name"])}
+              aria-describedby={
+                fieldErrors["recipe-name"] ? "recipe-name-error" : undefined
+              }
             />
+            {fieldErrors["recipe-name"] ? (
+              <p id="recipe-name-error" className="text-xs text-red-600" role="alert">
+                {fieldErrors["recipe-name"]}
+              </p>
+            ) : null}
           </div>
+
           <div className="space-y-2">
             <Label htmlFor="recipe-description">Opis</Label>
             <textarea
               id="recipe-description"
               value={description}
               onChange={(event) => setDescription(event.target.value)}
-              placeholder="Krótki opis przepisu (opcjonalnie)"
-              rows={3}
-              className="block w-full rounded-lg border border-gray-200 bg-white p-3 text-sm"
+              placeholder="Krótko opisz smak, okazję lub najważniejsze cechy dania…"
+              rows={4}
+              className={cn(FORM_INPUT_CLASS, "block resize-y")}
             />
           </div>
+
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-2">
-              <Label htmlFor="recipe-servings">Porcje</Label>
+              <Label htmlFor="recipe-servings" className="flex items-center gap-1.5">
+                <Users size={15} className="text-stone-400" aria-hidden />
+                Porcje
+              </Label>
               <Input
                 id="recipe-servings"
                 inputMode="numeric"
                 value={servings}
                 onChange={(event) => setServings(event.target.value)}
+                className={cn(
+                  FORM_INPUT_CLASS,
+                  fieldErrors["recipe-servings"] && "border-red-400",
+                )}
+                aria-invalid={Boolean(fieldErrors["recipe-servings"])}
+                aria-describedby={
+                  fieldErrors["recipe-servings"]
+                    ? "recipe-servings-error"
+                    : undefined
+                }
               />
-              <p className="text-xs text-gray-500">
-                Na ile osób jest ten przepis — później przeliczysz na liście.
-              </p>
+              {fieldErrors["recipe-servings"] ? (
+                <p
+                  id="recipe-servings-error"
+                  className="text-xs text-red-600"
+                  role="alert"
+                >
+                  {fieldErrors["recipe-servings"]}
+                </p>
+              ) : null}
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="recipe-prep">Przygotowanie (min)</Label>
-              <Input
-                id="recipe-prep"
-                inputMode="numeric"
-                value={prepTimeMinutes}
-                onChange={(event) => setPrepTimeMinutes(event.target.value)}
-                placeholder="opcjonalnie"
-              />
+              <Label htmlFor="recipe-prep" className="flex items-center gap-1.5">
+                <Clock size={15} className="text-stone-400" aria-hidden />
+                Przygotowanie
+              </Label>
+              <div className="relative">
+                <Input
+                  id="recipe-prep"
+                  inputMode="numeric"
+                  value={prepTimeMinutes}
+                  onChange={(event) => setPrepTimeMinutes(event.target.value)}
+                  placeholder="0"
+                  className={cn(
+                    FORM_INPUT_CLASS,
+                    "pr-12",
+                    fieldErrors["recipe-prep"] && "border-red-400",
+                  )}
+                  aria-invalid={Boolean(fieldErrors["recipe-prep"])}
+                  aria-describedby={
+                    fieldErrors["recipe-prep"] ? "recipe-prep-error" : undefined
+                  }
+                />
+                <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs text-stone-400">
+                  min
+                </span>
+              </div>
+              {fieldErrors["recipe-prep"] ? (
+                <p id="recipe-prep-error" className="text-xs text-red-600" role="alert">
+                  {fieldErrors["recipe-prep"]}
+                </p>
+              ) : null}
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="recipe-cook">Gotowanie (min)</Label>
-              <Input
-                id="recipe-cook"
-                inputMode="numeric"
-                value={cookTimeMinutes}
-                onChange={(event) => setCookTimeMinutes(event.target.value)}
-                placeholder="opcjonalnie"
-              />
+              <Label htmlFor="recipe-cook" className="flex items-center gap-1.5">
+                <Flame size={15} className="text-stone-400" aria-hidden />
+                Gotowanie
+              </Label>
+              <div className="relative">
+                <Input
+                  id="recipe-cook"
+                  inputMode="numeric"
+                  value={cookTimeMinutes}
+                  onChange={(event) => setCookTimeMinutes(event.target.value)}
+                  placeholder="0"
+                  className={cn(
+                    FORM_INPUT_CLASS,
+                    "pr-12",
+                    fieldErrors["recipe-cook"] && "border-red-400",
+                  )}
+                  aria-invalid={Boolean(fieldErrors["recipe-cook"])}
+                  aria-describedby={
+                    fieldErrors["recipe-cook"] ? "recipe-cook-error" : undefined
+                  }
+                />
+                <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs text-stone-400">
+                  min
+                </span>
+              </div>
+              {fieldErrors["recipe-cook"] ? (
+                <p id="recipe-cook-error" className="text-xs text-red-600" role="alert">
+                  {fieldErrors["recipe-cook"]}
+                </p>
+              ) : null}
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="recipe-difficulty">Trudność</Label>
+              <Label htmlFor="recipe-difficulty" className="flex items-center gap-1.5">
+                <Utensils size={15} className="text-stone-400" aria-hidden />
+                Trudność
+              </Label>
               <select
                 id="recipe-difficulty"
-                className="block w-full rounded-lg border border-gray-200 bg-white p-3 text-sm"
+                className={FORM_INPUT_CLASS}
                 value={difficulty}
                 onChange={(event) =>
                   setDifficulty(event.target.value as CreateRecipeDto["difficulty"])
@@ -559,25 +1074,59 @@ export function RecipeForm({
               </select>
             </div>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
+
+          <div className="grid gap-6 border-t border-stone-100 pt-6 lg:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="recipe-tags">Tagi</Label>
-              <Input
-                id="recipe-tags"
-                value={tags}
-                onChange={(event) => setTags(event.target.value)}
-                placeholder="np. śniadanie, szybkie (oddziel przecinkami)"
-              />
+              <Label htmlFor="recipe-tag-input">Tagi</Label>
+              <div className="flex min-h-[46px] flex-wrap items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2 shadow-[0_1px_2px_0_rgba(0,0,0,0.05)] transition-all focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10">
+                {tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-stone-100 px-3 py-1 text-sm font-medium text-stone-700"
+                  >
+                    {tag}
+                    <button
+                      type="button"
+                      className="rounded text-stone-400 hover:text-red-500 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
+                      aria-label={`Usuń tag ${tag}`}
+                      onClick={() =>
+                        setTags((current) =>
+                          current.filter((entry) => entry !== tag),
+                        )
+                      }
+                    >
+                      <X size={14} aria-hidden />
+                    </button>
+                  </span>
+                ))}
+                <input
+                  id="recipe-tag-input"
+                  value={tagDraft}
+                  onChange={(event) => setTagDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === ",") {
+                      event.preventDefault();
+                      commitTagDraft();
+                    }
+                  }}
+                  onBlur={commitTagDraft}
+                  className="min-w-[140px] flex-1 bg-transparent py-1 text-sm text-stone-800 outline-none placeholder:text-stone-400"
+                  placeholder="Wpisz tag i naciśnij Enter…"
+                />
+              </div>
             </div>
+
             <div className="space-y-2">
               <Label htmlFor="recipe-visibility">Widoczność</Label>
               <select
                 id="recipe-visibility"
-                className="block w-full rounded-lg border border-gray-200 bg-white p-3 text-sm"
+                className={FORM_INPUT_CLASS}
                 value={visibility}
                 onChange={(event) =>
                   setVisibility(
-                    event.target.value as NonNullable<CreateRecipeDto["visibility"]>,
+                    event.target.value as NonNullable<
+                      CreateRecipeDto["visibility"]
+                    >,
                   )
                 }
               >
@@ -588,7 +1137,49 @@ export function RecipeForm({
                 ))}
               </select>
             </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="recipe-source-author">Autor lub nazwa źródła</Label>
+              <Input
+                id="recipe-source-author"
+                value={sourceAuthor}
+                onChange={(event) => setSourceAuthor(event.target.value)}
+                placeholder="np. Anna Kowalska"
+                className={FORM_INPUT_CLASS}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="recipe-source-url">Adres źródłowy</Label>
+              <Input
+                id="recipe-source-url"
+                type="url"
+                value={sourceUrl}
+                onChange={(event) => setSourceUrl(event.target.value)}
+                placeholder="https://…"
+                className={cn(
+                  FORM_INPUT_CLASS,
+                  fieldErrors["recipe-source-url"] && "border-red-400",
+                )}
+                aria-invalid={Boolean(fieldErrors["recipe-source-url"])}
+                aria-describedby={
+                  fieldErrors["recipe-source-url"]
+                    ? "recipe-source-url-error"
+                    : undefined
+                }
+              />
+              {fieldErrors["recipe-source-url"] ? (
+                <p
+                  id="recipe-source-url-error"
+                  className="text-xs text-red-600"
+                  role="alert"
+                >
+                  {fieldErrors["recipe-source-url"]}
+                </p>
+              ) : null}
+            </div>
           </div>
+
           <RecipeCategoryPicker
             categories={categoriesQuery.data ?? []}
             selectedIds={categoryIds}
@@ -598,69 +1189,81 @@ export function RecipeForm({
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-5 py-4">
-          <div>
-            <h2 className="text-lg font-bold text-gray-900">Składniki</h2>
-            <p className="mt-0.5 text-xs text-gray-500">
-              Grupy są opcjonalne — prosty przepis może zostać bez nich.
-            </p>
+      <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)]">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-stone-100 bg-stone-50/50 px-5 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+              <ShoppingBasket size={20} aria-hidden />
+            </div>
+            <div>
+              <h2 className="font-[family-name:var(--font-serif)] text-xl font-semibold text-stone-900">
+                Składniki
+              </h2>
+              <p className="mt-0.5 text-xs text-stone-500">
+                Ustal kolejność i opcjonalnie podziel składniki na grupy.
+              </p>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() =>
-                setIngredientGroups((current) => [
-                  ...current,
-                  createGroupDraft({ name: "" }),
-                ])
-              }
-            >
-              <Plus size={14} className="mr-1" />
-              Dodaj grupę
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() =>
-                setIngredients((current) => [...current, createIngredientDraft()])
-              }
-            >
-              <Plus size={14} className="mr-1" />
-              Dodaj składnik
-            </Button>
-          </div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() =>
+              setIngredientGroups((current) => [
+                ...current,
+                createGroupDraft({ name: "" }),
+              ])
+            }
+          >
+            <Plus size={14} className="mr-1.5" aria-hidden />
+            Dodaj grupę
+          </Button>
         </div>
 
         {ingredientGroups.length > 0 ? (
-          <div className="space-y-3 border-b border-gray-100 bg-gray-50/60 px-5 py-4">
-            <p className="text-sm font-semibold text-gray-700">Grupy składników</p>
-            <div className="space-y-2">
-              {ingredientGroups.map((group, index) => (
+          <div className="space-y-3 border-b border-stone-100 bg-stone-50/60 px-5 py-4 lg:px-8">
+            <p className="text-xs font-semibold tracking-wide text-stone-500 uppercase">
+              Grupy składników
+            </p>
+            {ingredientGroups.map((group, index) => {
+              const errorKey = `group-name-${group.key}`;
+              return (
                 <div
                   key={group.key}
-                  className="flex flex-wrap items-center gap-2 rounded-2xl border border-gray-100 bg-white p-3"
+                  className="flex flex-wrap items-start gap-2 rounded-xl border border-stone-200 bg-white p-3"
                 >
-                  <Input
-                    value={group.name}
-                    onChange={(event) =>
-                      setIngredientGroups((current) =>
-                        current.map((entry) =>
-                          entry.key === group.key
-                            ? { ...entry, name: event.target.value }
-                            : entry,
-                        ),
-                      )
-                    }
-                    placeholder={`Nazwa grupy ${index + 1}`}
-                    className="min-w-[12rem] flex-1"
-                  />
+                  <div className="min-w-[12rem] flex-1">
+                    <Label htmlFor={errorKey} className="sr-only">
+                      Nazwa grupy {index + 1}
+                    </Label>
+                    <Input
+                      id={errorKey}
+                      value={group.name}
+                      onChange={(event) =>
+                        setIngredientGroups((current) =>
+                          current.map((entry) =>
+                            entry.key === group.key
+                              ? { ...entry, name: event.target.value }
+                              : entry,
+                          ),
+                        )
+                      }
+                      placeholder={`Nazwa grupy ${index + 1}`}
+                      className={cn(
+                        FORM_INPUT_CLASS,
+                        fieldErrors[errorKey] && "border-red-400",
+                      )}
+                      aria-invalid={Boolean(fieldErrors[errorKey])}
+                    />
+                    {fieldErrors[errorKey] ? (
+                      <p className="mt-1 text-xs text-red-600" role="alert">
+                        {fieldErrors[errorKey]}
+                      </p>
+                    ) : null}
+                  </div>
                   <Button
                     type="button"
-                    size="sm"
+                    size="icon"
                     variant="outline"
                     disabled={index === 0}
                     onClick={() =>
@@ -668,13 +1271,13 @@ export function RecipeForm({
                         moveItem(current, index, -1),
                       )
                     }
-                    aria-label="Przesuń grupę wyżej"
+                    aria-label="Przenieś grupę wyżej"
                   >
-                    <ArrowUp size={14} />
+                    <ArrowUp size={15} aria-hidden />
                   </Button>
                   <Button
                     type="button"
-                    size="sm"
+                    size="icon"
                     variant="outline"
                     disabled={index === ingredientGroups.length - 1}
                     onClick={() =>
@@ -682,426 +1285,853 @@ export function RecipeForm({
                         moveItem(current, index, 1),
                       )
                     }
-                    aria-label="Przesuń grupę niżej"
+                    aria-label="Przenieś grupę niżej"
                   >
-                    <ArrowDown size={14} />
+                    <ArrowDown size={15} aria-hidden />
                   </Button>
                   <Button
                     type="button"
-                    size="sm"
-                    variant="destructive"
+                    size="icon"
+                    variant="outline"
+                    className="text-red-500 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
                     onClick={() => deleteGroup(group)}
+                    aria-label={`Usuń grupę ${group.name || index + 1}`}
                   >
-                    <Trash2 size={14} className="mr-1" />
-                    Usuń
+                    <Trash2 size={15} aria-hidden />
                   </Button>
                 </div>
-              ))}
-            </div>
+              );
+            })}
           </div>
         ) : null}
 
-        <div className="divide-y divide-gray-100">
-          {ingredients.map((ingredient, index) => (
-            <div key={ingredient.key} className="space-y-3 p-5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-gray-700">
-                  Składnik {index + 1}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={index === 0}
-                    onClick={() =>
-                      setIngredients((current) => moveItem(current, index, -1))
-                    }
-                    aria-label="Przesuń składnik wyżej"
-                  >
-                    <ArrowUp size={14} />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={index === ingredients.length - 1}
-                    onClick={() =>
-                      setIngredients((current) => moveItem(current, index, 1))
-                    }
-                    aria-label="Przesuń składnik niżej"
-                  >
-                    <ArrowDown size={14} />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="destructive"
-                    disabled={ingredients.length === 1}
-                    onClick={() =>
-                      setIngredients((current) =>
-                        current.filter((entry) => entry.key !== ingredient.key),
-                      )
-                    }
-                  >
-                    <Trash2 size={14} className="mr-1" />
-                    Usuń
-                  </Button>
-                </div>
-              </div>
-              <div className="grid gap-4 lg:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Nazwa</Label>
-                  <Input
-                    value={ingredient.name}
-                    onChange={(event) =>
-                      updateIngredient(ingredient.key, {
-                        name: event.target.value,
-                      })
-                    }
-                    placeholder="np. Jajka"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Produkt z katalogu (opcjonalnie)</Label>
-                  <div className="flex items-center gap-3">
-                    <ProductThumb
-                      src={
-                        productImageUrls(
-                          products.find(
-                            (product) => product.id === ingredient.productId,
-                          ),
-                        ).thumbnail
-                      }
-                      alt={
-                        products.find(
-                          (product) => product.id === ingredient.productId,
-                        )?.name ?? "Produkt"
-                      }
+        <div className="divide-y divide-stone-100">
+          {ingredients.map((ingredient, index) => {
+            const quantityErrorKey = `ingredient-qty-${ingredient.key}`;
+            return (
+              <article
+                key={ingredient.key}
+                draggable
+                onDragStart={() => setDragIngredientKey(ingredient.key)}
+                onDragEnd={() => setDragIngredientKey(null)}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  if (!dragIngredientKey || dragIngredientKey === ingredient.key) {
+                    return;
+                  }
+                  setIngredients((current) => {
+                    const from = current.findIndex(
+                      (entry) => entry.key === dragIngredientKey,
+                    );
+                    const to = current.findIndex(
+                      (entry) => entry.key === ingredient.key,
+                    );
+                    return reorderByIndex(current, from, to);
+                  });
+                  setDragIngredientKey(null);
+                }}
+                className={cn(
+                  "p-5 transition-colors lg:p-8",
+                  dragIngredientKey === ingredient.key && "bg-emerald-50/50 opacity-70",
+                )}
+              >
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <GripVertical
+                      size={18}
+                      className="cursor-grab text-stone-300 active:cursor-grabbing"
+                      aria-hidden
                     />
-                    <select
-                      className="block min-w-0 flex-1 rounded-lg border border-gray-200 bg-white p-3 text-sm"
-                      value={ingredient.productId}
-                      onChange={(event) => {
-                        const nextProductId = event.target.value;
-                        const product = products.find(
-                          (entry) => entry.id === nextProductId,
-                        );
-                        setIngredients((current) =>
-                          current.map((entry) => {
-                            if (entry.key !== ingredient.key) {
-                              return entry;
-                            }
-                            if (!product) {
-                              return { ...entry, productId: "" };
-                            }
-                            return {
-                              ...entry,
-                              productId: product.id,
-                              unit: product.defaultUnit as IngredientUnit,
-                              name: entry.name.trim()
-                                ? entry.name
-                                : product.name,
-                            };
-                          }),
-                        );
-                      }}
+                    <span className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">
+                      {index + 1}
+                    </span>
+                    <h3 className="text-sm font-semibold text-stone-800">
+                      Składnik {index + 1}
+                    </h3>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      disabled={index === 0}
+                      onClick={() =>
+                        setIngredients((current) => moveItem(current, index, -1))
+                      }
+                      aria-label="Przenieś składnik wyżej"
                     >
-                      <option value="">Bez powiązania</option>
-                      {products.map((product) => (
-                        <option key={product.id} value={product.id}>
-                          {product.name} ({UNIT_LABELS[product.defaultUnit]})
-                        </option>
-                      ))}
-                    </select>
+                      <ArrowUp size={15} aria-hidden />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      disabled={index === ingredients.length - 1}
+                      onClick={() =>
+                        setIngredients((current) => moveItem(current, index, 1))
+                      }
+                      aria-label="Przenieś składnik niżej"
+                    >
+                      <ArrowDown size={15} aria-hidden />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon"
+                      variant="ghost"
+                      className="text-stone-400 hover:bg-red-50 hover:text-red-600"
+                      onClick={() => requestRemoveIngredient(ingredient)}
+                      aria-label={`Usuń składnik ${index + 1}`}
+                    >
+                      <Trash2 size={16} aria-hidden />
+                    </Button>
                   </div>
                 </div>
-              </div>
-              {ingredientGroups.length > 0 ? (
-                <div className="space-y-2">
-                  <Label>Grupa</Label>
-                  <select
-                    className="block w-full rounded-lg border border-gray-200 bg-white p-3 text-sm sm:max-w-xs"
-                    value={ingredient.groupId ?? ""}
-                    onChange={(event) =>
-                      updateIngredient(ingredient.key, {
-                        groupId: event.target.value || null,
-                      })
-                    }
-                  >
-                    <option value="">Bez grupy</option>
-                    {ingredientGroups.map((group) => (
-                      <option key={group.id} value={group.id}>
-                        {group.name.trim() || "Bez nazwy"}
-                      </option>
-                    ))}
-                  </select>
+
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)]">
+                  <div className="space-y-2">
+                    <Label htmlFor={`ingredient-name-${ingredient.key}`}>
+                      Nazwa składnika
+                    </Label>
+                    <Input
+                      id={`ingredient-name-${ingredient.key}`}
+                      value={ingredient.name}
+                      onChange={(event) =>
+                        updateIngredient(ingredient.key, {
+                          name: event.target.value,
+                        })
+                      }
+                      placeholder="np. Jajka"
+                      className={FORM_INPUT_CLASS}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Produkt z katalogu (opcjonalnie)</Label>
+                    <RecipeIngredientProductLink
+                      products={products}
+                      productId={ingredient.productId}
+                      onChange={(productId, product) =>
+                        updateIngredient(ingredient.key, {
+                          productId,
+                          ...(product
+                            ? {
+                                unit: product.defaultUnit as IngredientUnit,
+                                name: ingredient.name.trim()
+                                  ? ingredient.name
+                                  : product.name,
+                              }
+                            : {}),
+                        })
+                      }
+                    />
+                  </div>
                 </div>
-              ) : null}
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div className="space-y-2">
-                  <Label>Ilość</Label>
-                  <Input
-                    value={ingredient.quantity}
-                    onChange={(event) =>
-                      updateIngredient(ingredient.key, {
-                        quantity: event.target.value,
-                      })
-                    }
-                    placeholder="opcjonalnie"
-                  />
+
+                <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  {ingredientGroups.length > 0 ? (
+                    <div className="space-y-2">
+                      <Label htmlFor={`ingredient-group-${ingredient.key}`}>
+                        Grupa
+                      </Label>
+                      <select
+                        id={`ingredient-group-${ingredient.key}`}
+                        className={FORM_INPUT_CLASS}
+                        value={ingredient.groupId ?? ""}
+                        onChange={(event) =>
+                          updateIngredient(ingredient.key, {
+                            groupId: event.target.value || null,
+                          })
+                        }
+                      >
+                        <option value="">Bez grupy</option>
+                        {ingredientGroups.map((group) => (
+                          <option key={group.id} value={group.id}>
+                            {group.name.trim() || "Bez nazwy"}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : null}
+
+                  <div className="space-y-2">
+                    <Label htmlFor={quantityErrorKey}>
+                      Ilość
+                      {QUANTITY_OPTIONAL_UNITS.has(ingredient.unit) ? (
+                        <span className="ml-1 font-normal text-stone-400">
+                          (opcjonalnie)
+                        </span>
+                      ) : null}
+                    </Label>
+                    <Input
+                      id={quantityErrorKey}
+                      inputMode="decimal"
+                      value={ingredient.quantity}
+                      onChange={(event) =>
+                        updateIngredient(ingredient.key, {
+                          quantity: event.target.value,
+                        })
+                      }
+                      placeholder="np. 2 lub 0,5"
+                      className={cn(
+                        FORM_INPUT_CLASS,
+                        fieldErrors[quantityErrorKey] && "border-red-400",
+                      )}
+                      aria-invalid={Boolean(fieldErrors[quantityErrorKey])}
+                    />
+                    {fieldErrors[quantityErrorKey] ? (
+                      <p className="text-xs text-red-600" role="alert">
+                        {fieldErrors[quantityErrorKey]}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor={`ingredient-unit-${ingredient.key}`}>
+                      Jednostka
+                    </Label>
+                    <select
+                      id={`ingredient-unit-${ingredient.key}`}
+                      className={FORM_INPUT_CLASS}
+                      value={ingredient.unit}
+                      onChange={(event) =>
+                        updateIngredient(ingredient.key, {
+                          unit: event.target.value as IngredientUnit,
+                        })
+                      }
+                    >
+                      {Object.entries(RECIPE_INGREDIENT_UNIT_LABELS).map(
+                        ([value, label]) => (
+                          <option key={value} value={value}>
+                            {label}
+                          </option>
+                        ),
+                      )}
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor={`ingredient-note-${ingredient.key}`}>
+                      Notatka
+                    </Label>
+                    <Input
+                      id={`ingredient-note-${ingredient.key}`}
+                      value={ingredient.note}
+                      onChange={(event) =>
+                        updateIngredient(ingredient.key, {
+                          note: event.target.value,
+                        })
+                      }
+                      placeholder="np. drobno posiekana"
+                      className={FORM_INPUT_CLASS}
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label>Jednostka</Label>
-                  <select
-                    className="block w-full rounded-lg border border-gray-200 bg-white p-3 text-sm"
-                    value={ingredient.unit}
-                    onChange={(event) =>
-                      updateIngredient(ingredient.key, {
-                        unit: event.target.value as IngredientUnit,
-                      })
-                    }
-                  >
-                    {Object.entries(RECIPE_INGREDIENT_UNIT_LABELS).map(
-                      ([value, label]) => (
-                        <option key={value} value={value}>
-                          {label}
-                        </option>
-                      ),
-                    )}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Notatka</Label>
-                  <Input
-                    value={ingredient.note}
-                    onChange={(event) =>
-                      updateIngredient(ingredient.key, {
-                        note: event.target.value,
-                      })
-                    }
-                    placeholder="np. drobno posiekana"
-                  />
-                </div>
-              </div>
-            </div>
-          ))}
+              </article>
+            );
+          })}
+        </div>
+
+        <div className="border-t border-stone-100 bg-stone-50/40 p-5 lg:px-8">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full border-dashed border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+            onClick={() =>
+              setIngredients((current) => [...current, createIngredientDraft()])
+            }
+          >
+            <Plus size={16} className="mr-2" aria-hidden />
+            Dodaj kolejny składnik
+          </Button>
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
-          <h2 className="text-lg font-bold text-gray-900">Kroki</h2>
-          <Button
-            type="button"
-            size="sm"
-            variant="outline"
-            onClick={() => setSteps((current) => [...current, createStepDraft()])}
-          >
-            <Plus size={14} className="mr-1" />
-            Dodaj krok
-          </Button>
+      <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)]">
+        <div className="flex items-center gap-3 border-b border-stone-100 bg-stone-50/50 px-5 py-4">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+            <ListOrdered size={20} aria-hidden />
+          </div>
+          <div>
+            <h2 className="font-[family-name:var(--font-serif)] text-xl font-semibold text-stone-900">
+              Kroki przygotowania
+            </h2>
+            <p className="mt-0.5 text-xs text-stone-500">
+              Opisz przygotowanie potrawy krok po kroku.
+            </p>
+          </div>
         </div>
+
         {recipeId && hasStepImages ? (
-          <p className="border-b border-gray-100 bg-emerald-50/60 px-5 py-3 text-xs text-emerald-900">
-            Zdjęcia kroków zapisują się od razu. Przy zapisie przepisu zachowujemy
-            zdjęcie istniejącego kroku, gdy w payloadzie jest jego identyfikator.
-            Usunięcie kroku usuwa też jego zdjęcie.
+          <p className="border-b border-emerald-100 bg-emerald-50/60 px-5 py-3 text-xs text-emerald-900 lg:px-8">
+            Zdjęcia istniejących kroków zapisują się od razu. Usunięcie kroku
+            usunie również przypisane do niego zdjęcie.
           </p>
         ) : null}
-        <div className="divide-y divide-gray-100">
-          {steps.map((step, index) => (
-            <div key={step.key} className="space-y-3 p-5">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="text-sm font-semibold text-gray-700">
-                  Krok {index + 1}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={index === 0}
-                    onClick={() => setSteps((current) => moveItem(current, index, -1))}
-                    aria-label="Przesuń krok wyżej"
-                  >
-                    <ArrowUp size={14} />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={index === steps.length - 1}
-                    onClick={() => setSteps((current) => moveItem(current, index, 1))}
-                    aria-label="Przesuń krok niżej"
-                  >
-                    <ArrowDown size={14} />
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="destructive"
-                    disabled={steps.length === 1}
-                    onClick={() =>
-                      setSteps((current) =>
-                        current.filter((entry) => entry.key !== step.key),
-                      )
-                    }
-                  >
-                    <Trash2 size={14} className="mr-1" />
-                    Usuń
-                  </Button>
-                </div>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Tytuł kroku (opcjonalnie)</Label>
-                  <Input
-                    value={step.title}
-                    onChange={(event) =>
-                      setSteps((current) =>
-                        current.map((entry) =>
-                          entry.key === step.key
-                            ? { ...entry, title: event.target.value }
-                            : entry,
-                        ),
-                      )
-                    }
-                    placeholder="np. Przygotowanie makaronu"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Czas (min, opcjonalnie)</Label>
-                  <Input
-                    inputMode="numeric"
-                    value={step.durationMinutes}
-                    onChange={(event) =>
-                      setSteps((current) =>
-                        current.map((entry) =>
-                          entry.key === step.key
-                            ? {
-                                ...entry,
-                                durationMinutes: event.target.value,
+
+        <div className="divide-y divide-stone-100">
+          {steps.map((step, index) => {
+            const durationErrorKey = `step-duration-${step.key}`;
+            return (
+              <article
+                key={step.key}
+                draggable
+                onDragStart={() => setDragStepKey(step.key)}
+                onDragEnd={() => setDragStepKey(null)}
+                onDragOver={(event) => event.preventDefault()}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  if (!dragStepKey || dragStepKey === step.key) {
+                    return;
+                  }
+                  setSteps((current) => {
+                    const from = current.findIndex(
+                      (entry) => entry.key === dragStepKey,
+                    );
+                    const to = current.findIndex(
+                      (entry) => entry.key === step.key,
+                    );
+                    return reorderByIndex(current, from, to);
+                  });
+                  setDragStepKey(null);
+                }}
+                className={cn(
+                  "p-5 transition-colors lg:p-8",
+                  dragStepKey === step.key && "bg-emerald-50/50 opacity-70",
+                )}
+              >
+                <div className="grid gap-5 lg:grid-cols-[auto_minmax(0,1fr)]">
+                  <div className="flex items-start gap-2 lg:flex-col lg:items-center">
+                    <GripVertical
+                      size={18}
+                      className="mt-2 cursor-grab text-stone-300 active:cursor-grabbing"
+                      aria-hidden
+                    />
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-600 font-[family-name:var(--font-serif)] text-lg font-bold text-white shadow-sm">
+                      {index + 1}
+                    </span>
+                  </div>
+
+                  <div className="min-w-0 space-y-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="grid min-w-0 flex-1 gap-4 sm:grid-cols-[minmax(0,1fr)_10rem]">
+                        <div className="space-y-2">
+                          <Label htmlFor={`step-title-${step.key}`}>
+                            Tytuł kroku
+                            <span className="ml-1 font-normal text-stone-400">
+                              (opcjonalnie)
+                            </span>
+                          </Label>
+                          <Input
+                            id={`step-title-${step.key}`}
+                            value={step.title}
+                            onChange={(event) =>
+                              setSteps((current) =>
+                                current.map((entry) =>
+                                  entry.key === step.key
+                                    ? { ...entry, title: event.target.value }
+                                    : entry,
+                                ),
+                              )
+                            }
+                            placeholder="np. Przygotowanie ciasta"
+                            className={FORM_INPUT_CLASS}
+                          />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label
+                            htmlFor={durationErrorKey}
+                            className="flex items-center gap-1.5"
+                          >
+                            <Clock size={14} className="text-stone-400" aria-hidden />
+                            Czas
+                          </Label>
+                          <div className="relative">
+                            <Input
+                              id={durationErrorKey}
+                              inputMode="numeric"
+                              value={step.durationMinutes}
+                              onChange={(event) =>
+                                setSteps((current) =>
+                                  current.map((entry) =>
+                                    entry.key === step.key
+                                      ? {
+                                          ...entry,
+                                          durationMinutes: event.target.value,
+                                        }
+                                      : entry,
+                                  ),
+                                )
                               }
-                            : entry,
-                        ),
-                      )
-                    }
-                    placeholder="np. 10"
-                  />
+                              placeholder="0"
+                              className={cn(
+                                FORM_INPUT_CLASS,
+                                "pr-12",
+                                fieldErrors[durationErrorKey] && "border-red-400",
+                              )}
+                              aria-invalid={Boolean(fieldErrors[durationErrorKey])}
+                            />
+                            <span className="pointer-events-none absolute inset-y-0 right-4 flex items-center text-xs text-stone-400">
+                              min
+                            </span>
+                          </div>
+                          {fieldErrors[durationErrorKey] ? (
+                            <p className="text-xs text-red-600" role="alert">
+                              {fieldErrors[durationErrorKey]}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1 pt-7">
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          disabled={index === 0}
+                          onClick={() =>
+                            setSteps((current) => moveItem(current, index, -1))
+                          }
+                          aria-label="Przenieś krok wyżej"
+                        >
+                          <ArrowUp size={15} aria-hidden />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          disabled={index === steps.length - 1}
+                          onClick={() =>
+                            setSteps((current) => moveItem(current, index, 1))
+                          }
+                          aria-label="Przenieś krok niżej"
+                        >
+                          <ArrowDown size={15} aria-hidden />
+                        </Button>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="text-stone-400 hover:bg-red-50 hover:text-red-600"
+                          onClick={() => requestRemoveStep(step)}
+                          aria-label={`Usuń krok ${index + 1}`}
+                        >
+                          <Trash2 size={16} aria-hidden />
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor={`step-instruction-${step.key}`}>
+                        Instrukcja
+                      </Label>
+                      <textarea
+                        id={`step-instruction-${step.key}`}
+                        value={step.instruction}
+                        onChange={(event) =>
+                          setSteps((current) =>
+                            current.map((entry) =>
+                              entry.key === step.key
+                                ? { ...entry, instruction: event.target.value }
+                                : entry,
+                            ),
+                          )
+                        }
+                        rows={4}
+                        placeholder="Opisz dokładnie, co należy zrobić…"
+                        className={cn(
+                          FORM_INPUT_CLASS,
+                          "block resize-y whitespace-pre-wrap",
+                        )}
+                      />
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setAssigningStepKey(step.key)}
+                      >
+                        Przypisz składniki
+                      </Button>
+                      <span className="text-xs text-stone-500">
+                        {step.ingredientIds.length > 0
+                          ? `${step.ingredientIds.length} przypisane składniki`
+                          : "Brak przypisań"}
+                      </span>
+                    </div>
+
+                    {step.showTip ? (
+                      <div className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <Label
+                            htmlFor={`step-tip-${step.key}`}
+                            className="flex items-center gap-2 text-amber-900"
+                          >
+                            <Lightbulb size={16} className="text-amber-500" aria-hidden />
+                            Wskazówka
+                          </Label>
+                          <button
+                            type="button"
+                            className="text-xs font-medium text-amber-700 hover:text-red-600"
+                            onClick={() =>
+                              setSteps((current) =>
+                                current.map((entry) =>
+                                  entry.key === step.key
+                                    ? { ...entry, tip: "", showTip: false }
+                                    : entry,
+                                ),
+                              )
+                            }
+                          >
+                            Usuń wskazówkę
+                          </button>
+                        </div>
+                        <textarea
+                          id={`step-tip-${step.key}`}
+                          value={step.tip}
+                          onChange={(event) =>
+                            setSteps((current) =>
+                              current.map((entry) =>
+                                entry.key === step.key
+                                  ? { ...entry, tip: event.target.value }
+                                  : entry,
+                              ),
+                            )
+                          }
+                          rows={2}
+                          placeholder="Dodaj pomocną radę dotyczącą tego kroku…"
+                          className={cn(
+                            FORM_INPUT_CLASS,
+                            "block resize-y border-amber-200 bg-white/90 whitespace-pre-wrap focus:border-amber-400 focus:ring-amber-400/10",
+                          )}
+                        />
+                      </div>
+                    ) : (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="border-amber-200 text-amber-700 hover:bg-amber-50 hover:text-amber-800"
+                        onClick={() =>
+                          setSteps((current) =>
+                            current.map((entry) =>
+                              entry.key === step.key
+                                ? { ...entry, showTip: true }
+                                : entry,
+                            ),
+                          )
+                        }
+                      >
+                        <Lightbulb size={14} className="mr-1.5" aria-hidden />
+                        Dodaj wskazówkę
+                      </Button>
+                    )}
+
+                    <div className="rounded-2xl border border-stone-100 bg-stone-50/50 p-4">
+                      <div className="mb-3 flex items-center gap-2 text-sm font-medium text-stone-700">
+                        <ImagePlus size={16} className="text-stone-400" aria-hidden />
+                        Zdjęcie kroku
+                      </div>
+                      {recipeId && step.stepId ? (
+                        <RecipeStepImageField
+                          kitchenId={kitchenId}
+                          recipeId={recipeId}
+                          stepId={step.stepId}
+                          initialImage={step.image ?? null}
+                          label={`Zdjęcie kroku ${index + 1}`}
+                        />
+                      ) : (
+                        <PendingImageField
+                          file={step.pendingImageFile ?? null}
+                          onFileSelected={(file) =>
+                            setSteps((current) =>
+                              current.map((entry) =>
+                                entry.key === step.key
+                                  ? { ...entry, pendingImageFile: file }
+                                  : entry,
+                              ),
+                            )
+                          }
+                          label={`Zdjęcie kroku ${index + 1} (opcjonalnie)`}
+                          size="wide"
+                          note="Zdjęcie wyślemy po zapisaniu przepisu."
+                        />
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <textarea
-                value={step.instruction}
+              </article>
+            );
+          })}
+        </div>
+
+        <div className="border-t border-stone-100 bg-stone-50/40 p-5 lg:px-8">
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full border-dashed border-emerald-300 bg-white text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+            onClick={() =>
+              setSteps((current) => [...current, createStepDraft()])
+            }
+          >
+            <Plus size={16} className="mr-2" aria-hidden />
+            Dodaj kolejny krok
+          </Button>
+        </div>
+      </section>
+
+      <section className="overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm">
+        <button
+          type="button"
+          className="flex w-full items-center justify-between px-5 py-4 text-left lg:px-8"
+          onClick={() => setPlanOpen((value) => !value)}
+          aria-expanded={planOpen}
+        >
+          <span>
+            <span className="block text-lg font-semibold text-stone-900">
+              Plan przygotowania
+            </span>
+            <span className="mt-1 block text-sm text-stone-500">
+              Opcjonalny tryb równoległy. Nie zmienia kolejności zwykłych kroków
+              ani Asystenta gotowania.
+            </span>
+          </span>
+          <span className="text-sm text-stone-400">
+            {planOpen ? "Zwiń" : "Rozwiń"}
+          </span>
+        </button>
+        {planOpen ? (
+          <div className="space-y-5 border-t border-stone-100 px-5 py-5 lg:px-8">
+            <label className="flex min-h-11 items-center gap-3 text-sm font-medium text-stone-800">
+              <input
+                type="checkbox"
+                className="h-5 w-5 rounded border-stone-300 text-emerald-600"
+                checked={preparationPlanEnabled}
                 onChange={(event) =>
-                  setSteps((current) =>
-                    current.map((entry) =>
-                      entry.key === step.key
-                        ? { ...entry, instruction: event.target.value }
-                        : entry,
-                    ),
-                  )
+                  setPreparationPlanEnabled(event.target.checked)
                 }
-                rows={3}
-                placeholder="Opisz krok przygotowania…"
-                className="block w-full rounded-lg border border-gray-200 bg-white p-3 text-sm whitespace-pre-wrap"
               />
-              {step.showTip ? (
-                <div className="space-y-2 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <Label htmlFor={`step-tip-${step.key}`}>Wskazówka</Label>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() =>
+              Włącz nowoczesny tryb przygotowania
+            </label>
+            {steps.map((step, index) => {
+              const others = steps.filter((entry) => entry.key !== step.key);
+              const previewSteps = steps.map((entry, stepIndex) => ({
+                id: entry.key,
+                sortOrder: stepIndex,
+                title: entry.title,
+                instruction: entry.instruction,
+                activeWorkMinutes: null,
+                waitMinutes: null,
+                timerEnabled: false,
+                durationMinutes: null,
+                dependsOnStepIds: entry.dependsOnKeys,
+              }));
+              return (
+                <div
+                  key={step.key}
+                  className="rounded-2xl border border-stone-100 bg-stone-50/70 p-4"
+                >
+                  <p className="font-medium text-stone-900">
+                    Krok {index + 1}
+                    {step.title.trim() ? ` · ${step.title.trim()}` : ""}
+                  </p>
+                  <p className="mt-1 text-xs text-stone-500">
+                    {step.ingredientIds.length > 0
+                      ? `${step.ingredientIds.length} przypisane składniki`
+                      : "Brak przypisanych składników"}
+                    {" · "}
+                    {formatDependsOnPreview(step.dependsOnKeys, previewSteps)}
+                  </p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <label className="text-xs font-medium text-stone-600">
+                      Czas aktywnej pracy (min)
+                      <input
+                        value={step.activeWorkMinutes}
+                        onChange={(event) =>
+                          setSteps((current) =>
+                            current.map((entry) =>
+                              entry.key === step.key
+                                ? {
+                                    ...entry,
+                                    activeWorkMinutes: event.target.value,
+                                  }
+                                : entry,
+                            ),
+                          )
+                        }
+                        className={cn(FORM_INPUT_CLASS, "mt-1")}
+                        inputMode="numeric"
+                      />
+                    </label>
+                    <label className="text-xs font-medium text-stone-600">
+                      Czas oczekiwania (min)
+                      <input
+                        value={step.waitMinutes}
+                        onChange={(event) =>
+                          setSteps((current) =>
+                            current.map((entry) =>
+                              entry.key === step.key
+                                ? { ...entry, waitMinutes: event.target.value }
+                                : entry,
+                            ),
+                          )
+                        }
+                        className={cn(FORM_INPUT_CLASS, "mt-1")}
+                        inputMode="numeric"
+                      />
+                    </label>
+                  </div>
+                  <label className="mt-3 flex min-h-11 items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="h-5 w-5 rounded border-stone-300 text-emerald-600"
+                      checked={step.timerEnabled}
+                      onChange={(event) =>
                         setSteps((current) =>
                           current.map((entry) =>
                             entry.key === step.key
-                              ? { ...entry, tip: "", showTip: false }
+                              ? {
+                                  ...entry,
+                                  timerEnabled: event.target.checked,
+                                }
                               : entry,
                           ),
                         )
                       }
-                    >
-                      Usuń wskazówkę
-                    </Button>
-                  </div>
-                  <textarea
-                    id={`step-tip-${step.key}`}
-                    value={step.tip}
-                    onChange={(event) =>
-                      setSteps((current) =>
-                        current.map((entry) =>
-                          entry.key === step.key
-                            ? { ...entry, tip: event.target.value }
-                            : entry,
-                        ),
-                      )
-                    }
-                    rows={2}
-                    placeholder="np. Nie mieszaj zbyt długo…"
-                    className="block w-full rounded-lg border border-gray-200 bg-white p-3 text-sm whitespace-pre-wrap"
-                  />
+                    />
+                    Timer
+                  </label>
+                  <fieldset className="mt-3">
+                    <legend className="text-xs font-medium text-stone-600">
+                      Ten krok można rozpocząć po ukończeniu
+                    </legend>
+                    <div className="mt-2 space-y-1">
+                      {others.length === 0 ? (
+                        <p className="text-xs text-stone-400">
+                          Brak innych kroków.
+                        </p>
+                      ) : (
+                        others.map((other, otherIndex) => {
+                          const checked = step.dependsOnKeys.includes(other.key);
+                          const label = other.title.trim() || `Krok ${
+                            steps.findIndex((entry) => entry.key === other.key) +
+                            1
+                          }`;
+                          return (
+                            <label
+                              key={other.key}
+                              className="flex min-h-11 items-center gap-2 text-sm"
+                            >
+                              <input
+                                type="checkbox"
+                                className="h-5 w-5 rounded border-stone-300 text-emerald-600"
+                                checked={checked}
+                                onChange={() =>
+                                  setSteps((current) =>
+                                    current.map((entry) => {
+                                      if (entry.key !== step.key) return entry;
+                                      const next = new Set(entry.dependsOnKeys);
+                                      if (next.has(other.key)) next.delete(other.key);
+                                      else next.add(other.key);
+                                      return {
+                                        ...entry,
+                                        dependsOnKeys: [...next],
+                                      };
+                                    }),
+                                  )
+                                }
+                              />
+                              {label}
+                              <span className="sr-only">{otherIndex}</span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  </fieldset>
                 </div>
-              ) : (
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() =>
-                    setSteps((current) =>
-                      current.map((entry) =>
-                        entry.key === step.key
-                          ? { ...entry, showTip: true }
-                          : entry,
-                      ),
-                    )
-                  }
-                >
-                  <Plus size={14} className="mr-1" />
-                  Dodaj wskazówkę
-                </Button>
-              )}
-              {recipeId && step.stepId ? (
-                <RecipeStepImageField
-                  kitchenId={kitchenId}
-                  recipeId={recipeId}
-                  stepId={step.stepId}
-                  initialImage={step.image ?? null}
-                  label={`Zdjęcie kroku ${index + 1}`}
-                />
-              ) : (
-                <PendingImageField
-                  file={step.pendingImageFile ?? null}
-                  onFileSelected={(file) =>
-                    setSteps((current) =>
-                      current.map((entry) =>
-                        entry.key === step.key
-                          ? { ...entry, pendingImageFile: file }
-                          : entry,
-                      ),
-                    )
-                  }
-                  label={`Zdjęcie kroku ${index + 1} (opcjonalnie)`}
-                  size="sm"
-                  note="Wyślemy po utworzeniu przepisu."
-                />
-              )}
-            </div>
-          ))}
-        </div>
+              );
+            })}
+          </div>
+        ) : null}
       </section>
 
       {formError ? (
-        <p className="text-sm text-red-600" role="alert">
+        <p
+          className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+          role="alert"
+        >
           {formError}
         </p>
       ) : null}
 
-      <Button type="submit" disabled={pending}>
-        {pending ? "Zapisywanie…" : submitLabel}
-      </Button>
+      {!hideSubmit ? (
+        <Button
+          type="submit"
+          disabled={pendingSubmit}
+          className="rounded-xl bg-emerald-600 px-6 hover:bg-emerald-700"
+        >
+          {pendingSubmit ? "Zapisywanie…" : submitLabel}
+        </Button>
+      ) : null}
     </form>
+
+    {deleteTarget ? (
+      <ConfirmDialog
+        title={
+          deleteTarget.kind === "ingredient"
+            ? "Usunąć składnik?"
+            : deleteTarget.kind === "step"
+              ? "Usunąć krok?"
+              : "Usunąć grupę składników?"
+        }
+        description={
+          deleteTarget.kind === "ingredient"
+            ? "Składnik zostanie usunięty z przepisu."
+            : deleteTarget.kind === "step"
+              ? "Krok zostanie usunięty wraz z przypisanym zdjęciem."
+              : `Grupa „${deleteTarget.name.trim() || "Bez nazwy"}” zostanie usunięta. Jej składniki pozostaną w przepisie bez przypisanej grupy.`
+        }
+        confirmLabel="Usuń"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
+    ) : null}
+
+    {assigningStepKey ? (
+      <RecipeStepIngredientPicker
+        stepTitle={
+          steps.find((step) => step.key === assigningStepKey)?.title.trim() ||
+          "Krok bez tytułu"
+        }
+        ingredients={ingredients
+          .filter((ingredient) => ingredient.name.trim())
+          .map((ingredient) => ({
+            key: ingredient.key,
+            name: ingredient.name,
+            quantity: ingredient.quantity,
+            unit: ingredient.unit,
+            note: ingredient.note,
+          }))}
+        selectedKeys={
+          steps.find((step) => step.key === assigningStepKey)?.ingredientIds ??
+          []
+        }
+        onClose={() => setAssigningStepKey(null)}
+        onApply={(keys) => {
+          setSteps((current) =>
+            current.map((step) =>
+              step.key === assigningStepKey
+                ? { ...step, ingredientIds: keys }
+                : step,
+            ),
+          );
+          setAssigningStepKey(null);
+        }}
+      />
+    ) : null}
+    </>
   );
 }

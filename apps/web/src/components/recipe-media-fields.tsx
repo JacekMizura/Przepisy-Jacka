@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { MediaImageField } from "@/components/media-image-field";
 import { createWebApiClient } from "@/lib/api";
 import { readApiError } from "@/lib/errors";
@@ -22,6 +23,10 @@ export function RecipeCoverField({
 }: RecipeCoverFieldProps) {
   const queryClient = useQueryClient();
   const [image, setImage] = useState<MediaImage | null>(initialImage);
+  const [confirmRemove, setConfirmRemove] = useState(false);
+  const removeGateRef = useRef<{
+    resolve: (value: boolean) => void;
+  } | null>(null);
 
   const invalidate = async () => {
     await queryClient.invalidateQueries({
@@ -66,23 +71,55 @@ export function RecipeCoverField({
     },
     onSuccess: async () => {
       setImage(null);
+      setConfirmRemove(false);
       await invalidate();
     },
   });
 
   return (
-    <MediaImageField
-      kitchenId={kitchenId}
-      purpose="recipe_cover"
-      target={{ recipeId }}
-      currentImage={image}
-      label="Okładka przepisu"
-      size="wide"
-      onUploaded={async (mediaAssetId) => {
-        await attach.mutateAsync(mediaAssetId);
-      }}
-      onRemoved={() => detach.mutateAsync()}
-    />
+    <>
+      <MediaImageField
+        kitchenId={kitchenId}
+        purpose="recipe_cover"
+        target={{ recipeId }}
+        currentImage={image}
+        label="Okładka przepisu"
+        size="cover"
+        pickLabel={image ? "Zmień okładkę" : "Dodaj okładkę"}
+        hint="Przeciągnij zdjęcie lub kliknij. JPEG, PNG albo WebP, maks. 10 MB."
+        onUploaded={async (mediaAssetId) => {
+          await attach.mutateAsync(mediaAssetId);
+        }}
+        onRemoved={async () => {
+          const confirmed = await new Promise<boolean>((resolve) => {
+            removeGateRef.current = { resolve };
+            setConfirmRemove(true);
+          });
+          if (!confirmed) {
+            throw new Error("ABORT_REMOVE");
+          }
+          await detach.mutateAsync();
+        }}
+      />
+      {confirmRemove ? (
+        <ConfirmDialog
+          title="Usunąć okładkę?"
+          description="Zdjęcie okładki zostanie odpięte od przepisu."
+          confirmLabel="Usuń okładkę"
+          pending={detach.isPending}
+          onConfirm={() => {
+            removeGateRef.current?.resolve(true);
+            removeGateRef.current = null;
+            setConfirmRemove(false);
+          }}
+          onCancel={() => {
+            removeGateRef.current?.resolve(false);
+            removeGateRef.current = null;
+            setConfirmRemove(false);
+          }}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -158,7 +195,7 @@ export function RecipeStepImageField({
       target={{ recipeStepId: stepId }}
       currentImage={image}
       label={label}
-      size="sm"
+      size="wide"
       onUploaded={async (mediaAssetId) => {
         await attach.mutateAsync(mediaAssetId);
       }}

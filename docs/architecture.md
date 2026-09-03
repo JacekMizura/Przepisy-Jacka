@@ -132,6 +132,10 @@ Po stronie weba całą wysyłkę obsługuje `apps/web/src/lib/media-upload.ts`: 
 
 Okładka przepisu i zdjęcie kroku wymagają istniejącego celu, więc przy tworzeniu przepisu web wysyła okładkę po zapisie, a zdjęcia kroków są dostępne w edycji. Przy `PATCH …/recipes/{id}` zdjęcie kroku jest zachowywane, gdy w payloadzie kroku jest istniejące `id`; kroki bez `id` powstają na nowo bez zdjęcia. Edycja pomija w żądaniu niezmienione kolekcje składników, grup i kroków.
 
+Kroki mogą mieć jawne, wiele-do-wielu powiązania ze składnikami tego samego przepisu (`RecipeStepIngredient`, unikalna para `recipeStepId` + `recipeIngredientId`, cascade przy usunięciu kroku albo składnika). DTO kroku zwraca `ingredientIds`; zapis przyjmuje opcjonalne `ingredientIds` w payloadzie kroku. Brak przypisań nie jest zgadywany z treści instrukcji.
+
+Opcjonalny plan przygotowania (`Recipe.preparationPlanEnabled`, `RecipeStepDependency`, pola `activeWorkMinutes` / `waitMinutes` / `timerEnabled`) nie zmienia kolejności ani znaczenia istniejących kroków. Zależności są walidowane pod kątem cykli i przynależności do tego samego przepisu.
+
 ## PostgreSQL
 
 - Produkcja (Railway): major **18**, sprawdzona `18.6 (Debian 18.6-1.pgdg13+2)`.

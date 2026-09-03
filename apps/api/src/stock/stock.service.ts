@@ -1302,8 +1302,9 @@ export class StockService {
     });
 
     const byProduct = new Map<string, StockListProductAggregate>();
-    const mediaAssets: Array<NonNullable<(typeof items)[number]['product']['imageMedia']>> =
-      [];
+    const mediaAssets: Array<
+      NonNullable<(typeof items)[number]['product']['imageMedia']>
+    > = [];
     for (const item of items) {
       let agg = byProduct.get(item.productId);
       if (!agg) {
@@ -1368,8 +1369,7 @@ export class StockService {
       }
       const mediaId = item.product.imageMedia?.id;
       const summary = mediaId ? summaries.get(mediaId) : null;
-      const signed =
-        summary?.thumbnailUrl ?? summary?.url ?? null;
+      const signed = summary?.thumbnailUrl ?? summary?.url ?? null;
       mediaByProductId.set(
         item.productId,
         signed &&

@@ -42,6 +42,7 @@ export function candidateToRecipeDetailDraft(
     coverImage: null,
     createdAt: now,
     updatedAt: now,
+    preparationPlanEnabled: false,
     sourceUrl: state.sourceUrl,
     sourceAuthor: candidate.sourceAuthor,
     importedAt: state.importedAt,
@@ -69,6 +70,11 @@ export function candidateToRecipeDetailDraft(
             durationMinutes: null,
             sortOrder: step.sortOrder,
             image: null,
+            ingredientIds: [],
+            activeWorkMinutes: null,
+            waitMinutes: null,
+            timerEnabled: false,
+            dependsOnStepIds: [],
           }))
         : [
             {
@@ -79,6 +85,11 @@ export function candidateToRecipeDetailDraft(
               durationMinutes: null,
               sortOrder: 0,
               image: null,
+              ingredientIds: [],
+              activeWorkMinutes: null,
+              waitMinutes: null,
+              timerEnabled: false,
+              dependsOnStepIds: [],
             },
           ],
   };

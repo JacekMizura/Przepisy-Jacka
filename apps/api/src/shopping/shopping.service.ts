@@ -682,9 +682,7 @@ export class ShoppingService {
     return map;
   }
 
-  private async loadLastPurchaseEstimates(
-    productIds: string[],
-  ): Promise<
+  private async loadLastPurchaseEstimates(productIds: string[]): Promise<
     Map<
       string,
       {
@@ -783,7 +781,16 @@ export class ShoppingService {
     >,
     stockOnHand?: Map<string, Prisma.Decimal>,
   ): Promise<ShoppingListItemDto> {
-    const priceMap = estimates ?? new Map();
+    const priceMap =
+      estimates ??
+      new Map<
+        string,
+        {
+          purchasePriceMinor: number;
+          packageCount: number | null;
+          initialQuantity: Prisma.Decimal;
+        }
+      >();
     const stockQty =
       item.productId && stockOnHand
         ? (stockOnHand.get(item.productId) ?? null)

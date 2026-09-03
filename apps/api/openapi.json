@@ -6995,6 +6995,27 @@
                 "$ref": "#/components/schemas/PurchaseOptionSummaryDto"
               }
             ]
+          },
+          "estimatedPriceMinor": {
+            "type": "number",
+            "nullable": true,
+            "description": "Szacunek w groszach na podstawie ostatniej ceny zakupu produktu (skalowany do pozycji)."
+          },
+          "stockQuantity": {
+            "type": "string",
+            "nullable": true,
+            "example": "250.000",
+            "description": "Suma aktywnego zapasu produktu w defaultUnit (null gdy brak produktu lub zero)."
+          },
+          "stockUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ],
+            "nullable": true,
+            "description": "Jednostka stockQuantity (defaultUnit produktu)."
           }
         },
         "required": [
@@ -7874,6 +7895,10 @@
           "updatedAt": {
             "type": "string",
             "format": "date-time"
+          },
+          "preparationPlanEnabled": {
+            "type": "boolean",
+            "description": "Czy przepis ma włączony nowoczesny tryb przygotowania."
           }
         },
         "required": [
@@ -7891,7 +7916,8 @@
           "author",
           "coverImage",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "preparationPlanEnabled"
         ]
       },
       "RecipeIngredientGroupInputDto": {
@@ -8007,6 +8033,36 @@
           "sortOrder": {
             "type": "number",
             "example": 0
+          },
+          "ingredientIds": {
+            "description": "Identyfikatory składników tego przepisu potrzebne w kroku. Pusta tablica usuwa przypisania. Brak pola przy edycji zachowuje dotychczasowe powiązania istniejącego kroku.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "activeWorkMinutes": {
+            "type": "number",
+            "nullable": true,
+            "description": "Szacowany czas aktywnej pracy w minucie (plan przygotowania)."
+          },
+          "waitMinutes": {
+            "type": "number",
+            "nullable": true,
+            "description": "Czas oczekiwania w minucie (np. pieczenie)."
+          },
+          "timerEnabled": {
+            "type": "boolean",
+            "description": "Czy krok ma timer w trybie przygotowania."
+          },
+          "dependsOnStepIds": {
+            "description": "Kroki tego przepisu, które muszą się skończyć przed startem. Pusta tablica usuwa zależności. Brak pola przy edycji zachowuje dotychczasowe powiązania istniejącego kroku.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         },
         "required": [
@@ -8103,6 +8159,10 @@
             "items": {
               "$ref": "#/components/schemas/RecipeIngredientInputDto"
             }
+          },
+          "preparationPlanEnabled": {
+            "type": "boolean",
+            "description": "Włącza nowoczesny tryb przygotowania (/cook). Nie wynika z samego faktu posiadania zależności."
           },
           "steps": {
             "type": "array",
@@ -8228,6 +8288,33 @@
                 "$ref": "#/components/schemas/MediaImageDto"
               }
             ]
+          },
+          "ingredientIds": {
+            "description": "Składniki jawnie przypisane do tego kroku (kolejność zachowana).",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "activeWorkMinutes": {
+            "type": "number",
+            "nullable": true
+          },
+          "waitMinutes": {
+            "type": "number",
+            "nullable": true
+          },
+          "timerEnabled": {
+            "type": "boolean"
+          },
+          "dependsOnStepIds": {
+            "description": "Kroki, które muszą się skończyć przed startem tego kroku.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         },
         "required": [
@@ -8237,7 +8324,12 @@
           "tip",
           "durationMinutes",
           "sortOrder",
-          "image"
+          "image",
+          "ingredientIds",
+          "activeWorkMinutes",
+          "waitMinutes",
+          "timerEnabled",
+          "dependsOnStepIds"
         ]
       },
       "RecipeDetailDto": {
@@ -8315,6 +8407,10 @@
             "type": "string",
             "format": "date-time"
           },
+          "preparationPlanEnabled": {
+            "type": "boolean",
+            "description": "Czy przepis ma włączony nowoczesny tryb przygotowania."
+          },
           "sourceUrl": {
             "type": "string",
             "nullable": true
@@ -8365,6 +8461,7 @@
           "coverImage",
           "createdAt",
           "updatedAt",
+          "preparationPlanEnabled",
           "sourceUrl",
           "sourceAuthor",
           "importedAt",
@@ -8450,6 +8547,10 @@
             "items": {
               "$ref": "#/components/schemas/RecipeStepInputDto"
             }
+          },
+          "preparationPlanEnabled": {
+            "type": "boolean",
+            "description": "Włącza nowoczesny tryb przygotowania (/cook)."
           }
         }
       },

@@ -16,14 +16,16 @@ import {
 } from "@/lib/media-upload";
 import { cn } from "@/lib/utils";
 
-type FrameSize = "sm" | "md" | "wide" | "lg";
+type FrameSize = "sm" | "md" | "wide" | "lg" | "cover";
 type FieldLayout = "default" | "inline";
 
 const FRAME_CLASSES: Record<FrameSize, string> = {
   sm: "h-20 w-20",
   md: "h-28 w-28",
-  wide: "h-32 w-full max-w-xs sm:h-36",
+  wide: "h-32 w-full max-w-[10rem] sm:h-32 sm:w-40",
   lg: "aspect-square h-auto w-full max-w-sm min-h-44",
+  /** Dropzone okładki przepisu — pełna szerokość sekcji. */
+  cover: "h-56 w-full sm:h-64",
 };
 
 type MediaImageFieldProps = {
@@ -37,6 +39,8 @@ type MediaImageFieldProps = {
   disabled?: boolean;
   label?: string;
   hint?: string;
+  /** Nadpisuje etykietę przycisku wyboru (np. „Zmień okładkę”). */
+  pickLabel?: string;
   size?: FrameSize;
   /** `inline` = układ z referencji create (96×96 + przycisk obok). */
   layout?: FieldLayout;
@@ -53,6 +57,7 @@ export function MediaImageField({
   disabled = false,
   label = "Zdjęcie",
   hint = MEDIA_FILE_HINT,
+  pickLabel: pickLabelProp,
   size = "md",
   layout = "default",
   onPreviewUrlChange,
@@ -126,6 +131,12 @@ export function MediaImageField({
       await onRemoved();
       replacePreview(null);
     } catch (removeError) {
+      if (
+        removeError instanceof Error &&
+        removeError.message === "ABORT_REMOVE"
+      ) {
+        return;
+      }
       setError(
         removeError instanceof Error
           ? removeError.message
@@ -147,7 +158,9 @@ export function MediaImageField({
       busyLabel={
         removing ? "Usuwanie…" : progress !== null ? "Wysyłanie…" : null
       }
-      pickLabel={hasImage ? "Zmień zdjęcie" : "Dodaj zdjęcie"}
+      pickLabel={
+        pickLabelProp ?? (hasImage ? "Zmień zdjęcie" : "Dodaj zdjęcie")
+      }
       onPick={handleFile}
       onPickError={setError}
       onRemove={hasImage ? handleRemove : null}
@@ -166,6 +179,7 @@ type PendingImageFieldProps = {
   disabled?: boolean;
   size?: FrameSize;
   layout?: FieldLayout;
+  pickLabel?: string;
 };
 
 /**
@@ -181,6 +195,7 @@ export function PendingImageField({
   disabled = false,
   size = "md",
   layout = "default",
+  pickLabel: pickLabelProp,
 }: PendingImageFieldProps) {
   const [error, setError] = useState<string | null>(null);
   const preview = useMemo(
@@ -205,7 +220,7 @@ export function PendingImageField({
       layout={layout}
       disabled={disabled}
       busyLabel={null}
-      pickLabel={file ? "Zmień zdjęcie" : "Wybierz zdjęcie"}
+      pickLabel={pickLabelProp ?? (file ? "Zmień zdjęcie" : "Wybierz zdjęcie")}
       onPick={(selected) => {
         const validation = validateMediaFile(selected);
         if (!validation.ok) {
@@ -265,8 +280,11 @@ function ImageFieldShell({
 }: ImageFieldShellProps) {
   const inputId = `${useId()}-file`;
   const [dragOver, setDragOver] = useState(false);
-  const stacked = layout === "default" && (size === "lg" || size === "wide");
+  const stacked =
+    layout === "default" &&
+    (size === "lg" || size === "wide" || size === "cover");
   const inline = layout === "inline";
+  const isCoverDropzone = size === "cover";
 
   function acceptDroppedFile(fileList: FileList | null) {
     const file = fileList?.[0];
@@ -411,14 +429,32 @@ function ImageFieldShell({
         )}
       >
         <div
-          className={cn(
-            "flex shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-dashed bg-gray-50 transition-colors",
-            FRAME_CLASSES[size],
+              className={cn(
+                "relative flex shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed bg-stone-50 transition-all group",
+                FRAME_CLASSES[size],
             dragOver
-              ? "border-emerald-400 bg-emerald-50/60"
-              : "border-gray-200",
+              ? "border-emerald-400 bg-emerald-50/30"
+              : isCoverDropzone
+                ? "border-stone-300 hover:border-emerald-400 hover:bg-emerald-50/30"
+                : "border-gray-200",
             !disabled && "cursor-pointer",
           )}
+          role={isCoverDropzone ? "button" : undefined}
+          tabIndex={isCoverDropzone && !disabled ? 0 : undefined}
+          aria-label={isCoverDropzone ? pickLabel : undefined}
+          onKeyDown={
+            isCoverDropzone
+              ? (event) => {
+                  if (disabled) {
+                    return;
+                  }
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    document.getElementById(inputId)?.click();
+                  }
+                }
+              : undefined
+          }
           onDragEnter={(event) => {
             event.preventDefault();
             if (!disabled) {
@@ -454,9 +490,27 @@ function ImageFieldShell({
             <img
               src={previewSrc}
               alt=""
-              className="h-full w-full object-contain"
+              className={cn(
+                "h-full w-full",
+                isCoverDropzone
+                  ? "object-cover opacity-40 transition-opacity group-hover:opacity-20"
+                  : "object-contain",
+              )}
             />
-          ) : (
+          ) : null}
+          {isCoverDropzone ? (
+            <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center p-4 text-center">
+              <div className="mb-3 flex h-14 w-14 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-400 shadow-sm">
+                <ImageIcon className="h-6 w-6" aria-hidden />
+              </div>
+              <span className="font-medium text-stone-700">
+                {busyLabel ?? pickLabel}
+              </span>
+              <span className="mt-1 text-xs text-stone-500">
+                {hint ?? "Przeciągnij zdjęcie lub kliknij. Maks. 10MB"}
+              </span>
+            </div>
+          ) : previewSrc ? null : (
             <div className="flex flex-col items-center gap-2 px-4 text-center">
               <ImagePlus size={28} className="text-gray-300" />
               {stacked ? (
@@ -467,7 +521,8 @@ function ImageFieldShell({
             </div>
           )}
         </div>
-        <div className="min-w-0 flex-1 space-y-2">
+        <div className={cn("min-w-0 flex-1 space-y-2", isCoverDropzone && "contents")}>
+          {!isCoverDropzone ? (
           <div className="flex flex-wrap items-center gap-2">
             <label
               htmlFor={inputId}
@@ -511,6 +566,39 @@ function ImageFieldShell({
               </button>
             ) : null}
           </div>
+          ) : (
+            <>
+              <input
+                id={inputId}
+                type="file"
+                accept={MEDIA_FILE_ACCEPT}
+                className="sr-only"
+                disabled={disabled}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (!file) {
+                    onPickError("Nie wybrano pliku.");
+                    return;
+                  }
+                  void onPick(file);
+                }}
+              />
+              {onRemove ? (
+                <button
+                  type="button"
+                  className="text-xs font-medium text-stone-500 hover:text-red-600 disabled:opacity-60"
+                  disabled={disabled}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void onRemove();
+                  }}
+                >
+                  Usuń okładkę
+                </button>
+              ) : null}
+            </>
+          )}
           {progress !== null ? (
             <div
               className="h-1.5 w-full max-w-xs overflow-hidden rounded-full bg-gray-100"
@@ -526,7 +614,9 @@ function ImageFieldShell({
               />
             </div>
           ) : null}
-          {hint ? <p className="text-xs text-gray-400">{hint}</p> : null}
+          {hint && !isCoverDropzone ? (
+            <p className="text-xs text-gray-400">{hint}</p>
+          ) : null}
           {note ? <div className="text-xs text-gray-500">{note}</div> : null}
           {error ? (
             <p className="text-xs text-red-600" role="alert">

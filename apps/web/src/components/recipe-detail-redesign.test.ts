@@ -56,5 +56,7 @@ describe("recipe detail redesign contracts", () => {
     assert.match(page, /saveCookIdSet/);
     assert.match(page, /handleBuyGaps/);
     assert.match(page, /shareOrCopyRecipeUrl/);
+    assert.match(page, /cookHref/);
+    assert.match(page, /CookingAssistant/);
   });
 });

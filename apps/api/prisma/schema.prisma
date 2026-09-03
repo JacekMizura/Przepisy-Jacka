@@ -572,6 +572,7 @@ model Recipe {
   importedAt      DateTime?
   importIdempotencyKey String?       @unique
   coverMediaId    String?            @unique
+  preparationPlanEnabled Boolean     @default(false)
   createdAt       DateTime           @default(now())
   updatedAt       DateTime           @updatedAt
   kitchen         Kitchen            @relation(fields: [kitchenId], references: [id], onDelete: Cascade)
@@ -639,24 +640,52 @@ model RecipeIngredient {
   recipe    Recipe                 @relation(fields: [recipeId], references: [id], onDelete: Cascade)
   group     RecipeIngredientGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
   product   Product?               @relation(fields: [productId], references: [id], onDelete: SetNull)
+  stepLinks RecipeStepIngredient[]
 
   @@index([recipeId, sortOrder])
   @@index([groupId])
 }
 
 model RecipeStep {
-  id              String      @id @default(uuid())
-  recipeId        String
-  title           String?
-  instruction     String
-  tip             String?
-  durationMinutes Int?
-  sortOrder       Int
-  imageMediaId    String?     @unique
-  recipe          Recipe      @relation(fields: [recipeId], references: [id], onDelete: Cascade)
-  imageMedia      MediaAsset? @relation(fields: [imageMediaId], references: [id], onDelete: SetNull)
+  id               String                 @id @default(uuid())
+  recipeId         String
+  title            String?
+  instruction      String
+  tip              String?
+  durationMinutes  Int?
+  activeWorkMinutes Int?
+  waitMinutes      Int?
+  timerEnabled     Boolean                @default(false)
+  sortOrder        Int
+  imageMediaId     String?                @unique
+  recipe           Recipe                 @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  imageMedia       MediaAsset?            @relation(fields: [imageMediaId], references: [id], onDelete: SetNull)
+  ingredientLinks  RecipeStepIngredient[]
+  dependsOnLinks   RecipeStepDependency[] @relation("StepDependsOn")
+  dependedByLinks  RecipeStepDependency[] @relation("StepDependedBy")
 
   @@index([recipeId, sortOrder])
+}
+
+model RecipeStepDependency {
+  stepId          String
+  dependsOnStepId String
+  step            RecipeStep @relation("StepDependsOn", fields: [stepId], references: [id], onDelete: Cascade)
+  dependsOn       RecipeStep @relation("StepDependedBy", fields: [dependsOnStepId], references: [id], onDelete: Cascade)
+
+  @@id([stepId, dependsOnStepId])
+  @@index([dependsOnStepId])
+}
+
+model RecipeStepIngredient {
+  recipeStepId       String
+  recipeIngredientId String
+  sortOrder          Int              @default(0)
+  step               RecipeStep       @relation(fields: [recipeStepId], references: [id], onDelete: Cascade)
+  ingredient         RecipeIngredient @relation(fields: [recipeIngredientId], references: [id], onDelete: Cascade)
+
+  @@id([recipeStepId, recipeIngredientId])
+  @@index([recipeIngredientId])
 }
 
 model RecipeGapAddition {

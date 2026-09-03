@@ -1,8 +1,18 @@
 "use client";
 
 import type { components } from "@moja-kuchnia/api-client";
-import { ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
-import { type FormEvent, useMemo, useState } from "react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Info,
+  Lightbulb,
+  ListOrdered,
+  Plus,
+  ShoppingBasket,
+  Trash2,
+  X,
+} from "lucide-react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { PendingImageField } from "@/components/media-image-field";
@@ -25,6 +35,7 @@ import {
   RECIPE_INGREDIENT_UNIT_LABELS,
   RECIPE_VISIBILITY_LABELS,
 } from "@/lib/recipe-labels";
+import { cn } from "@/lib/utils";
 
 type Product = components["schemas"]["ProductDto"];
 type RecipeDetail = components["schemas"]["RecipeDetailDto"];
@@ -78,8 +89,27 @@ type RecipeFormProps = {
   forceCreateMode?: boolean;
   submitLabel: string;
   pending?: boolean;
+  formId?: string;
+  hideSubmit?: boolean;
+  onDirtyChange?: (dirty: boolean) => void;
   onSubmit: (body: RecipeFormValues, media: RecipeFormMedia) => void;
 };
+
+const FORM_INPUT_CLASS =
+  "w-full rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm text-stone-800 shadow-[0_1px_2px_0_rgba(0,0,0,0.05)] transition-all placeholder:text-stone-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 focus:outline-none";
+
+function isHttpUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function normalizeTag(raw: string): string {
+  return raw.trim().replace(/\s+/g, " ");
+}
 
 function createIngredientDraft(
   partial?: Partial<IngredientDraft> & { key?: string },
@@ -128,8 +158,10 @@ function recipeToDraft(recipe: RecipeDetail): {
   prepTimeMinutes: string;
   cookTimeMinutes: string;
   difficulty: CreateRecipeDto["difficulty"];
-  tags: string;
+  tags: string[];
   visibility: CreateRecipeDto["visibility"];
+  sourceUrl: string;
+  sourceAuthor: string;
   categoryIds: string[];
   ingredientGroups: IngredientGroupDraft[];
   ingredients: IngredientDraft[];
@@ -149,8 +181,10 @@ function recipeToDraft(recipe: RecipeDetail): {
     cookTimeMinutes:
       recipe.cookTimeMinutes !== null ? String(recipe.cookTimeMinutes) : "",
     difficulty: recipe.difficulty,
-    tags: recipe.tags.join(", "),
+    tags: [...recipe.tags],
     visibility: recipe.visibility,
+    sourceUrl: recipe.sourceUrl ?? "",
+    sourceAuthor: recipe.sourceAuthor ?? "",
     categoryIds: (recipe.categories ?? []).map((category) => category.id),
     ingredientGroups: groups.map((group) =>
       createGroupDraft({ id: group.id, name: group.name }),
@@ -217,6 +251,9 @@ export function RecipeForm({
   forceCreateMode = false,
   submitLabel,
   pending,
+  formId = "recipe-form",
+  hideSubmit = false,
+  onDirtyChange,
   onSubmit,
 }: RecipeFormProps) {
   const initial = useMemo(
@@ -230,8 +267,10 @@ export function RecipeForm({
             prepTimeMinutes: "",
             cookTimeMinutes: "",
             difficulty: "easy" as const,
-            tags: "",
+            tags: [] as string[],
             visibility: "private" as const,
+            sourceUrl: "",
+            sourceAuthor: "",
             categoryIds: [] as string[],
             ingredientGroups: [] as IngredientGroupDraft[],
             ingredients: [createIngredientDraft()],
@@ -247,9 +286,12 @@ export function RecipeForm({
   const [cookTimeMinutes, setCookTimeMinutes] = useState(initial.cookTimeMinutes);
   const [difficulty, setDifficulty] =
     useState<CreateRecipeDto["difficulty"]>(initial.difficulty);
-  const [tags, setTags] = useState(initial.tags);
+  const [tags, setTags] = useState<string[]>(initial.tags);
+  const [tagDraft, setTagDraft] = useState("");
   const [visibility, setVisibility] =
     useState<NonNullable<CreateRecipeDto["visibility"]>>(initial.visibility);
+  const [sourceUrl, setSourceUrl] = useState(initial.sourceUrl);
+  const [sourceAuthor, setSourceAuthor] = useState(initial.sourceAuthor);
   const [categoryIds, setCategoryIds] = useState(initial.categoryIds);
   const [ingredientGroups, setIngredientGroups] = useState(
     initial.ingredientGroups,
@@ -258,9 +300,104 @@ export function RecipeForm({
   const [steps, setSteps] = useState(initial.steps);
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const recipeId = forceCreateMode ? undefined : initialRecipe?.id;
   const hasStepImages = steps.some((step) => step.image);
+
+  const isDirty = useMemo(() => {
+    return (
+      JSON.stringify({
+        name,
+        description,
+        servings,
+        prepTimeMinutes,
+        cookTimeMinutes,
+        difficulty,
+        tags,
+        visibility,
+        sourceUrl,
+        sourceAuthor,
+        categoryIds,
+        ingredientGroups,
+        ingredients,
+        steps: steps.map(({ pendingImageFile: pending, ...rest }) => ({
+          ...rest,
+          hasPending: Boolean(pending),
+        })),
+        coverFile: coverFile?.name ?? null,
+      }) !==
+      JSON.stringify({
+        name: initial.name,
+        description: initial.description,
+        servings: initial.servings,
+        prepTimeMinutes: initial.prepTimeMinutes,
+        cookTimeMinutes: initial.cookTimeMinutes,
+        difficulty: initial.difficulty,
+        tags: initial.tags,
+        visibility: initial.visibility,
+        sourceUrl: initial.sourceUrl,
+        sourceAuthor: initial.sourceAuthor,
+        categoryIds: initial.categoryIds,
+        ingredientGroups: initial.ingredientGroups,
+        ingredients: initial.ingredients,
+        steps: initial.steps.map(({ pendingImageFile: pending, ...rest }) => ({
+          ...rest,
+          hasPending: false,
+        })),
+        coverFile: null,
+      })
+    );
+  }, [
+    name,
+    description,
+    servings,
+    prepTimeMinutes,
+    cookTimeMinutes,
+    difficulty,
+    tags,
+    visibility,
+    sourceUrl,
+    sourceAuthor,
+    categoryIds,
+    ingredientGroups,
+    ingredients,
+    steps,
+    coverFile,
+    initial,
+  ]);
+
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
+
+  useEffect(() => {
+    if (!isDirty) {
+      return;
+    }
+    function onBeforeUnload(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [isDirty]);
+
+  function commitTagDraft() {
+    const next = normalizeTag(tagDraft);
+    if (!next) {
+      setTagDraft("");
+      return;
+    }
+    setTags((current) =>
+      current.some(
+        (tag) => tag.toLocaleLowerCase("pl") === next.toLocaleLowerCase("pl"),
+      )
+        ? current
+        : [...current, next],
+    );
+    setTagDraft("");
+  }
 
   const categoriesQuery = useQuery({
     queryKey: ["recipe-categories", kitchenId],
@@ -418,17 +555,14 @@ export function RecipeForm({
       return;
     }
 
-    const tagList = tags
-      .split(",")
-      .map((tag) => tag.trim())
-      .filter(Boolean);
+    const tagList = tags;
 
     const parseOptionalMinutes = (value: string): number | null | undefined => {
       const trimmed = value.trim();
       if (!trimmed) {
         return null;
       }
-      const parsed = Number(trimmed);
+      const parsed = Number(trimmed.replace(",", "."));
       if (!Number.isInteger(parsed) || parsed < 0) {
         return undefined;
       }
@@ -438,15 +572,27 @@ export function RecipeForm({
     const prep = parseOptionalMinutes(prepTimeMinutes);
     if (prep === undefined) {
       setFormError("Czas przygotowania musi być nieujemną liczbą całkowitą.");
+      setFieldErrors({ prepTimeMinutes: "Czas przygotowania musi być nieujemną liczbą całkowitą." });
       return;
     }
 
     const cook = parseOptionalMinutes(cookTimeMinutes);
     if (cook === undefined) {
       setFormError("Czas gotowania musi być nieujemną liczbą całkowitą.");
+      setFieldErrors({ cookTimeMinutes: "Czas gotowania musi być nieujemną liczbą całkowitą." });
       return;
     }
 
+    const sourceUrlTrimmed = sourceUrl.trim();
+    if (sourceUrlTrimmed && !isHttpUrl(sourceUrlTrimmed)) {
+      setFormError("Adres źródła musi zaczynać się od http:// lub https://.");
+      setFieldErrors({
+        sourceUrl: "Adres źródła musi zaczynać się od http:// lub https://.",
+      });
+      return;
+    }
+
+    setFieldErrors({});
     onSubmit(
       {
         name: name.trim(),
@@ -457,6 +603,8 @@ export function RecipeForm({
         difficulty,
         tags: tagList,
         visibility,
+        sourceUrl: sourceUrlTrimmed ? sourceUrlTrimmed : null,
+        sourceAuthor: sourceAuthor.trim() ? sourceAuthor.trim() : null,
         categoryIds,
         ingredientGroups: normalizedGroups,
         ingredients: normalizedIngredients,
@@ -467,12 +615,15 @@ export function RecipeForm({
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-8">
-      <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
-        <div className="border-b border-gray-100 px-5 py-4">
-          <h2 className="text-lg font-bold text-gray-900">Podstawowe informacje</h2>
+    <form id={formId} onSubmit={handleSubmit} className="mx-auto max-w-4xl space-y-8" noValidate>
+      <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)]">
+        <div className="flex items-center gap-2 border-b border-stone-100 bg-stone-50/50 px-5 py-4">
+          <Info className="text-emerald-500" size={22} aria-hidden />
+          <h2 className="font-[family-name:var(--font-serif)] text-xl font-semibold text-stone-900">
+            Podstawowe informacje
+          </h2>
         </div>
-        <div className="space-y-4 p-5">
+        <div className="space-y-4 p-5 lg:p-8">
           {recipeId ? (
             <RecipeCoverField
               kitchenId={kitchenId}
@@ -484,18 +635,26 @@ export function RecipeForm({
               file={coverFile}
               onFileSelected={setCoverFile}
               label="Okładka przepisu (opcjonalnie)"
-              size="wide"
+              size="cover"
+              pickLabel={coverFile ? "Zmień okładkę" : "Dodaj okładkę"}
               note="Zdjęcie wyślemy po utworzeniu przepisu."
             />
           )}
           <div className="space-y-2">
-            <Label htmlFor="recipe-name">Nazwa</Label>
+            <Label htmlFor="recipe-name">
+              Nazwa przepisu <span className="text-red-500">*</span>
+            </Label>
             <Input
               id="recipe-name"
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="np. Omlet z warzywami"
+              className={cn(FORM_INPUT_CLASS, fieldErrors.name && "border-red-400")}
+              aria-invalid={Boolean(fieldErrors.name)}
             />
+            {fieldErrors.name ? (
+              <p className="text-xs text-red-600" role="alert">{fieldErrors.name}</p>
+            ) : null}
           </div>
           <div className="space-y-2">
             <Label htmlFor="recipe-description">Opis</Label>
@@ -559,34 +718,94 @@ export function RecipeForm({
               </select>
             </div>
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 border-t border-stone-100 pt-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="recipe-tags">Tagi</Label>
-              <Input
-                id="recipe-tags"
-                value={tags}
-                onChange={(event) => setTags(event.target.value)}
-                placeholder="np. śniadanie, szybkie (oddziel przecinkami)"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="recipe-visibility">Widoczność</Label>
-              <select
-                id="recipe-visibility"
-                className="block w-full rounded-lg border border-gray-200 bg-white p-3 text-sm"
-                value={visibility}
-                onChange={(event) =>
-                  setVisibility(
-                    event.target.value as NonNullable<CreateRecipeDto["visibility"]>,
-                  )
-                }
-              >
-                {Object.entries(RECIPE_VISIBILITY_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
+              <Label htmlFor="recipe-tag-input">Tagi</Label>
+              <div className="flex min-h-[46px] flex-wrap items-center gap-2 rounded-xl border border-stone-200 bg-white px-3 py-2 shadow-[0_1px_2px_0_rgba(0,0,0,0.05)] focus-within:border-emerald-500 focus-within:ring-4 focus-within:ring-emerald-500/10">
+                {tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-stone-200 bg-stone-100 px-3 py-1 text-sm font-medium text-stone-700"
+                  >
+                    {tag}
+                    <button
+                      type="button"
+                      className="hover:text-red-500"
+                      aria-label={`Usuń tag ${tag}`}
+                      onClick={() =>
+                        setTags((current) => current.filter((entry) => entry !== tag))
+                      }
+                    >
+                      <X size={14} aria-hidden />
+                    </button>
+                  </span>
                 ))}
-              </select>
+                <input
+                  id="recipe-tag-input"
+                  value={tagDraft}
+                  onChange={(event) => setTagDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === ",") {
+                      event.preventDefault();
+                      commitTagDraft();
+                    }
+                  }}
+                  onBlur={commitTagDraft}
+                  className="min-w-[120px] flex-1 bg-transparent text-sm outline-none"
+                  placeholder="Wpisz tag i wciśnij Enter…"
+                />
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="recipe-visibility">Widoczność</Label>
+                <select
+                  id="recipe-visibility"
+                  className={FORM_INPUT_CLASS}
+                  value={visibility}
+                  onChange={(event) =>
+                    setVisibility(
+                      event.target.value as NonNullable<CreateRecipeDto["visibility"]>,
+                    )
+                  }
+                >
+                  {Object.entries(RECIPE_VISIBILITY_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="recipe-source-author">Nazwa źródła</Label>
+                <Input
+                  id="recipe-source-author"
+                  value={sourceAuthor}
+                  onChange={(event) => setSourceAuthor(event.target.value)}
+                  placeholder="Autor / źródło (opcjonalnie)"
+                  className={FORM_INPUT_CLASS}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="recipe-source-url">Adres źródłowy</Label>
+                <Input
+                  id="recipe-source-url"
+                  type="url"
+                  value={sourceUrl}
+                  onChange={(event) => setSourceUrl(event.target.value)}
+                  placeholder="https://…"
+                  className={cn(
+                    FORM_INPUT_CLASS,
+                    fieldErrors.sourceUrl && "border-red-400",
+                  )}
+                  aria-invalid={Boolean(fieldErrors.sourceUrl)}
+                />
+                {fieldErrors.sourceUrl ? (
+                  <p className="text-xs text-red-600" role="alert">
+                    {fieldErrors.sourceUrl}
+                  </p>
+                ) : null}
+              </div>
             </div>
           </div>
           <RecipeCategoryPicker
@@ -598,12 +817,15 @@ export function RecipeForm({
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-5 py-4">
+      <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)]">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-100 bg-stone-50/50 px-5 py-4">
           <div>
-            <h2 className="text-lg font-bold text-gray-900">Składniki</h2>
-            <p className="mt-0.5 text-xs text-gray-500">
-              Grupy są opcjonalne — prosty przepis może zostać bez nich.
+            <h2 className="font-[family-name:var(--font-serif)] flex items-center gap-2 text-xl font-semibold text-stone-900">
+              <ShoppingBasket className="text-emerald-500" size={22} aria-hidden />
+              Składniki
+            </h2>
+            <p className="mt-0.5 text-xs text-stone-500">
+              Przenieś wyżej/niżej albo przeciągnij. Grupy są opcjonalne.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -889,9 +1111,12 @@ export function RecipeForm({
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-3xl border border-gray-100 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
-          <h2 className="text-lg font-bold text-gray-900">Kroki</h2>
+      <section className="overflow-hidden rounded-2xl border border-stone-200 bg-white shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)]">
+        <div className="flex items-center justify-between border-b border-stone-100 bg-stone-50/50 px-5 py-4">
+          <h2 className="font-[family-name:var(--font-serif)] flex items-center gap-2 text-xl font-semibold text-stone-900">
+            <ListOrdered className="text-emerald-500" size={22} aria-hidden />
+            Kroki przygotowania
+          </h2>
           <Button
             type="button"
             size="sm"
@@ -1007,7 +1232,7 @@ export function RecipeForm({
                 className="block w-full rounded-lg border border-gray-200 bg-white p-3 text-sm whitespace-pre-wrap"
               />
               {step.showTip ? (
-                <div className="space-y-2 rounded-2xl border border-emerald-100 bg-emerald-50/40 p-3">
+                <div className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50/70 p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <Label htmlFor={`step-tip-${step.key}`}>Wskazówka</Label>
                     <Button
@@ -1059,7 +1284,7 @@ export function RecipeForm({
                     )
                   }
                 >
-                  <Plus size={14} className="mr-1" />
+                  <Lightbulb size={14} className="mr-1" />
                   Dodaj wskazówkę
                 </Button>
               )}
@@ -1099,9 +1324,15 @@ export function RecipeForm({
         </p>
       ) : null}
 
-      <Button type="submit" disabled={pending}>
-        {pending ? "Zapisywanie…" : submitLabel}
-      </Button>
+      {!hideSubmit ? (
+        <Button
+          type="submit"
+          disabled={pending}
+          className="rounded-xl bg-emerald-600 hover:bg-emerald-700"
+        >
+          {pending ? "Zapisywanie…" : submitLabel}
+        </Button>
+      ) : null}
     </form>
   );
 }

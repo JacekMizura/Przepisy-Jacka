@@ -1,14 +1,16 @@
 "use client";
 
 import type { components } from "@moja-kuchnia/api-client";
-import { ShieldAlert } from "lucide-react";
+import { ArrowLeft, Save, ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import { useCallback, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { AppShell } from "@/components/app-shell";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { RecipeForm, type RecipeFormValues } from "@/components/recipe-form";
-import { Button } from "@/components/ui/button";
+import { Toast } from "@/components/toast";
 import { createWebApiClient } from "@/lib/api";
 import { readApiError } from "@/lib/errors";
 
@@ -129,6 +131,23 @@ export default function EditRecipePage() {
   const recipeId = params.recipeId;
   const router = useRouter();
   const queryClient = useQueryClient();
+  const [dirty, setDirty] = useState(false);
+  const [leaveOpen, setLeaveOpen] = useState(false);
+  const [leaveHref, setLeaveHref] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+  const detailHref = `/kitchens/${kitchenId}/recipes/${recipeId}`;
+
+  const requestLeave = useCallback(
+    (href: string) => {
+      if (!dirty) {
+        router.push(href);
+        return;
+      }
+      setLeaveHref(href);
+      setLeaveOpen(true);
+    },
+    [dirty, router],
+  );
 
   const meQuery = useQuery({
     queryKey: ["me"],
@@ -203,12 +222,16 @@ export default function EditRecipePage() {
       return data;
     },
     onSuccess: (recipe) => {
+      setDirty(false);
+      setToast("Zapisano zmiany przepisu.");
       queryClient.invalidateQueries({ queryKey: ["recipes", kitchenId] });
       queryClient.invalidateQueries({
         queryKey: ["recipe", kitchenId, recipeId],
       });
       if (recipe) {
-        router.push(`/kitchens/${kitchenId}/recipes/${recipe.id}`);
+        window.setTimeout(() => {
+          router.push(`/kitchens/${kitchenId}/recipes/${recipe.id}`);
+        }, 400);
       }
     },
   });
@@ -232,68 +255,133 @@ export default function EditRecipePage() {
 
   return (
     <AppShell kitchenId={kitchenId}>
-      <div className="mx-auto max-w-5xl space-y-6 px-4 py-8 sm:px-6">
-        <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-              Edycja przepisu
-            </h1>
-            <p className="mt-2 text-gray-500">
-              Zmiany są widoczne dla osób, które mają dostęp do tego przepisu.
-              Okładka i zdjęcia kroków zapisują się od razu po wysłaniu.
-            </p>
-          </div>
-          <Link href={`/kitchens/${kitchenId}/recipes/${recipeId}`}>
-            <Button variant="outline">Anuluj</Button>
-          </Link>
-        </header>
-
-        {isLoading ? (
-          <div className="rounded-3xl border border-gray-100 bg-white p-12 text-center text-sm text-gray-500 shadow-sm">
-            Ładowanie przepisu…
-          </div>
-        ) : null}
-
-        {isError ? (
-          <div
-            className="rounded-3xl border border-red-100 bg-red-50 p-6 text-sm text-red-700"
-            role="alert"
-          >
-            {errorMessage}
-          </div>
-        ) : null}
-
-        {!isLoading && !isError && recipe && !isAuthor ? (
-          <div className="flex items-start gap-3 rounded-3xl border border-amber-100 bg-amber-50 p-6 text-sm text-amber-900">
-            <ShieldAlert size={20} className="mt-0.5 shrink-0" />
-            <div>
-              <p className="font-semibold">Brak uprawnień do edycji</p>
-              <p className="mt-1">
-                Ten przepis może edytować wyłącznie jego autor (
-                {recipe.author.name}).
+      <div className="-mx-4 -mt-4 bg-stone-100/80 sm:-mx-6 sm:-mt-6 lg:-mx-8 lg:-mt-8">
+        <header className="sticky top-0 z-40 flex h-16 items-center justify-between gap-3 border-b border-stone-200 bg-white/80 px-4 shadow-sm backdrop-blur-md sm:h-20 sm:px-6 lg:px-10">
+          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+            <button
+              type="button"
+              onClick={() => requestLeave(detailHref)}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-stone-50 text-stone-500 transition-colors hover:bg-stone-100 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
+              aria-label="Wróć do przepisu"
+            >
+              <ArrowLeft size={20} aria-hidden />
+            </button>
+            <div className="min-w-0">
+              <h1 className="truncate text-base font-semibold text-stone-900 sm:text-lg">
+                Edycja przepisu
+              </h1>
+              <p className="hidden text-xs text-stone-500 sm:block">
+                Uzupełnij dane przepisu, składniki i przygotowanie.
               </p>
             </div>
           </div>
-        ) : null}
-
-        {!isLoading && !isError && recipe && isAuthor ? (
-          <>
-            <RecipeForm
-              kitchenId={kitchenId}
-              products={productsQuery.data ?? []}
-              initialRecipe={recipe}
-              submitLabel="Zapisz zmiany"
-              pending={updateRecipe.isPending}
-              onSubmit={(body) => updateRecipe.mutate(body)}
-            />
-            {updateRecipe.isError ? (
-              <p className="text-sm text-red-600" role="alert">
-                {readApiError(updateRecipe.error)}
-              </p>
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={() => requestLeave(detailHref)}
+              className="rounded-xl px-3 py-2.5 text-sm font-medium text-stone-600 transition-colors hover:bg-stone-100 sm:px-4"
+            >
+              Anuluj
+            </button>
+            {isAuthor ? (
+              <button
+                type="submit"
+                form="recipe-edit-form"
+                disabled={updateRecipe.isPending || isLoading}
+                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)] transition-all hover:bg-emerald-700 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none disabled:opacity-60 sm:px-6"
+              >
+                <Save size={18} aria-hidden />
+                <span className="hidden sm:inline">
+                  {updateRecipe.isPending ? "Zapisywanie…" : "Zapisz zmiany"}
+                </span>
+                <span className="sm:hidden">
+                  {updateRecipe.isPending ? "…" : "Zapisz"}
+                </span>
+              </button>
             ) : null}
-          </>
-        ) : null}
+          </div>
+        </header>
+
+        <div className="px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          {isLoading ? (
+            <div className="mx-auto max-w-4xl rounded-2xl border border-stone-200 bg-white p-12 text-center text-sm text-stone-500 shadow-sm">
+              Ładowanie przepisu…
+            </div>
+          ) : null}
+
+          {isError ? (
+            <div
+              className="mx-auto max-w-4xl rounded-2xl border border-red-100 bg-red-50 p-6 text-sm text-red-700"
+              role="alert"
+            >
+              {errorMessage}
+            </div>
+          ) : null}
+
+          {!isLoading && !isError && recipe && !isAuthor ? (
+            <div className="mx-auto flex max-w-4xl items-start gap-3 rounded-2xl border border-amber-100 bg-amber-50 p-6 text-sm text-amber-900">
+              <ShieldAlert size={20} className="mt-0.5 shrink-0" />
+              <div>
+                <p className="font-semibold">Brak uprawnień do edycji</p>
+                <p className="mt-1">
+                  Ten przepis może edytować wyłącznie jego autor (
+                  {recipe.author.name}).
+                </p>
+                <Link
+                  href={detailHref}
+                  className="mt-3 inline-block text-sm font-medium text-amber-800 underline"
+                >
+                  Wróć do przepisu
+                </Link>
+              </div>
+            </div>
+          ) : null}
+
+          {!isLoading && !isError && recipe && isAuthor ? (
+            <>
+              <RecipeForm
+                formId="recipe-edit-form"
+                hideSubmit
+                kitchenId={kitchenId}
+                products={productsQuery.data ?? []}
+                initialRecipe={recipe}
+                submitLabel="Zapisz zmiany"
+                pending={updateRecipe.isPending}
+                onDirtyChange={setDirty}
+                onSubmit={(body) => updateRecipe.mutate(body)}
+              />
+              {updateRecipe.isError ? (
+                <p className="mx-auto mt-4 max-w-4xl text-sm text-red-600" role="alert">
+                  {readApiError(updateRecipe.error)}
+                </p>
+              ) : null}
+            </>
+          ) : null}
+        </div>
       </div>
+
+      {leaveOpen ? (
+        <ConfirmDialog
+          title="Niezapisane zmiany"
+          description="Masz niezapisane zmiany. Czy na pewno chcesz opuścić edycję?"
+          confirmLabel="Opuść edycję"
+          confirmVariant="amber"
+          onConfirm={() => {
+            const href = leaveHref ?? detailHref;
+            setLeaveOpen(false);
+            setDirty(false);
+            router.push(href);
+          }}
+          onCancel={() => {
+            setLeaveOpen(false);
+            setLeaveHref(null);
+          }}
+        />
+      ) : null}
+
+      {toast ? (
+        <Toast message={toast} onDismiss={() => setToast(null)} />
+      ) : null}
     </AppShell>
   );
 }

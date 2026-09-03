@@ -77,7 +77,9 @@ export function RecipeCoverField({
       target={{ recipeId }}
       currentImage={image}
       label="Okładka przepisu"
-      size="wide"
+      size="cover"
+      pickLabel={image ? "Zmień okładkę" : "Dodaj okładkę"}
+      hint="Przeciągnij zdjęcie lub kliknij. JPEG, PNG albo WebP, maks. 10 MB."
       onUploaded={async (mediaAssetId) => {
         await attach.mutateAsync(mediaAssetId);
       }}

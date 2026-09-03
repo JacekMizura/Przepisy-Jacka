@@ -301,7 +301,6 @@ export default function RecipeDetailPage() {
               prepTimeMinutes={recipe.prepTimeMinutes}
               cookTimeMinutes={recipe.cookTimeMinutes}
               difficulty={recipe.difficulty}
-              hasGaps={hasGaps}
               gapsPending={availabilityQuery.isPending}
               isAuthor={isAuthor}
               editHref={editHref}

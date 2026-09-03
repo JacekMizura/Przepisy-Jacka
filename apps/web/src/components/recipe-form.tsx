@@ -42,6 +42,7 @@ import {
   RECIPE_INGREDIENT_UNIT_LABELS,
   RECIPE_VISIBILITY_LABELS,
 } from "@/lib/recipe-labels";
+import { findDependencyCycle, formatDependsOnPreview } from "@/lib/prep-plan";
 import { cn } from "@/lib/utils";
 
 type Product = components["schemas"]["ProductDto"];
@@ -77,6 +78,10 @@ type StepDraft = {
   durationMinutes: string;
   /** Klucze składników formularza przypisane do kroku. */
   ingredientIds: string[];
+  activeWorkMinutes: string;
+  waitMinutes: string;
+  timerEnabled: boolean;
+  dependsOnKeys: string[];
   /** Ustawione tylko dla kroków już zapisanych w API — warunek wysyłki zdjęcia. */
   stepId?: string;
   image?: MediaImage | null;
@@ -157,6 +162,10 @@ function createStepDraft(partial?: Partial<StepDraft> & { key?: string }): StepD
     showTip: partial?.showTip ?? tip.trim().length > 0,
     durationMinutes: partial?.durationMinutes ?? "",
     ingredientIds: partial?.ingredientIds ? [...partial.ingredientIds] : [],
+    activeWorkMinutes: partial?.activeWorkMinutes ?? "",
+    waitMinutes: partial?.waitMinutes ?? "",
+    timerEnabled: partial?.timerEnabled ?? false,
+    dependsOnKeys: partial?.dependsOnKeys ? [...partial.dependsOnKeys] : [],
     ...(partial?.stepId ? { stepId: partial.stepId } : {}),
     ...(partial?.image !== undefined ? { image: partial.image } : {}),
   };
@@ -177,6 +186,7 @@ function recipeToDraft(recipe: RecipeDetail): {
   ingredientGroups: IngredientGroupDraft[];
   ingredients: IngredientDraft[];
   steps: StepDraft[];
+  preparationPlanEnabled: boolean;
 } {
   const detail = recipe;
   const groups = [...detail.ingredientGroups].sort(
@@ -197,6 +207,7 @@ function recipeToDraft(recipe: RecipeDetail): {
     sourceUrl: recipe.sourceUrl ?? "",
     sourceAuthor: recipe.sourceAuthor ?? "",
     categoryIds: (recipe.categories ?? []).map((category) => category.id),
+    preparationPlanEnabled: Boolean(recipe.preparationPlanEnabled),
     ingredientGroups: groups.map((group) =>
       createGroupDraft({ id: group.id, name: group.name }),
     ),
@@ -234,12 +245,38 @@ function recipeToDraft(recipe: RecipeDetail): {
                     ? String(step.durationMinutes)
                     : "",
                 ingredientIds: [...(step.ingredientIds ?? [])],
+                activeWorkMinutes:
+                  step.activeWorkMinutes !== null
+                    ? String(step.activeWorkMinutes)
+                    : "",
+                waitMinutes:
+                  step.waitMinutes !== null ? String(step.waitMinutes) : "",
+                timerEnabled: Boolean(step.timerEnabled),
+                dependsOnKeys: [...(step.dependsOnStepIds ?? [])],
                 stepId: step.id,
                 image: step.image,
               }),
             )
         : [createStepDraft()],
   };
+}
+
+function parsePlanMinutes(
+  raw: string,
+  fieldId: string,
+  label: string,
+  fieldErrors: Record<string, string>,
+): number | null {
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return null;
+  }
+  const parsed = Number(trimmed.replace(",", "."));
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    fieldErrors[fieldId] = `${label} musi być dodatnią liczbą całkowitą (minuty).`;
+    return null;
+  }
+  return parsed;
 }
 
 function moveItem<T>(items: T[], index: number, direction: -1 | 1): T[] {
@@ -326,6 +363,7 @@ export function RecipeForm({
             ingredientGroups: [] as IngredientGroupDraft[],
             ingredients: [createIngredientDraft()],
             steps: [createStepDraft()],
+            preparationPlanEnabled: false,
           },
     [initialRecipe],
   );
@@ -349,6 +387,10 @@ export function RecipeForm({
   );
   const [ingredients, setIngredients] = useState(initial.ingredients);
   const [steps, setSteps] = useState(initial.steps);
+  const [preparationPlanEnabled, setPreparationPlanEnabled] = useState(
+    initial.preparationPlanEnabled,
+  );
+  const [planOpen, setPlanOpen] = useState(initial.preparationPlanEnabled);
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -390,11 +432,16 @@ export function RecipeForm({
           showTip: step.showTip,
           durationMinutes: step.durationMinutes,
           ingredientIds: step.ingredientIds,
+          activeWorkMinutes: step.activeWorkMinutes,
+          waitMinutes: step.waitMinutes,
+          timerEnabled: step.timerEnabled,
+          dependsOnKeys: step.dependsOnKeys,
           stepId: step.stepId,
           image: step.image,
           hasPending: Boolean(step.pendingImageFile),
         })),
         coverFile: coverFile?.name ?? null,
+        preparationPlanEnabled,
       }) !==
       JSON.stringify({
         name: initial.name,
@@ -418,11 +465,16 @@ export function RecipeForm({
           showTip: step.showTip,
           durationMinutes: step.durationMinutes,
           ingredientIds: step.ingredientIds,
+          activeWorkMinutes: step.activeWorkMinutes,
+          waitMinutes: step.waitMinutes,
+          timerEnabled: step.timerEnabled,
+          dependsOnKeys: step.dependsOnKeys,
           stepId: step.stepId,
           image: step.image,
           hasPending: false,
         })),
         coverFile: null,
+        preparationPlanEnabled: initial.preparationPlanEnabled,
       })
     );
   }, [
@@ -442,6 +494,7 @@ export function RecipeForm({
     steps,
     coverFile,
     initial,
+    preparationPlanEnabled,
   ]);
 
   useEffect(() => {
@@ -526,7 +579,12 @@ export function RecipeForm({
     } else if (deleteTarget.kind === "step") {
       setSteps((current) => {
         const next = current.filter((entry) => entry.key !== deleteTarget.key);
-        return next.length > 0 ? next : [createStepDraft()];
+        return (next.length > 0 ? next : [createStepDraft()]).map((step) => ({
+          ...step,
+          dependsOnKeys: step.dependsOnKeys.filter(
+            (key) => key !== deleteTarget.key,
+          ),
+        }));
       });
     } else {
       setIngredientGroups((current) =>
@@ -742,12 +800,43 @@ export function RecipeForm({
         ingredientIds: step.ingredientIds.filter((id) =>
           validIngredientKeys.has(id),
         ),
+        activeWorkMinutes: parsePlanMinutes(
+          step.activeWorkMinutes,
+          `step-work-${step.key}`,
+          `Czas pracy kroku ${index + 1}`,
+          nextFieldErrors,
+        ),
+        waitMinutes: parsePlanMinutes(
+          step.waitMinutes,
+          `step-wait-${step.key}`,
+          `Czas oczekiwania kroku ${index + 1}`,
+          nextFieldErrors,
+        ),
+        timerEnabled: step.timerEnabled,
+        dependsOnStepIds: step.dependsOnKeys.filter((key) =>
+          steps.some((entry) => entry.key === key && entry.instruction.trim()),
+        ),
       });
       stepFiles.push(step.pendingImageFile ?? null);
     }
 
     if (normalizedSteps.length === 0) {
       setFormError("Dodaj co najmniej jeden krok przygotowania.");
+    }
+
+    const cycle = findDependencyCycle(
+      normalizedSteps.flatMap((step) =>
+        (step.dependsOnStepIds ?? []).map((dependsOnStepId) => ({
+          stepId: step.id ?? "",
+          dependsOnStepId,
+        })),
+      ),
+    );
+    if (cycle) {
+      setFormError(
+        "Plan przygotowania zawiera cykl zależności pomiędzy krokami.",
+      );
+      return;
     }
 
     if (Object.keys(nextFieldErrors).length > 0) {
@@ -780,6 +869,7 @@ export function RecipeForm({
         ingredientGroups: normalizedGroups,
         ingredients: normalizedIngredients,
         steps: normalizedSteps,
+        preparationPlanEnabled,
       },
       { coverFile, stepFiles },
     );
@@ -1790,6 +1880,182 @@ export function RecipeForm({
             Dodaj kolejny krok
           </Button>
         </div>
+      </section>
+
+      <section className="overflow-hidden rounded-3xl border border-stone-200 bg-white shadow-sm">
+        <button
+          type="button"
+          className="flex w-full items-center justify-between px-5 py-4 text-left lg:px-8"
+          onClick={() => setPlanOpen((value) => !value)}
+          aria-expanded={planOpen}
+        >
+          <span>
+            <span className="block text-lg font-semibold text-stone-900">
+              Plan przygotowania
+            </span>
+            <span className="mt-1 block text-sm text-stone-500">
+              Opcjonalny tryb równoległy. Nie zmienia kolejności zwykłych kroków
+              ani Asystenta gotowania.
+            </span>
+          </span>
+          <span className="text-sm text-stone-400">
+            {planOpen ? "Zwiń" : "Rozwiń"}
+          </span>
+        </button>
+        {planOpen ? (
+          <div className="space-y-5 border-t border-stone-100 px-5 py-5 lg:px-8">
+            <label className="flex min-h-11 items-center gap-3 text-sm font-medium text-stone-800">
+              <input
+                type="checkbox"
+                className="h-5 w-5 rounded border-stone-300 text-emerald-600"
+                checked={preparationPlanEnabled}
+                onChange={(event) =>
+                  setPreparationPlanEnabled(event.target.checked)
+                }
+              />
+              Włącz nowoczesny tryb przygotowania
+            </label>
+            {steps.map((step, index) => {
+              const others = steps.filter((entry) => entry.key !== step.key);
+              const previewSteps = steps.map((entry, stepIndex) => ({
+                id: entry.key,
+                sortOrder: stepIndex,
+                title: entry.title,
+                instruction: entry.instruction,
+                activeWorkMinutes: null,
+                waitMinutes: null,
+                timerEnabled: false,
+                durationMinutes: null,
+                dependsOnStepIds: entry.dependsOnKeys,
+              }));
+              return (
+                <div
+                  key={step.key}
+                  className="rounded-2xl border border-stone-100 bg-stone-50/70 p-4"
+                >
+                  <p className="font-medium text-stone-900">
+                    Krok {index + 1}
+                    {step.title.trim() ? ` · ${step.title.trim()}` : ""}
+                  </p>
+                  <p className="mt-1 text-xs text-stone-500">
+                    {step.ingredientIds.length > 0
+                      ? `${step.ingredientIds.length} przypisane składniki`
+                      : "Brak przypisanych składników"}
+                    {" · "}
+                    {formatDependsOnPreview(step.dependsOnKeys, previewSteps)}
+                  </p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <label className="text-xs font-medium text-stone-600">
+                      Czas aktywnej pracy (min)
+                      <input
+                        value={step.activeWorkMinutes}
+                        onChange={(event) =>
+                          setSteps((current) =>
+                            current.map((entry) =>
+                              entry.key === step.key
+                                ? {
+                                    ...entry,
+                                    activeWorkMinutes: event.target.value,
+                                  }
+                                : entry,
+                            ),
+                          )
+                        }
+                        className={cn(FORM_INPUT_CLASS, "mt-1")}
+                        inputMode="numeric"
+                      />
+                    </label>
+                    <label className="text-xs font-medium text-stone-600">
+                      Czas oczekiwania (min)
+                      <input
+                        value={step.waitMinutes}
+                        onChange={(event) =>
+                          setSteps((current) =>
+                            current.map((entry) =>
+                              entry.key === step.key
+                                ? { ...entry, waitMinutes: event.target.value }
+                                : entry,
+                            ),
+                          )
+                        }
+                        className={cn(FORM_INPUT_CLASS, "mt-1")}
+                        inputMode="numeric"
+                      />
+                    </label>
+                  </div>
+                  <label className="mt-3 flex min-h-11 items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="h-5 w-5 rounded border-stone-300 text-emerald-600"
+                      checked={step.timerEnabled}
+                      onChange={(event) =>
+                        setSteps((current) =>
+                          current.map((entry) =>
+                            entry.key === step.key
+                              ? {
+                                  ...entry,
+                                  timerEnabled: event.target.checked,
+                                }
+                              : entry,
+                          ),
+                        )
+                      }
+                    />
+                    Timer
+                  </label>
+                  <fieldset className="mt-3">
+                    <legend className="text-xs font-medium text-stone-600">
+                      Ten krok można rozpocząć po ukończeniu
+                    </legend>
+                    <div className="mt-2 space-y-1">
+                      {others.length === 0 ? (
+                        <p className="text-xs text-stone-400">
+                          Brak innych kroków.
+                        </p>
+                      ) : (
+                        others.map((other, otherIndex) => {
+                          const checked = step.dependsOnKeys.includes(other.key);
+                          const label = other.title.trim() || `Krok ${
+                            steps.findIndex((entry) => entry.key === other.key) +
+                            1
+                          }`;
+                          return (
+                            <label
+                              key={other.key}
+                              className="flex min-h-11 items-center gap-2 text-sm"
+                            >
+                              <input
+                                type="checkbox"
+                                className="h-5 w-5 rounded border-stone-300 text-emerald-600"
+                                checked={checked}
+                                onChange={() =>
+                                  setSteps((current) =>
+                                    current.map((entry) => {
+                                      if (entry.key !== step.key) return entry;
+                                      const next = new Set(entry.dependsOnKeys);
+                                      if (next.has(other.key)) next.delete(other.key);
+                                      else next.add(other.key);
+                                      return {
+                                        ...entry,
+                                        dependsOnKeys: [...next],
+                                      };
+                                    }),
+                                  )
+                                }
+                              />
+                              {label}
+                              <span className="sr-only">{otherIndex}</span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  </fieldset>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
       </section>
 
       {formError ? (

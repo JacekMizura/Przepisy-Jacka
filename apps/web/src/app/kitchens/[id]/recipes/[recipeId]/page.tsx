@@ -291,6 +291,8 @@ export default function RecipeDetailPage() {
               sourceAuthor={recipe.sourceAuthor}
               isAuthor={isAuthor}
               editHref={editHref}
+              cookHref={`/kitchens/${kitchenId}/recipes/${recipeId}/cook`}
+              preparationPlanEnabled={Boolean(recipe.preparationPlanEnabled)}
               onBack={() => router.push(`/kitchens/${kitchenId}/recipes`)}
               onShare={() => void handleShare()}
               onDelete={() => setDeleteOpen(true)}
@@ -305,6 +307,8 @@ export default function RecipeDetailPage() {
               gapsPending={availabilityQuery.isPending}
               isAuthor={isAuthor}
               editHref={editHref}
+              cookHref={`/kitchens/${kitchenId}/recipes/${recipeId}/cook`}
+              preparationPlanEnabled={Boolean(recipe.preparationPlanEnabled)}
               onServingsDelta={adjustServings}
               onBuyGaps={handleBuyGaps}
             />

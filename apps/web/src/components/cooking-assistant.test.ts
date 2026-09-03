@@ -30,6 +30,8 @@ describe("cooking assistant", () => {
     assert.match(assistant, /Masz rozpoczęte gotowanie/);
     assert.doesNotMatch(assistant, /Babka ziemniaczana/);
     assert.doesNotMatch(assistant, /animate-ping/);
+    assert.doesNotMatch(assistant, /Tryb przygotowania/);
+    assert.doesNotMatch(assistant, /Uruchom tryb przygotowania/);
   });
 
   it("edit form can assign ingredients to steps", () => {

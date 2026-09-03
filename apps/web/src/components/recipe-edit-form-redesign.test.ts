@@ -48,6 +48,7 @@ describe("recipe edit form redesign", () => {
     assert.match(form, /focusFirstError/);
     assert.match(form, /ConfirmDialog/);
     assert.match(form, /Przypisz sk/);
+    assert.match(form, /Plan przygotowania/);
     assert.match(form, /RecipeStepIngredientPicker/);
   });
 

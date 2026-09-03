@@ -69,6 +69,29 @@ export function resetTimer(durationMinutes: number): CookingTimerState {
   };
 }
 
+export function changeTimerMinutes(
+  timer: CookingTimerState,
+  durationMinutes: number,
+  now: number,
+): CookingTimerState {
+  const minutes = Math.max(1, durationMinutes);
+  if (timer.endsAt !== null && timer.endsAt > now) {
+    return {
+      durationMinutes: minutes,
+      pausedRemainingMs: null,
+      endsAt: now + minutes * 60_000,
+    };
+  }
+  if (timer.pausedRemainingMs !== null) {
+    return {
+      durationMinutes: minutes,
+      endsAt: null,
+      pausedRemainingMs: minutes * 60_000,
+    };
+  }
+  return resetTimer(minutes);
+}
+
 export function formatCountdown(ms: number): string {
   const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
   const hours = Math.floor(totalSeconds / 3600);

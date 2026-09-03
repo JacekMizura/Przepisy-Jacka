@@ -42,6 +42,8 @@ type RecipeDetailHeroProps = {
   sourceAuthor: string | null;
   isAuthor: boolean;
   editHref: string;
+  cookHref: string;
+  preparationPlanEnabled: boolean;
   onBack: () => void;
   onShare: () => void;
   onDelete: () => void;
@@ -61,6 +63,8 @@ export function RecipeDetailHero({
   sourceAuthor,
   isAuthor,
   editHref,
+  cookHref,
+  preparationPlanEnabled,
   onBack,
   onShare,
   onDelete,
@@ -127,6 +131,8 @@ export function RecipeDetailHero({
           {isAuthor ? (
             <HeroMoreMenu
               editHref={editHref}
+              cookHref={cookHref}
+              preparationPlanEnabled={preparationPlanEnabled}
               onDelete={onDelete}
             />
           ) : null}
@@ -215,9 +221,13 @@ function authorInitials(name: string): string {
 
 function HeroMoreMenu({
   editHref,
+  cookHref,
+  preparationPlanEnabled,
   onDelete,
 }: {
   editHref: string;
+  cookHref: string;
+  preparationPlanEnabled: boolean;
   onDelete: () => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -298,6 +308,23 @@ function HeroMoreMenu({
                 <Pencil size={14} aria-hidden />
                 Edytuj
               </Link>
+              {preparationPlanEnabled ? (
+                <Link
+                  href={cookHref}
+                  role="menuitem"
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-stone-700 hover:bg-stone-50"
+                  onClick={() => setOpen(false)}
+                >
+                  Uruchom tryb przygotowania
+                </Link>
+              ) : (
+                <span
+                  role="menuitem"
+                  className="block px-3 py-2.5 text-xs text-stone-400"
+                >
+                  Ten przepis nie ma jeszcze planu przygotowania
+                </span>
+              )}
               <button
                 type="button"
                 role="menuitem"

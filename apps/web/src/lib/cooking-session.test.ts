@@ -14,6 +14,7 @@ import {
   resumeTimer,
   startTimer,
   timerRemainingMs,
+  changeTimerMinutes,
 } from "./cooking-timer.ts";
 
 describe("cooking-session", () => {
@@ -99,5 +100,11 @@ describe("cooking-timer", () => {
     const resumed = resumeTimer(paused, 100_000);
     assert.equal(resumed.endsAt, 145_000);
     assert.equal(timerRemainingMs(resumed, 100_000), 45_000);
+  });
+
+  it("changes duration from an absolute end time", () => {
+    const running = startTimer(5, 0);
+    const changed = changeTimerMinutes(running, 2, 10_000);
+    assert.equal(changed.endsAt, 130_000);
   });
 });

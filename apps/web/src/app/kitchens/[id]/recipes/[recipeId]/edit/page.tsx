@@ -101,7 +101,13 @@ function stepsUnchanged(
       (step.durationMinutes ?? null) === existing.durationMinutes &&
       step.sortOrder === existing.sortOrder &&
       JSON.stringify(step.ingredientIds ?? []) ===
-        JSON.stringify(existing.ingredientIds ?? [])
+        JSON.stringify(existing.ingredientIds ?? []) &&
+      (step.activeWorkMinutes ?? null) ===
+        (existing.activeWorkMinutes ?? null) &&
+      (step.waitMinutes ?? null) === (existing.waitMinutes ?? null) &&
+      Boolean(step.timerEnabled) === Boolean(existing.timerEnabled) &&
+      JSON.stringify(step.dependsOnStepIds ?? []) ===
+        JSON.stringify(existing.dependsOnStepIds ?? [])
     );
   });
 }

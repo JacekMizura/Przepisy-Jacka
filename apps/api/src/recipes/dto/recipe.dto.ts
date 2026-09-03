@@ -4,6 +4,7 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsBoolean,
   IsEnum,
   IsInt,
   IsOptional,
@@ -170,6 +171,48 @@ export class RecipeStepInputDto {
   @ArrayMaxSize(80)
   @IsUUID('4', { each: true })
   ingredientIds?: string[];
+
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    description:
+      'Szacowany czas aktywnej pracy w minucie (plan przygotowania).',
+  })
+  @IsOptional()
+  @ValidateIf(isPresentOptional)
+  @IsInt()
+  @Min(1)
+  activeWorkMinutes?: number | null;
+
+  @ApiPropertyOptional({
+    type: Number,
+    nullable: true,
+    description: 'Czas oczekiwania w minucie (np. pieczenie).',
+  })
+  @IsOptional()
+  @ValidateIf(isPresentOptional)
+  @IsInt()
+  @Min(1)
+  waitMinutes?: number | null;
+
+  @ApiPropertyOptional({
+    description: 'Czy krok ma timer w trybie przygotowania.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  timerEnabled?: boolean;
+
+  @ApiPropertyOptional({
+    type: [String],
+    format: 'uuid',
+    description:
+      'Kroki tego przepisu, które muszą się skończyć przed startem. Pusta tablica usuwa zależności. Brak pola przy edycji zachowuje dotychczasowe powiązania istniejącego kroku.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(80)
+  @IsUUID('4', { each: true })
+  dependsOnStepIds?: string[];
 }
 
 export class CreateRecipeDto {
@@ -293,6 +336,14 @@ export class CreateRecipeDto {
   @Type(() => RecipeIngredientInputDto)
   ingredients!: RecipeIngredientInputDto[];
 
+  @ApiPropertyOptional({
+    description:
+      'Włącza nowoczesny tryb przygotowania (/cook). Nie wynika z samego faktu posiadania zależności.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  preparationPlanEnabled?: boolean;
+
   @ApiProperty({ type: [RecipeStepInputDto] })
   @IsArray()
   @ArrayMinSize(1)
@@ -402,6 +453,13 @@ export class UpdateRecipeDto {
   @ValidateNested({ each: true })
   @Type(() => RecipeStepInputDto)
   steps?: RecipeStepInputDto[];
+
+  @ApiPropertyOptional({
+    description: 'Włącza nowoczesny tryb przygotowania (/cook).',
+  })
+  @IsOptional()
+  @IsBoolean()
+  preparationPlanEnabled?: boolean;
 }
 
 export class RecipeAuthorDto {
@@ -482,6 +540,22 @@ export class RecipeStepDto {
       'Składniki jawnie przypisane do tego kroku (kolejność zachowana).',
   })
   ingredientIds!: string[];
+
+  @ApiProperty({ type: Number, nullable: true })
+  activeWorkMinutes!: number | null;
+
+  @ApiProperty({ type: Number, nullable: true })
+  waitMinutes!: number | null;
+
+  @ApiProperty()
+  timerEnabled!: boolean;
+
+  @ApiProperty({
+    type: [String],
+    format: 'uuid',
+    description: 'Kroki, które muszą się skończyć przed startem tego kroku.',
+  })
+  dependsOnStepIds!: string[];
 }
 
 export class RecipeSummaryDto {
@@ -533,6 +607,11 @@ export class RecipeSummaryDto {
 
   @ApiProperty({ type: String, format: 'date-time' })
   updatedAt!: string;
+
+  @ApiProperty({
+    description: 'Czy przepis ma włączony nowoczesny tryb przygotowania.',
+  })
+  preparationPlanEnabled!: boolean;
 }
 
 export class RecipeDetailDto extends RecipeSummaryDto {

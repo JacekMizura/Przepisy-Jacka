@@ -172,7 +172,9 @@ describe('Recipes (e2e)', () => {
         body,
       },
     );
-    expect(response.status).toBe(201);
+    expect({ status: response.status, body: response.body }).toEqual(
+      expect.objectContaining({ status: 201 }),
+    );
     return response.body as RecipeRef;
   }
 
@@ -1351,10 +1353,10 @@ describe('Recipes (e2e)', () => {
   it('assigns ingredients to steps and drops links when the ingredient is removed', async () => {
     const owner = await signUpUser(api.origin, WEB_ORIGIN);
     const kitchen = await createKitchen(owner, 'Przypisania kroków');
-    const eggId = '11111111-1111-4111-8111-111111111111';
-    const oilId = '22222222-2222-4222-8222-222222222222';
-    const mixStepId = '33333333-3333-4333-8333-333333333333';
-    const fryStepId = '44444444-4444-4444-8444-444444444444';
+    const eggId = crypto.randomUUID();
+    const oilId = crypto.randomUUID();
+    const mixStepId = crypto.randomUUID();
+    const fryStepId = crypto.randomUUID();
 
     const recipe = await createRecipe(
       owner,
@@ -1475,5 +1477,107 @@ describe('Recipes (e2e)', () => {
     expect(after.ingredients.map((item) => item.id)).toEqual([eggId]);
     expect(after.steps).toHaveLength(1);
     expect(after.steps[0]?.ingredientIds).toEqual([eggId]);
+  });
+
+  it('stores parallel prep-plan dependencies and rejects cycles', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+    const kitchen = await createKitchen(owner, 'Plan przygotowania');
+    const ovenId = crypto.randomUUID();
+    const mixId = crypto.randomUUID();
+    const bakeId = crypto.randomUUID();
+
+    const recipe = await createRecipe(
+      owner,
+      kitchen.id,
+      sampleRecipeBody({
+        preparationPlanEnabled: true,
+        ingredients: [
+          {
+            name: 'Mąka',
+            quantity: '200.000',
+            unit: 'gram',
+            sortOrder: 0,
+          },
+        ],
+        steps: [
+          {
+            id: ovenId,
+            instruction: 'Rozgrzej piekarnik.',
+            sortOrder: 0,
+            waitMinutes: 15,
+            timerEnabled: true,
+          },
+          {
+            id: mixId,
+            instruction: 'Wymieszaj ciasto.',
+            sortOrder: 1,
+            activeWorkMinutes: 10,
+          },
+          {
+            id: bakeId,
+            instruction: 'Piecz.',
+            sortOrder: 2,
+            dependsOnStepIds: [ovenId, mixId],
+            waitMinutes: 40,
+            timerEnabled: true,
+          },
+        ],
+      }),
+    );
+
+    const created = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/${recipe.id}`,
+      { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
+    );
+    expect(created.status).toBe(200);
+    const body = created.body as {
+      preparationPlanEnabled: boolean;
+      steps: Array<{
+        id: string;
+        dependsOnStepIds: string[];
+        timerEnabled: boolean;
+        waitMinutes: number | null;
+      }>;
+    };
+    expect(body.preparationPlanEnabled).toBe(true);
+    expect(
+      body.steps.find((step) => step.id === bakeId)?.dependsOnStepIds.sort(),
+    ).toEqual([ovenId, mixId].sort());
+    expect(body.steps.find((step) => step.id === ovenId)?.timerEnabled).toBe(
+      true,
+    );
+
+    const cycle = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/${recipe.id}`,
+      {
+        method: 'PATCH',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          steps: [
+            {
+              id: ovenId,
+              instruction: 'Rozgrzej piekarnik.',
+              sortOrder: 0,
+              dependsOnStepIds: [bakeId],
+            },
+            {
+              id: mixId,
+              instruction: 'Wymieszaj ciasto.',
+              sortOrder: 1,
+            },
+            {
+              id: bakeId,
+              instruction: 'Piecz.',
+              sortOrder: 2,
+              dependsOnStepIds: [ovenId],
+            },
+          ],
+        },
+      },
+    );
+    expect(cycle.status).toBe(400);
   });
 });

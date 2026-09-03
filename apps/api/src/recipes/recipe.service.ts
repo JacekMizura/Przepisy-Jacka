@@ -45,6 +45,7 @@ import {
   RecipeSummaryDto,
   UpdateRecipeDto,
 } from './dto/recipe.dto';
+import { findDependencyCycle } from './step-dependency-graph';
 import {
   computeRecipeAvailability,
   convertRecipeQuantityToProductBase,
@@ -67,6 +68,7 @@ type RecipeStepWithMedia = RecipeStep & {
   ingredientLinks?: Array<
     Pick<RecipeStepIngredient, 'recipeIngredientId' | 'sortOrder'>
   >;
+  dependsOnLinks?: Array<{ dependsOnStepId: string }>;
 };
 
 type RecipeWithRelations = Recipe & {
@@ -223,6 +225,7 @@ export class RecipeService {
           sourceAuthor: normalizeOptionalText(dto.sourceAuthor),
           importedAt,
           importIdempotencyKey: dto.importIdempotencyKey ?? null,
+          preparationPlanEnabled: dto.preparationPlanEnabled ?? false,
           ingredientGroups: {
             create: groups.map((group) => toGroupCreateData(group)),
           },
@@ -251,6 +254,7 @@ export class RecipeService {
         created.steps,
         created.ingredients,
       );
+      await writeStepDependencies(tx, dto.steps, created.steps);
       return tx.recipe.findUniqueOrThrow({
         where: { id: created.id },
         include: recipeInclude,
@@ -392,6 +396,12 @@ export class RecipeService {
           persistedIngredients,
           existing.steps,
         );
+        await writeStepDependencies(
+          tx,
+          nextSteps,
+          persistedSteps,
+          existing.steps,
+        );
       }
 
       if (nextCategoryIds !== undefined) {
@@ -430,6 +440,10 @@ export class RecipeService {
             dto.sourceAuthor === undefined
               ? undefined
               : normalizeOptionalText(dto.sourceAuthor),
+          preparationPlanEnabled:
+            dto.preparationPlanEnabled === undefined
+              ? undefined
+              : dto.preparationPlanEnabled,
         },
         include: recipeInclude,
       });
@@ -899,6 +913,7 @@ const recipeInclude = {
     include: {
       imageMedia: true,
       ingredientLinks: { orderBy: { sortOrder: 'asc' as const } },
+      dependsOnLinks: true,
     },
   },
   coverMedia: true,
@@ -1044,6 +1059,7 @@ function validateRecipeStructure(
       }
     }
   }
+  validateStepDependencies(steps);
 }
 
 function assertUniqueIds(values: string[], label: string): void {
@@ -1427,6 +1443,9 @@ function toStepCreateData(step: RecipeStepInputDto) {
     instruction: step.instruction.trim(),
     tip: normalizeOptionalText(step.tip),
     durationMinutes: step.durationMinutes ?? null,
+    activeWorkMinutes: step.activeWorkMinutes ?? null,
+    waitMinutes: step.waitMinutes ?? null,
+    timerEnabled: step.timerEnabled ?? false,
     sortOrder: step.sortOrder,
   };
 }
@@ -1486,6 +1505,10 @@ function toStepInputFromEntity(step: RecipeStepWithMedia): RecipeStepInputDto {
     durationMinutes: step.durationMinutes,
     sortOrder: step.sortOrder,
     ingredientIds: stepIngredientIds(step),
+    activeWorkMinutes: step.activeWorkMinutes,
+    waitMinutes: step.waitMinutes,
+    timerEnabled: step.timerEnabled,
+    dependsOnStepIds: stepDependsOnIds(step),
   };
 }
 
@@ -1522,6 +1545,7 @@ function toRecipeSummaryDto(
     },
     createdAt: recipe.createdAt.toISOString(),
     updatedAt: recipe.updatedAt.toISOString(),
+    preparationPlanEnabled: recipe.preparationPlanEnabled,
   };
 }
 
@@ -1562,6 +1586,10 @@ function toRecipeDetailDto(
       sortOrder: step.sortOrder,
       image: stepImages.get(step.id) ?? null,
       ingredientIds: stepIngredientIds(step),
+      activeWorkMinutes: step.activeWorkMinutes,
+      waitMinutes: step.waitMinutes,
+      timerEnabled: step.timerEnabled,
+      dependsOnStepIds: stepDependsOnIds(step),
     })),
   };
 }
@@ -1629,6 +1657,99 @@ async function writeStepIngredientLinks(
     return;
   }
   await tx.recipeStepIngredient.createMany({ data: rows });
+}
+
+function stepDependsOnIds(step: RecipeStepWithMedia): string[] {
+  return uniqueIds(
+    (step.dependsOnLinks ?? []).map((link) => link.dependsOnStepId),
+  );
+}
+
+async function writeStepDependencies(
+  tx: Prisma.TransactionClient,
+  stepsInput: RecipeStepInputDto[],
+  persistedSteps: Array<{ id: string; sortOrder: number }>,
+  previousSteps: RecipeStepWithMedia[] = [],
+): Promise<void> {
+  const knownStepIds = new Set(persistedSteps.map((item) => item.id));
+  const previousById = new Map(previousSteps.map((step) => [step.id, step]));
+  const rows: Array<{ stepId: string; dependsOnStepId: string }> = [];
+
+  for (const input of stepsInput) {
+    const persisted =
+      (input.id
+        ? persistedSteps.find((step) => step.id === input.id)
+        : undefined) ??
+      persistedSteps.find((step) => step.sortOrder === input.sortOrder);
+    if (!persisted) {
+      continue;
+    }
+    const previous = previousById.get(persisted.id);
+    const dependsOnStepIds =
+      input.dependsOnStepIds !== undefined
+        ? uniqueIds(input.dependsOnStepIds)
+        : previous
+          ? stepDependsOnIds(previous)
+          : [];
+    for (const dependsOnStepId of dependsOnStepIds) {
+      if (!knownStepIds.has(dependsOnStepId)) {
+        throw new BadRequestException(
+          'Zależność kroku wskazuje krok spoza tego przepisu.',
+        );
+      }
+      if (dependsOnStepId === persisted.id) {
+        throw new BadRequestException(
+          'Krok nie może zależeć od samego siebie.',
+        );
+      }
+      rows.push({ stepId: persisted.id, dependsOnStepId });
+    }
+  }
+
+  if (rows.length === 0) {
+    return;
+  }
+  await tx.recipeStepDependency.createMany({ data: rows });
+}
+
+function validateStepDependencies(steps: RecipeStepInputDto[]): void {
+  const providedStepIds = steps
+    .map((step) => step.id)
+    .filter((id): id is string => Boolean(id));
+  const knownIds = new Set(providedStepIds);
+  const edges: Array<{ stepId: string; dependsOnStepId: string }> = [];
+
+  for (const step of steps) {
+    if (!step.dependsOnStepIds || step.dependsOnStepIds.length === 0) {
+      continue;
+    }
+    if (!step.id) {
+      throw new BadRequestException(
+        'Zależności kroku wymagają identyfikatora kroku.',
+      );
+    }
+    assertUniqueIds(step.dependsOnStepIds, 'zależności kroku');
+    for (const dependsOnStepId of step.dependsOnStepIds) {
+      if (dependsOnStepId === step.id) {
+        throw new BadRequestException(
+          'Krok nie może zależeć od samego siebie.',
+        );
+      }
+      if (!knownIds.has(dependsOnStepId)) {
+        throw new BadRequestException(
+          'Zależność kroku wskazuje krok spoza tego przepisu.',
+        );
+      }
+      edges.push({ stepId: step.id, dependsOnStepId });
+    }
+  }
+
+  const cycle = findDependencyCycle(edges);
+  if (cycle) {
+    throw new BadRequestException(
+      'Plan przygotowania zawiera cykl zależności pomiędzy krokami.',
+    );
+  }
 }
 
 function uniqueIds(values: string[]): string[] {

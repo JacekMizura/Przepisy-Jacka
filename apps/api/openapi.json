@@ -8028,6 +8028,14 @@
           "sortOrder": {
             "type": "number",
             "example": 0
+          },
+          "ingredientIds": {
+            "description": "Identyfikatory składników tego przepisu potrzebne w kroku. Pusta tablica usuwa przypisania. Brak pola przy edycji zachowuje dotychczasowe powiązania istniejącego kroku.",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         },
         "required": [
@@ -8249,6 +8257,14 @@
                 "$ref": "#/components/schemas/MediaImageDto"
               }
             ]
+          },
+          "ingredientIds": {
+            "description": "Składniki jawnie przypisane do tego kroku (kolejność zachowana).",
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
           }
         },
         "required": [
@@ -8258,7 +8274,8 @@
           "tip",
           "durationMinutes",
           "sortOrder",
-          "image"
+          "image",
+          "ingredientIds"
         ]
       },
       "RecipeDetailDto": {

@@ -29,6 +29,7 @@ import {
   RecipeCoverField,
   RecipeStepImageField,
 } from "@/components/recipe-media-fields";
+import { RecipeStepIngredientPicker } from "@/components/recipe-step-ingredient-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -74,6 +75,8 @@ type StepDraft = {
   tip: string;
   showTip: boolean;
   durationMinutes: string;
+  /** Klucze składników formularza przypisane do kroku. */
+  ingredientIds: string[];
   /** Ustawione tylko dla kroków już zapisanych w API — warunek wysyłki zdjęcia. */
   stepId?: string;
   image?: MediaImage | null;
@@ -120,9 +123,10 @@ function normalizeTag(raw: string): string {
 function createIngredientDraft(
   partial?: Partial<IngredientDraft> & { key?: string },
 ): IngredientDraft {
+  const id = partial?.id;
   return {
-    key: partial?.key ?? crypto.randomUUID(),
-    ...(partial?.id ? { id: partial.id } : {}),
+    key: partial?.key ?? id ?? crypto.randomUUID(),
+    ...(id ? { id } : {}),
     name: partial?.name ?? "",
     quantity: partial?.quantity ?? "",
     unit: partial?.unit ?? "piece",
@@ -152,6 +156,7 @@ function createStepDraft(partial?: Partial<StepDraft> & { key?: string }): StepD
     tip,
     showTip: partial?.showTip ?? tip.trim().length > 0,
     durationMinutes: partial?.durationMinutes ?? "",
+    ingredientIds: partial?.ingredientIds ? [...partial.ingredientIds] : [],
     ...(partial?.stepId ? { stepId: partial.stepId } : {}),
     ...(partial?.image !== undefined ? { image: partial.image } : {}),
   };
@@ -202,6 +207,7 @@ function recipeToDraft(recipe: RecipeDetail): {
             .sort((left, right) => left.sortOrder - right.sortOrder)
             .map((ingredient) =>
               createIngredientDraft({
+                key: ingredient.id,
                 id: ingredient.id,
                 name: ingredient.name,
                 quantity: formatQuantityNumber(ingredient.quantity ?? ""),
@@ -219,6 +225,7 @@ function recipeToDraft(recipe: RecipeDetail): {
             .sort((left, right) => left.sortOrder - right.sortOrder)
             .map((step) =>
               createStepDraft({
+                key: step.id,
                 title: step.title ?? "",
                 instruction: step.instruction,
                 tip: step.tip ?? "",
@@ -226,6 +233,7 @@ function recipeToDraft(recipe: RecipeDetail): {
                   step.durationMinutes !== null
                     ? String(step.durationMinutes)
                     : "",
+                ingredientIds: [...(step.ingredientIds ?? [])],
                 stepId: step.id,
                 image: step.image,
               }),
@@ -352,6 +360,7 @@ export function RecipeForm({
   >(null);
   const [dragIngredientKey, setDragIngredientKey] = useState<string | null>(null);
   const [dragStepKey, setDragStepKey] = useState<string | null>(null);
+  const [assigningStepKey, setAssigningStepKey] = useState<string | null>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
   const recipeId = forceCreateMode ? undefined : initialRecipe?.id;
@@ -380,6 +389,7 @@ export function RecipeForm({
           tip: step.tip,
           showTip: step.showTip,
           durationMinutes: step.durationMinutes,
+          ingredientIds: step.ingredientIds,
           stepId: step.stepId,
           image: step.image,
           hasPending: Boolean(step.pendingImageFile),
@@ -407,6 +417,7 @@ export function RecipeForm({
           tip: step.tip,
           showTip: step.showTip,
           durationMinutes: step.durationMinutes,
+          ingredientIds: step.ingredientIds,
           stepId: step.stepId,
           image: step.image,
           hasPending: false,
@@ -504,6 +515,14 @@ export function RecipeForm({
         const next = current.filter((entry) => entry.key !== deleteTarget.key);
         return next.length > 0 ? next : [createIngredientDraft()];
       });
+      setSteps((current) =>
+        current.map((step) => ({
+          ...step,
+          ingredientIds: step.ingredientIds.filter(
+            (id) => id !== deleteTarget.key,
+          ),
+        })),
+      );
     } else if (deleteTarget.kind === "step") {
       setSteps((current) => {
         const next = current.filter((entry) => entry.key !== deleteTarget.key);
@@ -530,6 +549,14 @@ export function RecipeForm({
         const next = current.filter((entry) => entry.key !== ingredient.key);
         return next.length > 0 ? next : [createIngredientDraft()];
       });
+      setSteps((current) =>
+        current.map((step) => ({
+          ...step,
+          ingredientIds: step.ingredientIds.filter(
+            (id) => id !== ingredient.key,
+          ),
+        })),
+      );
       return;
     }
     setDeleteTarget({ kind: "ingredient", key: ingredient.key });
@@ -644,6 +671,7 @@ export function RecipeForm({
           ? ingredient.groupId
           : null;
       const quantityTrimmed = ingredient.quantity.trim();
+      const ingredientId = ingredient.id ?? ingredient.key;
       if (quantityTrimmed) {
         const apiQty = toApiQuantityString(quantityTrimmed);
         if (!/^(?:0|[1-9]\d*)(?:\.\d{1,3})?$/.test(apiQty)) {
@@ -652,7 +680,7 @@ export function RecipeForm({
           continue;
         }
         normalizedIngredients.push({
-          ...(ingredient.id && !forceCreateMode ? { id: ingredient.id } : {}),
+          id: ingredientId,
           groupId,
           name: ingredient.name.trim(),
           quantity: apiQty,
@@ -663,7 +691,7 @@ export function RecipeForm({
         });
       } else {
         normalizedIngredients.push({
-          ...(ingredient.id && !forceCreateMode ? { id: ingredient.id } : {}),
+          id: ingredientId,
           groupId,
           name: ingredient.name.trim(),
           quantity: undefined,
@@ -681,6 +709,11 @@ export function RecipeForm({
 
     const normalizedSteps: CreateRecipeDto["steps"] = [];
     const stepFiles: Array<File | null> = [];
+    const validIngredientKeys = new Set(
+      normalizedIngredients
+        .map((ingredient) => ingredient.id)
+        .filter((id): id is string => Boolean(id)),
+    );
     for (let index = 0; index < steps.length; index++) {
       const step = steps[index];
       if (!step || !step.instruction.trim()) {
@@ -698,13 +731,17 @@ export function RecipeForm({
         durationMinutes = parsed;
       }
       const tipTrimmed = step.showTip ? step.tip.trim() : "";
+      const stepId = step.stepId ?? step.key;
       normalizedSteps.push({
-        ...(step.stepId && !forceCreateMode ? { id: step.stepId } : {}),
+        id: stepId,
         title: step.title.trim() || undefined,
         instruction: step.instruction.trim(),
         tip: tipTrimmed ? tipTrimmed : null,
         durationMinutes,
         sortOrder: normalizedSteps.length,
+        ingredientIds: step.ingredientIds.filter((id) =>
+          validIngredientKeys.has(id),
+        ),
       });
       stepFiles.push(step.pendingImageFile ?? null);
     }
@@ -1619,6 +1656,22 @@ export function RecipeForm({
                       />
                     </div>
 
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setAssigningStepKey(step.key)}
+                      >
+                        Przypisz składniki
+                      </Button>
+                      <span className="text-xs text-stone-500">
+                        {step.ingredientIds.length > 0
+                          ? `${step.ingredientIds.length} przypisane składniki`
+                          : "Brak przypisań"}
+                      </span>
+                    </div>
+
                     {step.showTip ? (
                       <div className="space-y-2 rounded-2xl border border-amber-200 bg-amber-50/70 p-4">
                         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1778,6 +1831,39 @@ export function RecipeForm({
         confirmLabel="Usuń"
         onConfirm={confirmDelete}
         onCancel={() => setDeleteTarget(null)}
+      />
+    ) : null}
+
+    {assigningStepKey ? (
+      <RecipeStepIngredientPicker
+        stepTitle={
+          steps.find((step) => step.key === assigningStepKey)?.title.trim() ||
+          "Krok bez tytułu"
+        }
+        ingredients={ingredients
+          .filter((ingredient) => ingredient.name.trim())
+          .map((ingredient) => ({
+            key: ingredient.key,
+            name: ingredient.name,
+            quantity: ingredient.quantity,
+            unit: ingredient.unit,
+            note: ingredient.note,
+          }))}
+        selectedKeys={
+          steps.find((step) => step.key === assigningStepKey)?.ingredientIds ??
+          []
+        }
+        onClose={() => setAssigningStepKey(null)}
+        onApply={(keys) => {
+          setSteps((current) =>
+            current.map((step) =>
+              step.key === assigningStepKey
+                ? { ...step, ingredientIds: keys }
+                : step,
+            ),
+          );
+          setAssigningStepKey(null);
+        }}
       />
     ) : null}
     </>

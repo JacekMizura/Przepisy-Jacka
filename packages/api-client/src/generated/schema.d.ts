@@ -2340,6 +2340,8 @@ export interface components {
             durationMinutes?: number | null;
             /** @example 0 */
             sortOrder: number;
+            /** @description Identyfikatory składników tego przepisu potrzebne w kroku. Pusta tablica usuwa przypisania. Brak pola przy edycji zachowuje dotychczasowe powiązania istniejącego kroku. */
+            ingredientIds?: string[];
         };
         CreateRecipeDto: {
             /** @example Makaron z sosem pomidorowym */
@@ -2409,6 +2411,8 @@ export interface components {
             durationMinutes: number | null;
             sortOrder: number;
             image: components["schemas"]["MediaImageDto"] | null;
+            /** @description Składniki jawnie przypisane do tego kroku (kolejność zachowana). */
+            ingredientIds: string[];
         };
         RecipeDetailDto: {
             id: string;

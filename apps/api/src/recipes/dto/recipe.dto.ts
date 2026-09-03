@@ -158,6 +158,18 @@ export class RecipeStepInputDto {
   @IsInt()
   @Min(0)
   sortOrder!: number;
+
+  @ApiPropertyOptional({
+    type: [String],
+    format: 'uuid',
+    description:
+      'Identyfikatory składników tego przepisu potrzebne w kroku. Pusta tablica usuwa przypisania. Brak pola przy edycji zachowuje dotychczasowe powiązania istniejącego kroku.',
+  })
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(80)
+  @IsUUID('4', { each: true })
+  ingredientIds?: string[];
 }
 
 export class CreateRecipeDto {
@@ -462,6 +474,13 @@ export class RecipeStepDto {
 
   @ApiProperty({ type: MediaImageDto, nullable: true })
   image!: MediaImageDto | null;
+
+  @ApiProperty({
+    type: [String],
+    format: 'uuid',
+    description: 'Składniki jawnie przypisane do tego kroku (kolejność zachowana).',
+  })
+  ingredientIds!: string[];
 }
 
 export class RecipeSummaryDto {

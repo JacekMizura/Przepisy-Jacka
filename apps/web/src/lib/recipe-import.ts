@@ -69,6 +69,7 @@ export function candidateToRecipeDetailDraft(
             durationMinutes: null,
             sortOrder: step.sortOrder,
             image: null,
+            ingredientIds: [],
           }))
         : [
             {
@@ -79,6 +80,7 @@ export function candidateToRecipeDetailDraft(
               durationMinutes: null,
               sortOrder: 0,
               image: null,
+              ingredientIds: [],
             },
           ],
   };

@@ -1347,4 +1347,133 @@ describe('Recipes (e2e)', () => {
     expect(body.nutrition.countedIngredients).toBe(2);
     expect(body.nutrition.recipe?.kcal).toBe('100.00');
   });
+
+  it('assigns ingredients to steps and drops links when the ingredient is removed', async () => {
+    const owner = await signUpUser(api.origin, WEB_ORIGIN);
+    const kitchen = await createKitchen(owner, 'Przypisania kroków');
+    const eggId = '11111111-1111-4111-8111-111111111111';
+    const oilId = '22222222-2222-4222-8222-222222222222';
+    const mixStepId = '33333333-3333-4333-8333-333333333333';
+    const fryStepId = '44444444-4444-4444-8444-444444444444';
+
+    const recipe = await createRecipe(
+      owner,
+      kitchen.id,
+      sampleRecipeBody({
+        ingredients: [
+          {
+            id: eggId,
+            name: 'Jajka',
+            quantity: '2.000',
+            unit: 'piece',
+            sortOrder: 0,
+          },
+          {
+            id: oilId,
+            name: 'Oliwa',
+            quantity: '1.000',
+            unit: 'tablespoon',
+            sortOrder: 1,
+          },
+        ],
+        steps: [
+          {
+            id: mixStepId,
+            instruction: 'Ubij jajka.',
+            sortOrder: 0,
+            ingredientIds: [eggId],
+          },
+          {
+            id: fryStepId,
+            instruction: 'Usmaż na patelni.',
+            sortOrder: 1,
+            ingredientIds: [eggId, oilId],
+          },
+        ],
+      }),
+    );
+
+    const created = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/${recipe.id}`,
+      { webOrigin: WEB_ORIGIN, cookies: owner.cookies },
+    );
+    expect(created.status).toBe(200);
+    const createdBody = created.body as {
+      steps: Array<{ id: string; ingredientIds: string[] }>;
+    };
+    expect(
+      createdBody.steps.find((step) => step.id === mixStepId)?.ingredientIds,
+    ).toEqual([eggId]);
+    expect(
+      createdBody.steps.find((step) => step.id === fryStepId)?.ingredientIds,
+    ).toEqual([eggId, oilId]);
+
+    const foreignDenied = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/${recipe.id}`,
+      {
+        method: 'PATCH',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          ingredients: [
+            {
+              id: eggId,
+              name: 'Jajka',
+              quantity: '2.000',
+              unit: 'piece',
+              sortOrder: 0,
+            },
+          ],
+          steps: [
+            {
+              id: mixStepId,
+              instruction: 'Ubij jajka.',
+              sortOrder: 0,
+              ingredientIds: [eggId, oilId],
+            },
+          ],
+        },
+      },
+    );
+    expect(foreignDenied.status).toBe(400);
+
+    const removed = await apiFetch(
+      api.origin,
+      `/api/kitchens/${kitchen.id}/recipes/${recipe.id}`,
+      {
+        method: 'PATCH',
+        webOrigin: WEB_ORIGIN,
+        cookies: owner.cookies,
+        body: {
+          ingredients: [
+            {
+              id: eggId,
+              name: 'Jajka',
+              quantity: '2.000',
+              unit: 'piece',
+              sortOrder: 0,
+            },
+          ],
+          steps: [
+            {
+              id: mixStepId,
+              instruction: 'Ubij jajka.',
+              sortOrder: 0,
+              ingredientIds: [eggId],
+            },
+          ],
+        },
+      },
+    );
+    expect(removed.status).toBe(200);
+    const after = removed.body as {
+      ingredients: Array<{ id: string }>;
+      steps: Array<{ id: string; ingredientIds: string[] }>;
+    };
+    expect(after.ingredients.map((item) => item.id)).toEqual([eggId]);
+    expect(after.steps).toHaveLength(1);
+    expect(after.steps[0]?.ingredientIds).toEqual([eggId]);
+  });
 });

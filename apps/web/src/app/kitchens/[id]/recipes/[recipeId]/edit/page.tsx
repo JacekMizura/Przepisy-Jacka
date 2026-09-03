@@ -99,7 +99,9 @@ function stepsUnchanged(
       step.instruction === existing.instruction &&
       (step.tip ?? null) === existing.tip &&
       (step.durationMinutes ?? null) === existing.durationMinutes &&
-      step.sortOrder === existing.sortOrder
+      step.sortOrder === existing.sortOrder &&
+      JSON.stringify(step.ingredientIds ?? []) ===
+        JSON.stringify(existing.ingredientIds ?? [])
     );
   });
 }

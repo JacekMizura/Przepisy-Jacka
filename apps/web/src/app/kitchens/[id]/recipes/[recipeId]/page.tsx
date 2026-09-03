@@ -6,9 +6,9 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { AddRecipeGapsDialog } from "@/components/add-recipe-gaps-dialog";
 import { AppShell } from "@/components/app-shell";
 import { ConfirmDialog } from "@/components/confirm-dialog";
+import { CookingAssistant } from "@/components/cooking-assistant";
 import { ImageLightbox } from "@/components/image-lightbox";
 import { RecipeDetailHero } from "@/components/recipe-detail-hero";
 import { RecipeDetailMeta } from "@/components/recipe-detail-meta";
@@ -16,6 +16,7 @@ import { RecipeEstimatePanel } from "@/components/recipe-estimate-panel";
 import { RecipeIngredientsPanel } from "@/components/recipe-ingredients-panel";
 import { RecipeStepsEditorial } from "@/components/recipe-steps-editorial";
 import { Toast } from "@/components/toast";
+import { AddRecipeGapsDialog } from "@/components/add-recipe-gaps-dialog";
 import { createWebApiClient } from "@/lib/api";
 import { readApiError } from "@/lib/errors";
 import { mediaDisplayUrl } from "@/lib/media-upload";
@@ -341,6 +342,26 @@ export default function RecipeDetailPage() {
                 </div>
               </div>
             </div>
+
+            {meQuery.data?.id && recipe.steps.length > 0 ? (
+              <CookingAssistant
+                userId={meQuery.data.id}
+                kitchenId={kitchenId}
+                recipeId={recipeId}
+                recipeUpdatedAt={recipe.updatedAt}
+                recipeName={recipe.name}
+                steps={recipe.steps}
+                ingredients={recipe.ingredients}
+                servings={activeServings}
+                onServingsDelta={adjustServings}
+                completedStepIds={doneSteps}
+                onCompletedStepIdsChange={setDoneSteps}
+                checkedIngredientIds={checkedIngredients}
+                onCheckedIngredientIdsChange={setCheckedIngredients}
+                availabilityByIngredientId={availabilityByIngredientId}
+                onPreviewImage={(src, alt) => setPreview({ src, alt })}
+              />
+            ) : null}
           </>
         ) : null}
 

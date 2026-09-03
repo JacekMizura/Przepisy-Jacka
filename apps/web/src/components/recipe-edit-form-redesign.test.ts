@@ -47,6 +47,8 @@ describe("recipe edit form redesign", () => {
     assert.match(form, /requestRemoveIngredient/);
     assert.match(form, /focusFirstError/);
     assert.match(form, /ConfirmDialog/);
+    assert.match(form, /Przypisz sk/);
+    assert.match(form, /RecipeStepIngredientPicker/);
   });
 
   it("product link searches name brand ean and distinguishes states", () => {

@@ -37,6 +37,7 @@
   --color-amber-foreground: var(--amber-foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-serif: ui-serif, Georgia, "Times New Roman", Times, serif;
 }
 
 body {
@@ -56,6 +57,25 @@ body {
 
 .animate-in {
   animation: fade-in 0.35s ease-out both;
+}
+
+.recipe-detail .font-serif {
+  font-family: var(--font-serif);
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.recipe-ingredient-checkbox:checked {
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 16 16' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M4 8.5L6.5 11L12 5' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-size: 14px 14px;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 @keyframes auth-panel-in {

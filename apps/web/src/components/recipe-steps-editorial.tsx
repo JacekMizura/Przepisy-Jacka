@@ -1,6 +1,7 @@
 "use client";
 
 import type { components } from "@moja-kuchnia/api-client";
+import { Lightbulb } from "lucide-react";
 import { useMemo } from "react";
 
 import { formatRecipeTime } from "@/lib/recipe-labels";
@@ -29,109 +30,145 @@ export function RecipeStepsEditorial({
 
   const doneCount = sorted.filter((step) => doneStepIds.has(step.id)).length;
 
-  return (
-    <section>
-      <div className="mb-6 flex flex-wrap items-end justify-between gap-3 border-b border-stone-200/80 pb-4">
-        <div>
-          <h2 className="font-serif text-2xl tracking-tight text-stone-900">
-            Przygotowanie
-          </h2>
-          <p className="mt-1 text-sm text-stone-500">
-            Kroki w kolejności — odznaczaj w miarę gotowania.
-          </p>
-        </div>
-        <p className="recipe-print-hide text-sm font-medium text-emerald-800">
-          {doneCount} / {sorted.length} wykonane
+  if (sorted.length === 0) {
+    return (
+      <section data-testid="recipe-steps-empty">
+        <h2 className="font-serif mb-4 text-2xl font-semibold text-stone-900">
+          Sposób przygotowania
+        </h2>
+        <p className="rounded-2xl border border-stone-200 bg-white p-6 text-sm text-stone-500 shadow-[0_4px_20px_-2px_rgba(0,0,0,0.05)]">
+          Ten przepis nie ma jeszcze zapisanych kroków.
         </p>
+      </section>
+    );
+  }
+
+  return (
+    <section data-testid="recipe-steps-panel">
+      <div className="mb-6 flex items-center justify-between gap-3">
+        <h2 className="font-serif text-2xl font-semibold text-stone-900">
+          Sposób przygotowania
+        </h2>
+        <div className="recipe-print-hide rounded-full border border-stone-200 bg-stone-100 px-4 py-1.5 text-sm font-medium text-stone-600">
+          <span className="font-bold text-emerald-600">{doneCount}</span>
+          {" / "}
+          {sorted.length} wykonane
+        </div>
       </div>
 
-      <ol className="space-y-10">
+      <ol className="space-y-6">
         {sorted.map((step, index) => {
           const done = doneStepIds.has(step.id);
           const stepImageUrl = mediaDisplayUrl(step.image);
           const tip = step.tip?.trim() ?? "";
-          const heading = step.title
-            ? `Krok ${index + 1} · ${step.title}`
-            : `Krok ${index + 1}`;
+          const title =
+            step.title?.trim() || `Krok ${index + 1}`;
+          const isLast = index === sorted.length - 1;
+          const checkboxId = `step-${step.id}`;
 
           return (
             <li
               key={step.id}
               className={cn(
-                "scroll-mt-8",
-                done && "opacity-80",
+                "group relative flex gap-4 overflow-hidden rounded-2xl border border-stone-200 bg-white p-5 transition-all duration-200 sm:gap-6 sm:p-8",
+                "hover:-translate-y-0.5 hover:shadow-[0_10px_25px_-5px_rgba(0,0,0,0.1)]",
+                done && "opacity-70",
               )}
             >
-              <div className="mb-3 flex items-start gap-3">
-                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-800 text-sm font-semibold text-emerald-50">
+              <div className="flex shrink-0 flex-col items-center gap-3">
+                <div
+                  className={cn(
+                    "flex h-10 w-10 items-center justify-center rounded-full border text-lg font-bold transition-colors duration-300",
+                    done
+                      ? "border-emerald-600 bg-emerald-600 text-white"
+                      : "border-emerald-200 bg-emerald-100 text-emerald-700 group-hover:border-emerald-600 group-hover:bg-emerald-600 group-hover:text-white",
+                  )}
+                >
                   {index + 1}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
+                </div>
+                {!isLast ? (
+                  <div
+                    className="w-px flex-1 bg-stone-100 transition-colors group-hover:bg-emerald-100"
+                    aria-hidden
+                  />
+                ) : null}
+              </div>
+
+              <div className="min-w-0 flex-1 pb-2">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
                     <h3
                       className={cn(
-                        "font-serif text-xl leading-snug text-stone-900 sm:text-[1.35rem]",
+                        "text-lg font-semibold text-stone-900 sm:text-xl",
                         done && "text-stone-500 line-through",
                       )}
                     >
-                      {heading}
+                      {title}
                     </h3>
-                    <label className="recipe-print-hide inline-flex cursor-pointer items-center gap-2 text-sm text-stone-600">
-                      <input
-                        type="checkbox"
-                        checked={done}
-                        onChange={() => onToggleStep(step.id)}
-                        aria-label={`${heading} wykonany`}
-                        className="h-5 w-5 rounded border-stone-300 text-emerald-700 focus:ring-emerald-600"
-                      />
-                      Zrobione
-                    </label>
+                    {step.durationMinutes ? (
+                      <p className="mt-1 text-xs font-medium tracking-wide text-emerald-700 uppercase">
+                        {formatRecipeTime(step.durationMinutes)}
+                      </p>
+                    ) : null}
                   </div>
-                  {step.durationMinutes ? (
-                    <p className="mt-1 text-xs font-medium tracking-wide text-emerald-800 uppercase">
-                      {formatRecipeTime(step.durationMinutes)}
-                    </p>
-                  ) : null}
+                  <label
+                    htmlFor={checkboxId}
+                    className="recipe-print-hide inline-flex cursor-pointer items-center gap-2 rounded-lg border border-stone-200 bg-stone-50 px-3 py-1.5 transition-colors hover:bg-stone-100"
+                  >
+                    <input
+                      id={checkboxId}
+                      type="checkbox"
+                      checked={done}
+                      onChange={() => onToggleStep(step.id)}
+                      className="h-5 w-5 cursor-pointer appearance-none rounded-md border-2 border-stone-300 bg-white checked:border-emerald-500 checked:bg-emerald-500 focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:outline-none"
+                    />
+                    <span className="hidden text-xs font-medium text-stone-600 sm:inline sm:text-sm">
+                      Gotowe
+                    </span>
+                  </label>
                 </div>
-              </div>
 
-              <div className="space-y-4 sm:pl-12">
-                <p
+                <div
                   className={cn(
-                    "max-w-prose whitespace-pre-wrap text-[15px] leading-7 text-stone-700 sm:text-base sm:leading-8",
-                    done && "text-stone-500",
+                    stepImageUrl
+                      ? "mb-4 grid grid-cols-1 gap-4 sm:grid-cols-2"
+                      : "",
                   )}
                 >
-                  {step.instruction}
-                </p>
+                  <div
+                    className={cn(
+                      "max-w-none text-sm leading-loose whitespace-pre-wrap text-stone-600 sm:text-base",
+                      done && "text-stone-400",
+                    )}
+                  >
+                    {step.instruction}
+                  </div>
+                  {stepImageUrl ? (
+                    <button
+                      type="button"
+                      className="h-32 overflow-hidden rounded-xl border border-stone-200 sm:h-auto sm:min-h-[10rem]"
+                      onClick={() => onPreview(stepImageUrl, title)}
+                      aria-label={`Powiększ zdjęcie: ${title}`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={stepImageUrl}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    </button>
+                  ) : null}
+                </div>
 
                 {tip ? (
-                  <aside className="max-w-prose rounded-2xl border border-emerald-200/70 bg-emerald-50/50 px-4 py-3">
-                    <p className="text-xs font-semibold tracking-wide text-emerald-800 uppercase">
-                      Wskazówka
-                    </p>
-                    <p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-stone-700">
-                      {tip}
-                    </p>
-                  </aside>
-                ) : null}
-
-                {stepImageUrl ? (
-                  <button
-                    type="button"
-                    className="block w-full overflow-hidden bg-stone-100 text-left"
-                    onClick={() =>
-                      onPreview(stepImageUrl, heading)
-                    }
-                    aria-label={`Powiększ zdjęcie: ${heading}`}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element -- podpisane URL-e magazynu zdjęć */}
-                    <img
-                      src={stepImageUrl}
-                      alt=""
-                      className="max-h-[28rem] w-full object-cover"
+                  <p className="mt-2 flex items-start gap-2 rounded-lg border border-emerald-100 bg-emerald-50 p-3 text-sm leading-relaxed font-medium text-emerald-800">
+                    <Lightbulb
+                      size={16}
+                      className="mt-0.5 shrink-0"
+                      aria-hidden
                     />
-                  </button>
+                    <span className="whitespace-pre-wrap">{tip}</span>
+                  </p>
                 ) : null}
               </div>
             </li>

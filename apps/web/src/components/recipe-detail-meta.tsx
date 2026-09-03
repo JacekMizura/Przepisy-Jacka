@@ -137,7 +137,7 @@ export function RecipeDetailMeta({
             data-testid="recipe-buy-gaps"
           >
             <ShoppingCart size={18} aria-hidden />
-            <span>{hasGaps ? "Kup braki" : "Kup braki"}</span>
+            <span>Kup braki</span>
           </button>
           {isAuthor ? (
             <Link

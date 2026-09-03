@@ -16,7 +16,6 @@ type RecipeDetailMetaProps = {
   prepTimeMinutes: number | null;
   cookTimeMinutes: number | null;
   difficulty: Difficulty;
-  hasGaps: boolean;
   gapsPending?: boolean;
   isAuthor: boolean;
   editHref: string;
@@ -35,7 +34,6 @@ export function RecipeDetailMeta({
   prepTimeMinutes,
   cookTimeMinutes,
   difficulty,
-  hasGaps,
   gapsPending,
   isAuthor,
   editHref,

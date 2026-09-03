@@ -2042,11 +2042,17 @@ export interface components {
             purchaseOptionId: string | null;
             packageCount: number | null;
             purchaseOption?: components["schemas"]["PurchaseOptionSummaryDto"] | null;
-            /** Szacunek w groszach na podstawie ostatniej ceny zakupu produktu. */
+            /** @description Szacunek w groszach na podstawie ostatniej ceny zakupu produktu (skalowany do pozycji). */
             estimatedPriceMinor?: number | null;
-            /** Suma aktywnego zapasu produktu w defaultUnit. */
+            /**
+             * @description Suma aktywnego zapasu produktu w defaultUnit (null gdy brak produktu lub zero).
+             * @example 250.000
+             */
             stockQuantity?: string | null;
-            /** Jednostka stockQuantity (defaultUnit produktu). */
+            /**
+             * @description Jednostka stockQuantity (defaultUnit produktu).
+             * @enum {string|null}
+             */
             stockUnit?: "piece" | "gram" | "milliliter" | null;
         };
         CreateShoppingListItemDto: {

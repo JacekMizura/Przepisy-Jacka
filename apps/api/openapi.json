@@ -6995,6 +6995,27 @@
                 "$ref": "#/components/schemas/PurchaseOptionSummaryDto"
               }
             ]
+          },
+          "estimatedPriceMinor": {
+            "type": "number",
+            "nullable": true,
+            "description": "Szacunek w groszach na podstawie ostatniej ceny zakupu produktu (skalowany do pozycji)."
+          },
+          "stockQuantity": {
+            "type": "string",
+            "nullable": true,
+            "example": "250.000",
+            "description": "Suma aktywnego zapasu produktu w defaultUnit (null gdy brak produktu lub zero)."
+          },
+          "stockUnit": {
+            "type": "string",
+            "enum": [
+              "piece",
+              "gram",
+              "milliliter"
+            ],
+            "nullable": true,
+            "description": "Jednostka stockQuantity (defaultUnit produktu)."
           }
         },
         "required": [

@@ -64,7 +64,9 @@ import {
 
 type RecipeStepWithMedia = RecipeStep & {
   imageMedia?: MediaAsset | null;
-  ingredientLinks?: Array<Pick<RecipeStepIngredient, 'recipeIngredientId' | 'sortOrder'>>;
+  ingredientLinks?: Array<
+    Pick<RecipeStepIngredient, 'recipeIngredientId' | 'sortOrder'>
+  >;
 };
 
 type RecipeWithRelations = Recipe & {
@@ -1578,7 +1580,9 @@ async function writeStepIngredientLinks(
   persistedIngredients: Array<{ id: string }>,
   previousSteps: RecipeStepWithMedia[] = [],
 ): Promise<void> {
-  const knownIngredientIds = new Set(persistedIngredients.map((item) => item.id));
+  const knownIngredientIds = new Set(
+    persistedIngredients.map((item) => item.id),
+  );
   for (const ingredient of ingredientsInput) {
     if (ingredient.id) {
       knownIngredientIds.add(ingredient.id);

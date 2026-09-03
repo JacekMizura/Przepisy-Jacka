@@ -478,7 +478,8 @@ export class RecipeStepDto {
   @ApiProperty({
     type: [String],
     format: 'uuid',
-    description: 'Składniki jawnie przypisane do tego kroku (kolejność zachowana).',
+    description:
+      'Składniki jawnie przypisane do tego kroku (kolejność zachowana).',
   })
   ingredientIds!: string[];
 }
